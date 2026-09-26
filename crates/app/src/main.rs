@@ -58,26 +58,36 @@ fn log_file_path() -> Option<std::path::PathBuf> {
     Some(dir.join(name))
 }
 
-/// `RUST_LOG` filters as usual (default `info`). Output goes to the log file and to stderr; the
-/// latter only shows up when a console is attached.
+/// `RUST_LOG` takes `level` and `target=level` directives, e.g. `pecofence=debug` (default
+/// `info`). `Targets` instead of `EnvFilter` keeps the regex engine out of the binary; span and
+/// field filters are not supported. Output goes to the log file and to stderr; the latter only
+/// shows up when a console is attached.
 fn init_logging() {
+    use tracing_subscriber::filter::Targets;
     use tracing_subscriber::fmt::writer::MakeWriterExt;
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    use tracing_subscriber::prelude::*;
+    let filter = std::env::var("RUST_LOG")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .and_then(|s| s.parse::<Targets>().ok())
+        .unwrap_or_else(|| Targets::new().with_default(tracing::Level::INFO));
     let file = log_file_path().and_then(|p| std::fs::File::create(p).ok());
     match file {
         Some(file) => {
             let file = std::sync::Mutex::new(file);
-            tracing_subscriber::fmt()
-                .with_env_filter(filter)
-                .with_ansi(false)
-                .with_writer(file.and(std::io::stderr))
+            tracing_subscriber::registry()
+                .with(
+                    tracing_subscriber::fmt::layer()
+                        .with_ansi(false)
+                        .with_writer(file.and(std::io::stderr)),
+                )
+                .with(filter)
                 .init();
         }
         None => {
-            tracing_subscriber::fmt()
-                .with_env_filter(filter)
-                .with_writer(std::io::stderr)
+            tracing_subscriber::registry()
+                .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+                .with(filter)
                 .init();
         }
     }

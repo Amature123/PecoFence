@@ -84,7 +84,7 @@ a ser útil.
 
 ## Míralo en acción
 
-https://github.com/user-attachments/assets/6320cf28-a791-4720-9659-b4575df021a0
+https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 ### Una ventana. Varios espacios de trabajo.
 

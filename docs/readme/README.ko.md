@@ -84,7 +84,7 @@ AI와 스크립트를 위한 인터페이스: `describe`는 명령 목록과 JSO
 
 ## 실제 동작 보기
 
-https://github.com/user-attachments/assets/6320cf28-a791-4720-9659-b4575df021a0
+https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 ### 창은 하나, 작업 공간은 여러 개
 

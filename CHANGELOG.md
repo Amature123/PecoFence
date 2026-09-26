@@ -10,6 +10,7 @@
 - pecofence-cli: `watch` streams desktop events (`item.added/removed/moved`, `fence.created/deleted/changed`, heartbeat) over a long-lived pipe connection; `--fence`, `--events`, `--once` for scripts that wait for one change and then run a batch.
 - pecofence-cli: offline `config check [FILE]` validates and lints a config file (rule targets, portal folders, tab hosts, `$schema`), `paths` shows where config, backups, log and crash dumps live, `log [-f] [-n]` prints or follows the app log.
 - `config.json` and exports start with a `$schema` field pointing at the published JSON Schema (`describe --schema Config`).
+- About 430 KB smaller `pecofence.exe`: `RUST_LOG` now takes `level` and `target=level` directives (for example `pecofence=debug`) without span or field filters, so the regex engine is no longer linked in.
 - Start with Windows now follows the release you launch: an entry still pointing at an older copy (for example one left in Downloads) is re-pointed to the running executable.
 
 ## 0.0.5
