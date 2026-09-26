@@ -52,12 +52,33 @@ def presentation_stills():
         image.save(OUT / f"{name}.jpg", quality=91, optimize=True, progressive=True)
 
 
+def promo():
+    """The 30-second trailer (v3) with its soundtrack; plays only on request."""
+    master = PUBLIC.parent / "out/PecoFence-trailer-v3-1080p60.mp4"
+    subprocess.run([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(master),
+        "-vf", "fps=30,scale=1280:720:flags=lanczos", "-c:v", "libx264", "-preset", "slow", "-crf", "23",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart",
+        str(OUT / "promo.mp4"),
+    ], check=True)
+    # Poster: the "Your desktop. Configured by your AI." frame, also the Store thumbnail.
+    poster = Image.open(PUBLIC.parent / "out/PecoFence-trailer-v3-thumbnail.png").convert("RGB")
+    poster.resize((1280, 720), Image.Resampling.LANCZOS).save(
+        OUT / "promo.jpg", quality=84, optimize=True, progressive=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stills-only", action="store_true",
                         help="update the revision-2 images without re-encoding unchanged videos")
+    parser.add_argument("--promo-only", action="store_true",
+                        help="re-export only the trailer and its poster")
     args = parser.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
+    if args.promo_only:
+        promo()
+        print("Updated promo.mp4 and promo.jpg")
+        return
     if args.stills_only:
         presentation_stills()
         print("Updated revision-2 hero panels, wallpaper and five native feature covers")
@@ -81,17 +102,7 @@ def main():
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", str(POSTER_SECONDS[clip]), "-i", str(source),
             "-frames:v", "1", "-vf", "scale=1290:-2", "-q:v", "4", str(OUT / f"{clip}.jpg"),
         ], check=True)
-    # The 30-second English spot, kept with its soundtrack; plays only on request.
-    promo = PUBLIC.parent / "out/PecoFence-autosort-en-1080p.mp4"
-    subprocess.run([
-        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(promo),
-        "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "slow", "-crf", "25",
-        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart",
-        str(OUT / "promo.mp4"),
-    ], check=True)
-    poster = Image.open(PUBLIC.parent / "out/PecoFence-autosort-en-1080p-poster.png").convert("RGB")
-    poster.resize((1280, 720), Image.Resampling.LANCZOS).save(
-        OUT / "promo.jpg", quality=84, optimize=True, progressive=True)
+    promo()
     presentation_stills()
     for path in sorted(OUT.iterdir()):
         print(f"{path.name}: {path.stat().st_size / 1024:.0f} KiB")

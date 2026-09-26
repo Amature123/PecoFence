@@ -10,7 +10,7 @@ The product page at <https://pecofence.jiang.jp> is a static site generated from
 |---|---|
 | `site/template.html` | One HTML template rendered once per language |
 | `site/assets/site.css`, `site.js`, `mark.svg` | Responsive styles, desktop preview toggle, accessible feature tabs, clip playback, AI prompt and install command copy buttons, language picker and favicon |
-| `site/assets/*.mp4`, `*.jpg`, `panel-*.png`, `wallpaper.jpg` | The 30-second spot (`promo.mp4`), six feature clips, posters, the three hero fences and the wallpaper, exported by `scripts/make-site-media.py` from the local promo project |
+| `site/assets/*.mp4`, `*.jpg`, `panel-*.png`, `wallpaper.jpg` | The 30-second trailer (`promo.mp4`, v3; `--promo-only` re-exports just it and its poster), six feature clips, posters, the three hero fences and the wallpaper, exported by `scripts/make-site-media.py` from the local promo project |
 | `site/assets/showcase-*.webp`, `showcase-wallpaper.jpg` | Native panel crops and the original wallpaper from the revision-2 Store scene |
 | `site/i18n/<language>.json` | Copy for each language; `en.json` is the source and every other file must have the same keys |
 | `site/site.json` | Domain, repository URL and the language list |

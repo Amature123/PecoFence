@@ -250,7 +250,7 @@ def copy_fields():
     listings = {}
     for language, copy in TEXT.items():
         listings[language] = {key: copy[key] for key in (
-            "description", "features", "keywords", "trailerTitle", "captions")}
+            "description", "features", "keywords", "trailerTitle", "releaseNotes", "captions")}
         listings[language]["shortDescription"] = copy["short"]
         folder = OUT / "listings" / language
         folder.mkdir(parents=True, exist_ok=True)
@@ -299,6 +299,13 @@ def upload_pack(listings):
     (folder / "art").mkdir(exist_ok=True)
     for name in ("super-hero-1920x1080.png", "app-icon-300x300.png"):
         shutil.copy2(OUT / "art" / name, folder / "art" / name)
+    # Trailer v3 (extras/pecofence-promo, `npm run trailer:finish`): the Store copy is 1080p30 with a frame of the film as thumbnail.
+    promo = ROOT / "extras/pecofence-promo/out"
+    trailer = folder / "trailer"
+    if (promo / "PecoFence-trailer-v3-store-1080p30.mp4").exists():
+        trailer.mkdir(exist_ok=True)
+        shutil.copy2(promo / "PecoFence-trailer-v3-store-1080p30.mp4", trailer / "PecoFence-trailer-v3-30s-en.mp4")
+        shutil.copy2(promo / "PecoFence-trailer-v3-thumbnail.png", trailer / "thumbnail-1920x1080.png")
     shutil.copy2(ROOT / "docs/store/V2.md", OUT / "README.md")
     shutil.copy2(ROOT / "docs/store/V2.md", folder / "README.md")
     with zipfile.ZipFile(OUT / "PecoFence-store-v2.zip", "w", zipfile.ZIP_DEFLATED) as archive:

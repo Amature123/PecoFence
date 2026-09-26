@@ -21,7 +21,7 @@
     "New Form study.png and Launch checklist.md files were grouped by extension rules without changing their paths or contents.",
     "The same design files on two real desktops, using light and dark Liquid Glass setups."
   ],
-  "short": "Make room for what matters. Organize files in glass panels, switch projects with tabs and bring your desktop into reach with one shortcut. Free and open source.",
+  "short": "Make room for what matters. Organize files in glass panels, switch projects with tabs and bring your desktop into reach with one shortcut, or ask your AI agent to set it up. Free and open source.",
   "uploadCaptions": [
     "Projects, inspiration and everyday files, each in its own native Liquid Glass group.",
     "Peek brings desktop groups above a demonstration document window. Ctrl + Alt + Space to open, Esc to return.",
@@ -36,9 +36,10 @@
     "light": "LIGHT",
     "dark": "DARK"
   },
-  "description": "A calmer desktop. Everything within reach.\n\nGive every project a place. PecoFence organizes your Windows 11 desktop into glass panels, so your files stay close and your wallpaper has room to breathe.\n\nLESS TIME SORTING\nSet rules for file types, names, age or size. New desktop files appear in the right group automatically. Automatic grouping leaves their locations on disk unchanged.\n\nYOUR FILES, ONE SHORTCUT AWAY\nPress Ctrl + Alt + Space to bring your groups above the current app. Grab what you need, then press Esc to return.\n\nA SPACE FOR EVERY PROJECT\nCombine related groups into tabs. Switch in a click, or drag a tab out into a separate panel. Keep a live folder on the desktop and browse its subfolders in place.\n\nMAKE ROOM FOR FOCUS\nDouble-click empty desktop space to hide your groups and again to bring them back. Roll a panel up to its title bar and hover to expand it.\n\nGLASS THAT FITS YOUR DESKTOP\nChoose Fluent or Liquid Glass, light or dark, then adjust each panel's color and opacity. Save your layout with snapshots and backups.\n\nFree and open source under Apache 2.0. No app account required. Ten built-in display languages, available offline. Designed for Windows 11 x64.\n\nPecoFence uses real files: file operations you initiate, including moves, renames and deletions, affect files on disk. Your normal Windows desktop icons return when the app exits.",
+  "description": "A calmer desktop. Everything within reach.\n\nGive every project a place. PecoFence organizes your Windows 11 desktop into glass panels, so your files stay close and your wallpaper has room to breathe.\n\nLET YOUR AI SET IT UP\nPecoFence includes pecofence-cli. Tell a coding agent such as Claude Code, Codex or Cursor what you want in your own words: it reads your current setup and applies the changes, from new fences and sorting rules to icon sizes, colors and themes. Snapshots and configuration export keep a copy of a setup you like.\n\nLESS TIME SORTING\nSet rules for file types, names, age or size. New desktop files appear in the right group automatically. Automatic grouping leaves their locations on disk unchanged.\n\nYOUR FILES, ONE SHORTCUT AWAY\nPress Ctrl + Alt + Space to bring your groups above the current app. Grab what you need, then press Esc to return.\n\nA SPACE FOR EVERY PROJECT\nCombine related groups into tabs. Switch in a click, or drag a tab out into a separate panel. Keep a live folder on the desktop and browse its subfolders in place.\n\nMAKE ROOM FOR FOCUS\nDouble-click empty desktop space to hide your groups and again to bring them back. Roll a panel up to its title bar and hover to expand it.\n\nGLASS THAT FITS YOUR DESKTOP\nChoose Fluent or Liquid Glass, light or dark, then adjust each panel's color and opacity. Save your layout with snapshots and backups.\n\nFree and open source under Apache 2.0. No app account required. Ten built-in display languages, available offline. Designed for Windows 11 x64.\n\nPecoFence uses real files: file operations you initiate, including moves, renames and deletions, affect files on disk. Your normal Windows desktop icons return when the app exits.",
   "features": [
     "Automatic desktop organization with rules for types, names, age and size",
+    "Built-in pecofence-cli, so AI agents like Claude Code, Codex and Cursor can set up fences, rules and appearance",
     "Ctrl + Alt + Space brings your desktop groups above the current app",
     "Tabbed groups and live folder portals",
     "Fluent and Liquid Glass themes with per-panel colors and opacity",
@@ -51,9 +52,10 @@
     "desktop icons",
     "glass panels",
     "file organization",
-    "folder portal",
+    "AI agent",
     "desktop tabs",
     "productivity"
   ],
-  "trailerTitle": "PecoFence — less clutter, more space"
+  "trailerTitle": "PecoFence — organize your desktop, or let your AI do it",
+  "releaseNotes": "New: pecofence-cli, a command-line tool included with the app. Terminals, scripts and AI coding agents can create and arrange fences, add and apply sorting rules, change settings and appearance, take snapshots, and back up or restore your configuration. Also: Start with Windows now follows the version you launch."
 }

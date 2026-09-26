@@ -10,10 +10,14 @@ import { Outro } from "./scenes/Outro";
 import { FeatureFilm } from "./features/FeatureFilm";
 import { LaunchFilm } from "./launch/LaunchFilm";
 import { ReviewedFilm } from "./reviewed/ReviewedFilm";
+import { TrailerFilm } from "./trailer/TrailerFilm";
+import { DURATION, FPS } from "./trailer/timing";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      <Composition id="PecoFence-Trailer" component={TrailerFilm}
+        durationInFrames={DURATION} fps={FPS} width={1920} height={1080} />
       <Composition id="PecoFence-Reviewed" component={ReviewedFilm}
         durationInFrames={900} fps={30} width={1920} height={1080} />
       <Composition id="PecoFence-Launch" component={LaunchFilm}

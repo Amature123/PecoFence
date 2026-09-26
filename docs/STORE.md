@@ -68,8 +68,9 @@ PecoFence first; both builds share the single-instance mutex.
    Its `PecoFence-store-v2.zip` contains five native screenshots, matching localized
    captions and copy, 1920×1080 Super hero art, and a 300×300 app icon.
    The separate campaign images contain added headlines and are for design review
-   or promotion, not the Store screenshot fields. The existing 30-second trailer
-   remains under `dist/store-listing/trailer/`. See [revision 2](store/V2.md).
+   or promotion, not the Store screenshot fields. The ZIP's `trailer/` folder holds the
+   current 30-second trailer (v3) and its thumbnail; `listings/<locale>/releaseNotes.txt`
+   has the release notes. See [revision 2](store/V2.md).
 6. Submission options: certification notes explaining that the app hides the real
    desktop icons by design and restores them on exit (Restore Windows desktop icons in
    the tray menu).

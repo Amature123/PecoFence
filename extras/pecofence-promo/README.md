@@ -1,5 +1,45 @@
 # PecoFence — English product videos
 
+## Trailer v3 (current, 2026-09)
+
+A 30-second trailer in the warm Liquid Glass look of the website and Store v2
+listing, with the AI + CLI story as its climax. Remotion composition
+`PecoFence-Trailer` (`src/trailer/`), 1920 × 1080, 60 fps master.
+
+| Time | What the viewer sees |
+|---|---|
+| 0–4 s | A cluttered desktop: "Screenshots. Downloads. Drafts. / Everywhere." |
+| 4–8 s | On the hit the icons fly into three native glass fences; light sweeps the dark desk; "PecoFence / Make room for what matters." |
+| 8–12 s | Native auto-sort take: four new files land on the beat |
+| 12–16 s | Native tabs take: merge, then two tab switches |
+| 16–26 s | "Or just ask your AI.": an agent card types a request and lists the real `pecofence-cli` commands; the native fences react (Docs fence, PDFs move, every fence grows on the drop at 20 s, warm tint at 22 s); "Your desktop. Configured by your AI." |
+| 26–30 s | End card: app icon, "Free and open source for Windows 11", Microsoft Store and site |
+
+All product pixels come from native 4K60 captures of the current source (only the
+disclosed demo-desktop resolver override) driven by test-script commands and, for
+the AI take, the real CLI (`.capture/trailer-v3-raw/ai-*.json` hold its JSON
+results). The clutter desktop, flying file cues, agent card, camera and light
+effects are editorial. Music and sound effects are synthesized in code
+(`scripts/make-trailer-audio.py`, 120 BPM, A major; no samples or voices), mixed
+to -14 LUFS / -1 dBTP and aligned to `src/trailer/cues.json`.
+
+```powershell
+npm run trailer:fixtures        # isolated demo fixtures
+./scripts/capture-trailer.ps1   # records the five native takes (takes over the screen ~20 s each)
+uv run --with numpy python scripts/analyze-trailer-takes.py
+uv run python scripts/make-trailer-targets.py
+npm run trailer:audio
+npm run trailer:stills
+npm run trailer:render          # silent 1080p60 picture
+npm run trailer:finish          # master, Store 1080p30, web 720p, thumbnail
+```
+
+Outputs in `out/`: `PecoFence-trailer-v3-1080p60.mp4` (master),
+`PecoFence-trailer-v3-store-1080p30.mp4` (Microsoft Store),
+`PecoFence-trailer-v3-web-720p.mp4` (site) and `PecoFence-trailer-v3-thumbnail.png`.
+
+## Earlier 30-second spot
+
 Review plans and capture-provenance records under `review/` stay local and are
 excluded from the public source export, along with the full recordings.
 

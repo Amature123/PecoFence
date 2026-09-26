@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.0
 
+- New `pecofence-cli` (on PATH in the Store package as `pecofence-cli.exe`): terminals, scripts and coding agents control fences, items, rules, snapshots, config export/import and backups over a local named pipe; JSON output, `describe` for the full command and schema reference.
 - pecofence-cli: `item list` reports `kind`, `ext`, `size`, `modified`, `created`, `openCount`, `lastOpened`, `shortcutTarget`, `fileName` and the filing `rule` for every item (`--kind` / `--ext` filters), so an agent can sort a desktop without opening files.
 - pecofence-cli: `item rename <ITEM> <NAME>` renames the file behind an icon (extension kept unless `--keep-ext false`).
 - pecofence-cli: `rule apply --dry-run` lists the moves the rules would make without making them; `rule apply` now reports the same `moves` list.
@@ -9,7 +10,6 @@
 - pecofence-cli: `watch` streams desktop events (`item.added/removed/moved`, `fence.created/deleted/changed`, heartbeat) over a long-lived pipe connection; `--fence`, `--events`, `--once` for scripts that wait for one change and then run a batch.
 - pecofence-cli: offline `config check [FILE]` validates and lints a config file (rule targets, portal folders, tab hosts, `$schema`), `paths` shows where config, backups, log and crash dumps live, `log [-f] [-n]` prints or follows the app log.
 - `config.json` and exports start with a `$schema` field pointing at the published JSON Schema (`describe --schema Config`).
-
 - Start with Windows now follows the release you launch: an entry still pointing at an older copy (for example one left in Downloads) is re-pointed to the running executable.
 
 ## 0.0.5
