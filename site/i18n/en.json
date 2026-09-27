@@ -1,9 +1,6 @@
 {
   "nav.skip": "Skip to content",
   "hero.eyebrow": "Built-in CLI. Ready for your AI agent.",
-  "demo.hide": "Hide fences",
-  "demo.show": "Show fences",
-  "demo.hint": "A little more room to breathe.",
   "download.copy": "Copy command",
   "download.copied": "Copied",
   "hero.headline_accent": "for what matters.",
@@ -22,7 +19,6 @@
   "hero.download_note": "Microsoft Store edition, signed by Microsoft. Or the portable ZIP for x64: no account, no installer. Apache 2.0 license.",
   "hero.github": "View the source on GitHub",
   "hero.panels_alt": "Projects, inspiration and everyday files, each in its own native Liquid Glass group.",
-  "hero.caption": "Native demo panels · Liquid Glass",
   "watch.title": "Watch the 30-second trailer",
   "watch.text": "Sort files, switch projects, then ask your AI to set up the desktop with pecofence-cli. Half a minute, original soundtrack, no voiceover, English on-screen text.",
   "features.heading": "Everything in its right place.",

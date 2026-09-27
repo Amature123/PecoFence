@@ -1,9 +1,6 @@
 {
   "nav.skip": "본문으로 건너뛰기",
   "hero.eyebrow": "CLI 기본 제공. AI가 데스크톱을 설정합니다.",
-  "demo.hide": "펜스 숨기기",
-  "demo.show": "펜스 표시",
-  "demo.hint": "조금 더 여유로운 공간.",
   "download.copy": "명령어 복사",
   "download.copied": "복사됨",
   "hero.headline_accent": "제자리를.",
@@ -22,7 +19,6 @@
   "hero.download_note": "Microsoft Store 버전은 Microsoft가 서명합니다. x64 포터블 ZIP도 있습니다: 계정도 설치 프로그램도 필요 없습니다. Apache 2.0 라이선스.",
   "hero.github": "GitHub에서 소스 보기",
   "hero.panels_alt": "프로젝트, 영감, 일상 파일을 각각의 실제 Liquid Glass 패널에 정리했습니다.",
-  "hero.caption": "실제 데모 화면 · Liquid Glass",
   "watch.title": "30초 트레일러",
   "watch.text": "파일 자동 정리, 프로젝트 전환, 그리고 AI가 pecofence-cli로 바탕 화면을 설정하는 모습까지 30초에 담았습니다. 자체 제작 음악, 내레이션 없음, 화면 문자는 영어입니다.",
   "features.heading": "모든 파일이 제자리에.",

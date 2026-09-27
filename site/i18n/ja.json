@@ -1,9 +1,6 @@
 {
   "nav.skip": "本文へ移動",
   "hero.eyebrow": "CLI を標準搭載。AI がデスクトップを設定。",
-  "demo.hide": "フェンスを隠す",
-  "demo.show": "フェンスを表示",
-  "demo.hint": "余白があると、気持ちも軽く。",
   "download.copy": "コマンドをコピー",
   "download.copied": "コピーしました",
   "hero.headline_accent": "デスクトップに 余白を。",
@@ -22,7 +19,6 @@
   "hero.download_note": "Microsoft Store 版は Microsoft が署名しています。x64 向けポータブル ZIP も用意：アカウント不要、インストーラー不要。Apache 2.0 ライセンス。",
   "hero.github": "GitHub でソースを見る",
   "hero.panels_alt": "プロジェクト、アイデア、日々の資料を、それぞれの Liquid Glass フェンスに整理。",
-  "hero.caption": "実際のデモ画面 · Liquid Glass",
   "watch.title": "30 秒のトレーラー",
   "watch.text": "ファイルの自動整理、プロジェクトの切り替え、そして AI が pecofence-cli でデスクトップを設定する様子を 30 秒で。オリジナル BGM、ナレーションなし、画面の文字は英語です。",
   "features.heading": "すべてに、ちょうどいい居場所を。",

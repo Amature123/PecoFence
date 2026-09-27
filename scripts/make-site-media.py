@@ -8,7 +8,7 @@ import argparse
 from pathlib import Path
 import subprocess
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT / "extras/pecofence-promo/public"
@@ -20,23 +20,10 @@ REVISION = ROOT / ".cache/store-v2"
 
 def presentation_stills():
     """Use the same original desktop and native scenes as the Store revision."""
+    # The hero's backdrop; the trailer (promo) is the hero's visual.
     wallpaper = Image.open(REVISION / "paper-light.png").convert("RGB")
     wallpaper.resize((1920, 1080), Image.Resampling.LANCZOS).save(
         OUT / "showcase-wallpaper.jpg", quality=88, optimize=True, progressive=True)
-    native = Image.open(REVISION / "native/overview.png").convert("RGB")
-    panels = {
-        "work": (90, 390, 770, 980),
-        "art": (840, 450, 1720, 1165),
-        "folder": (1790, 605, 2465, 960),
-    }
-    for name, rect in panels.items():
-        panel = native.crop(rect).convert("RGBA")
-        mask = Image.new("L", panel.size)
-        ImageDraw.Draw(mask).rounded_rectangle(
-            (0, 0, panel.width-1, panel.height-1), radius=48, fill=255)
-        panel.putalpha(mask)
-        panel.thumbnail((880, 715), Image.Resampling.LANCZOS)
-        panel.save(OUT / f"showcase-{name}.webp", quality=94, method=6)
     scenes = {
         "groups": ("overview", None),
         "peek": ("peek", None),
@@ -81,7 +68,7 @@ def main():
         return
     if args.stills_only:
         presentation_stills()
-        print("Updated revision-2 hero panels, wallpaper and five native feature covers")
+        print("Updated the revision-2 hero wallpaper and five native feature covers")
         return
     wallpaper = Image.open(PUBLIC / "wallpaper.png").convert("RGB")
     wallpaper.resize((1920, 1080), Image.Resampling.LANCZOS).save(

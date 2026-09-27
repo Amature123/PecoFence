@@ -1,7 +1,4 @@
-<p align="center">
-  <img src="../assets/hero-pt-BR.png" alt="PecoFence — Pastas de projetos, um PDF real e estudos gráficos originais em painéis nativos do Liquid Glass." width="1280">
-</p>
-
+https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
   <strong>Uma alternativa gratuita e de código aberto ao Stardock Fences para Windows 11.</strong><br>
@@ -78,13 +75,15 @@ Projetos, capturas de tela, coisas para ler depois: cada uma em seu próprio gru
 do jeito que você trabalha. O PecoFence adiciona só a estrutura necessária para a sua área de
 trabalho voltar a ser útil.
 
+<p align="center">
+  <img src="../assets/hero-pt-BR.png" alt="PecoFence — Pastas de projetos, um PDF real e estudos gráficos originais em painéis nativos do Liquid Glass." width="1280">
+</p>
+
 | **Agrupe seu trabalho** | **Pastas sempre à mão** | **Libere espaço** |
 | :--- | :--- | :--- |
 | Crie um grupo para cada projeto. Arraste, redimensione e encaixe no lugar. | Coloque uma pasta ao vivo na área de trabalho. Navegue pelas subpastas e veja as mudanças na hora. | Clique duas vezes na área de trabalho para ocultar os grupos. Clique duas vezes de novo para trazê-los de volta. |
 
 ## Veja em ação
-
-https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 ### Uma janela. Vários espaços de trabalho.
 

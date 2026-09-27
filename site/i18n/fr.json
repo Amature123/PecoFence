@@ -1,9 +1,6 @@
 {
   "nav.skip": "Aller au contenu",
   "hero.eyebrow": "CLI incluse. Prête pour votre agent IA.",
-  "demo.hide": "Masquer les panneaux",
-  "demo.show": "Afficher les panneaux",
-  "demo.hint": "Un peu plus de place pour respirer.",
   "download.copy": "Copier la commande",
   "download.copied": "Copié",
   "hero.headline_accent": "à l’essentiel.",
@@ -22,7 +19,6 @@
   "hero.download_note": "Version Microsoft Store, signée par Microsoft. Ou le ZIP portable pour x64 : sans compte ni installateur. Licence Apache 2.0.",
   "hero.github": "Voir le code source sur GitHub",
   "hero.panels_alt": "Projets, inspirations et fichiers du quotidien, chacun dans son propre groupe Liquid Glass natif.",
-  "hero.caption": "Interface de démonstration réelle · Liquid Glass",
   "watch.title": "La bande-annonce de 30 secondes",
   "watch.text": "Trier les fichiers, changer de projet, puis laisser votre IA configurer le bureau avec pecofence-cli. Une demi-minute, bande-son originale, sans voix off, textes à l’écran en anglais.",
   "features.heading": "Chaque chose à sa place.",

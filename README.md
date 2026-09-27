@@ -1,7 +1,4 @@
-<p align="center">
-  <img src="docs/assets/hero-en.png" alt="PecoFence — Project folders, a real PDF and original design studies in native Liquid Glass panels." width="1280">
-</p>
-
+https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
   <strong>A free, open-source Stardock Fences alternative for Windows 11.</strong><br>
@@ -77,13 +74,15 @@ Built for agents and scripts: `describe` exposes the command catalog and JSON Sc
 Projects, screenshots, things to read later—keep them in their own groups, arranged
 the way you work. PecoFence adds just enough structure to make your desktop useful again.
 
+<p align="center">
+  <img src="docs/assets/hero-en.png" alt="PecoFence — Project folders, a real PDF and original design studies in native Liquid Glass panels." width="1280">
+</p>
+
 | **Group your work** | **Keep folders close** | **Clear some space** |
 | :--- | :--- | :--- |
 | Make a fence for each project. Drag, resize and snap it into place. | Put a live folder on your desktop. Browse subfolders and see changes as they happen. | Double-click the desktop to hide your groups. Double-click again to bring them back. |
 
 ## See it in action
-
-https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 ### One window. Multiple workspaces.
 

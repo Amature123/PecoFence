@@ -9,9 +9,9 @@ The product page at <https://pecofence.jiang.jp> is a static site generated from
 | Path | Purpose |
 |---|---|
 | `site/template.html` | One HTML template rendered once per language |
-| `site/assets/site.css`, `site.js`, `mark.svg` | Responsive styles, desktop preview toggle, accessible feature tabs, clip playback, AI prompt and install command copy buttons, language picker and favicon |
+| `site/assets/site.css`, `site.js`, `mark.svg` | Responsive styles, the hero trailer's play control, accessible feature tabs, clip playback, AI prompt and install command copy buttons, language picker and favicon |
 | `site/assets/*.mp4`, `*.jpg`, `panel-*.png`, `wallpaper.jpg` | The 30-second trailer (`promo.mp4`, v3; `--promo-only` re-exports just it and its poster), six feature clips, posters, the three hero fences and the wallpaper, exported by `scripts/make-site-media.py` from the local promo project |
-| `site/assets/showcase-*.webp`, `showcase-wallpaper.jpg` | Native panel crops and the original wallpaper from the revision-2 Store scene |
+| `site/assets/showcase-wallpaper.jpg` | The hero's backdrop: the original wallpaper from the revision-2 Store scene |
 | `site/i18n/<language>.json` | Copy for each language; `en.json` is the source and every other file must have the same keys |
 | `site/site.json` | Domain, repository URL and the language list |
 
@@ -21,14 +21,19 @@ per translation, the localized README hero images as Open Graph and Twitter prev
 send visitors to their language; the header's language picker and the language links
 do the same by hand. The picker preserves the current section.
 
-The page pairs a warm paper-and-lavender hero with a light reading canvas. Native
-Liquid Glass panel crops (`showcase-*.webp`) sit beside the headline and primary
-Store download link. They show Projects, Inspiration and Today from the revision-2
-capture; their composition on the website is editorial.
-The portable download is a secondary text link and the film has a separate play action.
+The page pairs a warm paper-and-lavender hero with a light reading canvas. The
+30-second trailer is the hero's visual and the largest element on the page
+(`#watch`): on screens at least 861 px tall the headline and primary Store download
+link sit in a row above it, and the film's width follows the viewport height so all
+of it stays above the fold; on shorter laptop screens it sits beside the copy; on
+tablets and phones it comes straight after the headline. It shows its poster
+(`promo.jpg`, preloaded) with a large play control and never starts on its own: a
+click plays it inline with sound and hands over to the native controls. Without
+JavaScript the native controls are shown from the start. The portable download is a
+secondary text link.
 
 The hero also links directly to AI configuration through its CLI badge and a secondary action.
-The AI + CLI section follows the hero, before the film and feature gallery. It presents settings,
+The AI + CLI section follows the hero, before the feature gallery. It presents settings,
 organization rules and configuration backup as everyday uses, alongside an illustrative PowerShell
 workflow and a localized prompt readers can copy into their coding agent. The CLI guide supplies
 the detailed setup instructions. Both copy buttons have independent feedback and select their own
@@ -38,8 +43,7 @@ The feature gallery shows one large native scene cover at a time, with click and
 keyboard navigation. With JavaScript disabled all six clips appear with native video
 controls. Five covers come from the revision-2 desktop, Peek, tabs, automatic sorting
 and folder scenes; the hide/show cover remains a frame from its existing recording.
-Videos play on request and pause when hidden or offscreen. The preview's hide/show button
-demonstrates clearing the desktop. Installation requirements expand without JavaScript;
+Videos play on request and pause when hidden or offscreen. Installation requirements expand without JavaScript;
 clipboard copying is available on HTTPS and localhost. No external fonts, UI libraries
 or additional build dependencies are required.
 
@@ -112,7 +116,7 @@ in `en.json`; everything else is escaped.
 `uv run --with pillow python scripts/make-site-media.py` regenerates the clips, posters, panels and
 wallpaper from `extras/pecofence-promo/public/`, which is a local, ignored directory.
 Revision-2 scene captures and original wallpaper under `.cache/store-v2/` supply the
-current hero and feature covers. Add `--stills-only` to update only these images
+current hero backdrop and feature covers. Add `--stills-only` to update only these images
 without re-encoding the unchanged videos.
 The exported files in `site/assets/` are checked in so the site builds anywhere.
 

@@ -50,18 +50,22 @@
     activateTab(tabs[0], false);
   }
 
-  // A small, optional demonstration of hiding desktop fences.
-  var preview = document.querySelector(".desktop-preview");
-  var demoToggle = document.querySelector(".demo-toggle");
-  if (preview && demoToggle) {
-    var desk = preview.querySelector(".desk");
-    var deskDescription = desk.getAttribute("aria-label");
-    demoToggle.hidden = false;
-    demoToggle.addEventListener("click", function () {
-      var clear = preview.classList.toggle("is-clear");
-      demoToggle.setAttribute("aria-pressed", String(clear));
-      demoToggle.querySelector("span").textContent = demoToggle.getAttribute(clear ? "data-show" : "data-hide");
-      desk.setAttribute("aria-label", clear ? preview.querySelector(".desktop-message").textContent : deskDescription);
+  // The trailer shows its poster and a large play control. It never starts on its own;
+  // a click plays it inline with sound and hands over to the native controls.
+  // Without JavaScript the native controls are there from the start.
+  var trailer = document.querySelector(".trailer");
+  if (trailer) {
+    var film = trailer.querySelector("video");
+    var start = trailer.querySelector(".trailer-play");
+    film.controls = false;
+    start.hidden = false;
+    start.addEventListener("click", function () {
+      start.hidden = true;
+      film.controls = true;
+      film.muted = false;
+      film.focus({ preventScroll: true });
+      var playing = film.play();
+      if (playing && playing.catch) playing.catch(function () {});
     });
   }
 

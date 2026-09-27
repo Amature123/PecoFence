@@ -1,7 +1,4 @@
-<p align="center">
-  <img src="../assets/hero-es.png" alt="PecoFence — Carpetas de proyecto, un PDF real y diseños originales en paneles nativos de Liquid Glass." width="1280">
-</p>
-
+https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
   <strong>Una alternativa gratuita y de código abierto a Stardock Fences para Windows 11.</strong><br>
@@ -78,13 +75,15 @@ Proyectos, capturas de pantalla, cosas para leer más tarde: guárdalas en sus p
 ordenadas como tú trabajas. PecoFence añade la estructura justa para que tu escritorio vuelva
 a ser útil.
 
+<p align="center">
+  <img src="../assets/hero-es.png" alt="PecoFence — Carpetas de proyecto, un PDF real y diseños originales en paneles nativos de Liquid Glass." width="1280">
+</p>
+
 | **Agrupa tu trabajo** | **Ten tus carpetas a mano** | **Despeja el espacio** |
 | :--- | :--- | :--- |
 | Crea un grupo para cada proyecto. Arrástralo, cambia su tamaño y ajústalo en su sitio. | Coloca una carpeta en vivo sobre el escritorio. Navega por sus subcarpetas y ve los cambios al momento. | Haz doble clic en el escritorio para ocultar los grupos. Vuelve a hacer doble clic para recuperarlos. |
 
 ## Míralo en acción
-
-https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 ### Una ventana. Varios espacios de trabajo.
 

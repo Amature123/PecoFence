@@ -1,7 +1,4 @@
-<p align="center">
-  <img src="../assets/hero-ko.png" alt="PecoFence — 실제 Liquid Glass 패널에 프로젝트 폴더, PDF와 직접 만든 디자인 이미지를 담았습니다." width="1280">
-</p>
-
+https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
   <strong>Windows 11을 위한 무료 오픈 소스 Stardock Fences 대안.</strong><br>
@@ -78,13 +75,15 @@ AI와 스크립트를 위한 인터페이스: `describe`는 명령 목록과 JSO
 내가 일하는 방식대로 배치하세요. PecoFence는 바탕 화면이 다시 쓸모 있어질 만큼의
 구조만 딱 더해 줍니다.
 
+<p align="center">
+  <img src="../assets/hero-ko.png" alt="PecoFence — 실제 Liquid Glass 패널에 프로젝트 폴더, PDF와 직접 만든 디자인 이미지를 담았습니다." width="1280">
+</p>
+
 | **프로젝트별로 묶기** | **폴더를 가까이에** | **공간 비우기** |
 | :--- | :--- | :--- |
 | 프로젝트마다 펜스를 만들고, 끌어서 옮기고 크기를 조절하고 맞춤으로 딱 맞게 정렬하세요. | 실제 폴더를 바탕 화면 위에 그대로 올려 두세요. 하위 폴더를 탐색할 수 있고, 변경 사항은 바로 반영됩니다. | 바탕 화면을 두 번 클릭하면 펜스가 모두 숨겨지고, 다시 두 번 클릭하면 돌아옵니다. |
 
 ## 실제 동작 보기
-
-https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 ### 창은 하나, 작업 공간은 여러 개
 

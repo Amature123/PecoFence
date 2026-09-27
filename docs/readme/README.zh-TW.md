@@ -1,7 +1,4 @@
-<p align="center">
-  <img src="../assets/hero-zh-TW.png" alt="PecoFence — 專案資料夾、PDF 與設計海報，收在原生 Liquid Glass 圍欄中。" width="1280">
-</p>
-
+https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
   <strong>免費、開源的 Windows 11 桌面整理工具，Stardock Fences 的另一種選擇。</strong><br>
@@ -77,13 +74,15 @@ pecofence-cli fence set --all opacity clear
 手上的專案、剛存下的截圖、打算晚點再看的資料——各自放進一個圍欄，
 照你的習慣擺好。桌面上的東西依然順手，也終於有了秩序。
 
+<p align="center">
+  <img src="../assets/hero-zh-TW.png" alt="PecoFence — 專案資料夾、PDF 與設計海報，收在原生 Liquid Glass 圍欄中。" width="1280">
+</p>
+
 | **依專案收好** | **把資料夾放在手邊** | **隨時讓出空間** |
 | :--- | :--- | :--- |
 | 為工作、設計或常用資料各建一個圍欄，拖曳、縮放、吸附對齊。 | 把真實的資料夾變成桌面上的視窗；可以進入子資料夾，內容一有變動就自動同步。 | 在桌面空白處按兩下就隱藏全部圍欄，再按兩下就恢復。要用檔案時叫回來，想看桌布時收起來。 |
 
 ## 看看它怎麼用
-
-https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 ### 一個視窗切換多種工作情境
 

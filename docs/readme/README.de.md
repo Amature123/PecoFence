@@ -1,7 +1,4 @@
-<p align="center">
-  <img src="../assets/hero-de.png" alt="PecoFence — Projektordner, eine echte PDF und eigene Designstudien in nativen Liquid-Glass-Panels." width="1280">
-</p>
-
+https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
   <strong>Eine kostenlose Open-Source-Alternative zu Stardock Fences für Windows 11.</strong><br>
@@ -78,13 +75,15 @@ Projekte, Screenshots, Lesestoff für später – jedes bekommt seine eigene Gru
 so, wie Sie arbeiten. PecoFence bringt gerade so viel Struktur auf den Desktop, dass er
 wieder nützlich wird.
 
+<p align="center">
+  <img src="../assets/hero-de.png" alt="PecoFence — Projektordner, eine echte PDF und eigene Designstudien in nativen Liquid-Glass-Panels." width="1280">
+</p>
+
 | **Arbeit gruppieren** | **Ordner in Reichweite** | **Platz schaffen** |
 | :--- | :--- | :--- |
 | Legen Sie für jedes Projekt einen Bereich an. Ziehen, skalieren und einrasten lassen. | Holen Sie einen Live-Ordner auf den Desktop. Stöbern Sie in Unterordnern und sehen Sie Änderungen sofort. | Ein Doppelklick auf den Desktop blendet alle Gruppen aus. Ein zweiter holt sie zurück. |
 
 ## PecoFence in Aktion
-
-https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 ### Ein Fenster. Mehrere Arbeitsbereiche.
 

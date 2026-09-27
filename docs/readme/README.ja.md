@@ -1,7 +1,4 @@
-<p align="center">
-  <img src="../assets/hero-ja.png" alt="PecoFence — フォルダー、実際の PDF、オリジナルのデザイン画像を表示した Liquid Glass の実画面。" width="1280">
-</p>
-
+https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
   <strong>Windows 11 向けの無料・オープンソースな Stardock Fences 代替アプリ。</strong><br>
@@ -77,13 +74,15 @@ AI とスクリプト向けのインターフェース。`describe` はコマン
 進行中のプロジェクト、撮ったばかりのスクリーンショット、あとで読む資料。それぞれをグループに分けて、
 自分の作業スタイルに合わせて並べておけます。PecoFence が添えるのは、デスクトップをもう一度使いやすくするための、ちょうどよい枠組みだけです。
 
+<p align="center">
+  <img src="../assets/hero-ja.png" alt="PecoFence — フォルダー、実際の PDF、オリジナルのデザイン画像を表示した Liquid Glass の実画面。" width="1280">
+</p>
+
 | **作業ごとにまとめる** | **フォルダーを手元に** | **空間を空ける** |
 | :--- | :--- | :--- |
 | プロジェクトごとにフェンスを作成。ドラッグやサイズ変更、スナップで思いどおりの位置に収まります。 | 実際のフォルダーをデスクトップ上のフェンスとして表示。サブフォルダーへ移動でき、中身の変化もその場で反映されます。 | デスクトップをダブルクリックするとフェンスがすべて隠れ、もう一度ダブルクリックすれば戻ってきます。 |
 
 ## 実際の動きを見る
-
-https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 ### ひとつのウィンドウに、複数のワークスペース
 

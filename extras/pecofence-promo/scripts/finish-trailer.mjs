@@ -15,7 +15,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const out = path.join(root, "out");
 const picture = path.join(out, "trailer-v3", "work", "PecoFence-trailer-v3-1080p60-picture.mp4");
 const audio = path.join(root, "public", "trailer-v3", "audio", "final", "soundtrack.wav");
-const thumbFrame = Number(process.argv.find((a) => a.startsWith("--thumb="))?.slice(8) ?? 1440);
+const thumbFrame = Number(process.argv.find((a) => a.startsWith("--thumb="))?.slice(8) ?? 1488);
 for (const f of [picture, audio]) if (!fs.existsSync(f)) throw new Error(`Missing ${f}`);
 
 const bt709 = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"];

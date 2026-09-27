@@ -1,9 +1,6 @@
 {
   "nav.skip": "跳至主要內容",
   "hero.eyebrow": "內建 CLI，讓 AI 直接設定桌面",
-  "demo.hide": "隱藏圍欄",
-  "demo.show": "顯示圍欄",
-  "demo.hint": "留一點空白，多一點自在。",
   "download.copy": "複製指令",
   "download.copied": "已複製",
   "hero.headline_accent": "都有好位置。",
@@ -22,7 +19,6 @@
   "hero.download_note": "Microsoft Store 版由微軟簽署。也可以下載 x64 免安裝版 ZIP：不需帳號、不用安裝程式。Apache 2.0 開源授權。",
   "hero.github": "在 GitHub 查看原始碼",
   "hero.panels_alt": "專案、靈感與日常資料，各自在原生 Liquid Glass 圍欄中，檔案一眼就能找到。",
-  "hero.caption": "原生示範介面 · Liquid Glass",
   "watch.title": "看 30 秒預告片",
   "watch.text": "半分鐘看完：自動整理檔案、切換專案，再讓 AI 用 pecofence-cli 設定整個桌面。原創配樂，無旁白，畫面文字為英文。",
   "features.heading": "每一份檔案，都有好去處。",
