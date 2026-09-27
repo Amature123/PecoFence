@@ -66,7 +66,7 @@ pub const COMMANDS: &[Entry] = &[
     entry!(
         "fence create",
         Some("fences.create"),
-        "New virtual fence (--rect/--monitor) or folder portal (--portal DIR, --title optional)",
+        "New virtual fence (--rect, --monitor, or --below/--above/--right-of/--left-of FENCE [--size W,H]) or folder portal (--portal DIR, --title optional)",
         "pecofence-cli fence create --title Work --rect 100,100,600,400"
     ),
     entry!(
@@ -86,6 +86,12 @@ pub const COMMANDS: &[Entry] = &[
         Some("fences.setBounds"),
         "--rect or --x/--y (fences.setBounds), or --monitor (fences.moveToMonitor)",
         "pecofence-cli fence move Work --x 1200 --y 80"
+    ),
+    entry!(
+        "fence fit",
+        Some("fences.fit"),
+        "Height that shows every item without scrolling (fit.fittingHeight of fence get); a tab resizes its host",
+        "pecofence-cli fence fit Tools"
     ),
     entry!(
         "fence resize",
@@ -150,7 +156,7 @@ pub const COMMANDS: &[Entry] = &[
     entry!(
         "item list",
         Some("items.list"),
-        "Items of every fence or of --fence, with kind/ext/size/modified/created/openCount/lastOpened/shortcutTarget; --kind/--ext filter client-side",
+        "Items of every fence or of --fence, with kind/ext/size/modified/created/openCount/lastOpened/shortcutTarget/shortcutArguments; --kind/--ext filter client-side",
         "pecofence-cli item list --fence Work"
     ),
     entry!(
@@ -162,7 +168,7 @@ pub const COMMANDS: &[Entry] = &[
     entry!(
         "item move",
         Some("items.move"),
-        "Move items (id, path, or name) or --glob matches into --to; into/out of a folder portal moves real files (--glob skips portal items unless --from names the portal)",
+        "Move items (id, path, or name) or --glob matches into --to; into/out of a folder portal moves real files (--glob skips portal items unless --from names the portal); --dry-run (items.planMove) lists action/destination/skip per item",
         "pecofence-cli item move --glob \"*.pdf\" --to Docs"
     ),
     entry!(
@@ -319,7 +325,7 @@ pub const COMMANDS: &[Entry] = &[
 
 /// Methods reachable only through a flag of a command listed above.
 #[cfg(test)]
-const EXTRA_METHODS: &[&str] = &["fences.moveToMonitor"];
+const EXTRA_METHODS: &[&str] = &["fences.moveToMonitor", "items.planMove"];
 
 pub const ERROR_CODES: &[(ErrorCode, &str)] = &[
     (
@@ -390,17 +396,18 @@ pub const ERROR_CODES: &[(ErrorCode, &str)] = &[
 ];
 
 pub const NOTES: &[&str] = &[
-    "Output is JSON only: the result on stdout, {\"error\":{code,message,hint?,details?}} on stderr. Pretty on a terminal, one line otherwise (--pretty/--compact).",
+    "Output is JSON only: the result on stdout, {\"error\":{code,message,hint?,details?}} on stderr. Pretty on a terminal, one line otherwise (--pretty/--compact). --fields id,title,rect.w keeps only those keys (lists element-wise; no jq needed); --ascii writes non-ASCII as \\uXXXX for readers that decode stdout with a legacy code page (Python, Windows PowerShell 5).",
     "Exit codes: 0 ok, 1 the app returned an error (or part of a --all/--glob batch failed), 2 usage, 3 not running, 4 timeout.",
     "Coordinates are physical pixels in virtual-screen space (primary monitor top-left = 0,0; monitors to the left are negative).",
     "Mutations return {changed:bool, ...}; changed:false means the state was already as requested and is not an error. fence delete (with items), rules.apply (when it moves something) and snapshot restore take an automatic layout snapshot first and add snapshotId; settings and rules are not covered by snapshots.",
     "Fence selectors: id, unique id prefix (>=6 hex), or title (exact, then unique substring); `inbox` always means the desktop fence (kind == \"inbox\" in fence list), whatever its title. Rules: id, 0-based index, or name. Snapshots: id, unique id prefix, or name (fails with snapshot_not_found when several share it; use snapshot.id from snapshot save).",
     "Folder portals show real files: item move into or out of a portal is an Explorer file move (undo only via Explorer Ctrl+Z; snapshots do not revert it). item move --glob without --from skips portal items; pass --from <portal> to include them.",
-    "Shell quoting: values starting with #, [ or * or containing spaces need quotes (Git Bash treats #ff8800 as a comment): fence set Work tint \"#ff8800\" or tint '\"#ff8800\"'. Negative numbers work bare: settings set snapping.gapPx -4.",
+    "Shell quoting: values starting with #, [ or * or containing spaces need quotes (Git Bash treats #ff8800 as a comment): fence set Work tint \"#ff8800\" or tint '\"#ff8800\"'. Negative numbers work bare: fence move Work --x -1800.",
+    "Geometry: a hosted tab reports its host's rect and windowRect null. fence get .fit {columns, rows, fittingHeight, overflow} says whether the items fit (fence fit applies fittingHeight). When the app changes a rect on its own (autoHeight after setBounds; iconSize/spacing/layout/labelLines snapping to whole columns and rows) the reply carries adjusted {requested, applied, reason}.",
     "Settings paths are dotted camelCase (peek.enabled, quickHide.delayMs, rollUp.hoverPeek, snapping.gapPx, iconSize, theme, themeStyle, hideRealIcons, autostart, icons.chameleon); see describe --schema Settings.",
     "fence set props: title (or fence rename), iconSize 32|48|64|96, spacing compact|normal|loose, autoHeight, locked, excludeFromQuickHide, opacity default|clear|solid, tint \"#RRGGBB\"|null, titleColor theme|tint|white|black|\"#RRGGBB\", titleSize small|normal|large, layout icons|list|details, sort manual|name|type|date|size|openCount, reverse, groupByDate, labelLines, portalNavigate, portalTitleIcon. --string keeps numeric-looking text (title 2024) a string.",
     "The app must be running; the CLI never edits config.json. --instance <name> only addresses a test instance started with PECOFENCE_INSTANCE=<name>. Offline exceptions: describe, skill, paths, log, config check.",
-    "watch streams one EventDto per line (describe --schema EventDto) and never returns by itself; use --once from scripts (wait for one event, then run a batch such as item list + item move). Heartbeats every 30 s are hidden unless --heartbeat. item list carries kind/ext/size/modified/created/openCount/lastOpened/shortcutTarget so most items can be sorted without opening them. items.move of 20+ desktop items takes an automatic snapshot (snapshotId).",
+    "watch streams one EventDto per line (describe --schema EventDto) and never returns by itself; use --once from scripts (wait for one event, then run a batch such as item list + item move). Heartbeats every 30 s are hidden unless --heartbeat. item list carries kind/ext/size/modified/created/openCount/lastOpened/shortcutTarget so most items can be sorted without opening them. items.move of 20+ desktop items takes an automatic snapshot (snapshotId); with a portal on either side it replies fileMove: true and the files arrive a moment later; names that already exist at the destination are skipped (skipped[], warning) instead of opening Explorer's replace dialog.",
 ];
 
 pub fn catalog() -> Value {

@@ -155,6 +155,11 @@ pub enum Method {
         prop: String,
         value: Value,
     },
+    /// Resize so every item shows without scrolling: the height becomes `fit.fittingHeight`.
+    /// A tab resizes its host and must be the tab currently shown. Result:
+    /// `{changed, fence, adjusted?}`.
+    #[serde(rename = "fences.fit")]
+    FencesFit { fence: String },
     /// Roll up (`true`) or expand (`false`). Result: `{changed, fence}`.
     #[serde(rename = "fences.roll")]
     FencesRoll { fence: String, rolled: bool },
@@ -176,11 +181,20 @@ pub enum Method {
 
     // ---- items ----------------------------------------------------------------------
     /// Move items (by id, full path, or unique display name) into a fence. Moving into or out of
-    /// a folder portal moves the real files. A batch of [`BIG_MOVE_SNAPSHOT_ITEMS`] or more
-    /// desktop items into a virtual fence is preceded by an automatic layout snapshot
-    /// (`snapshotId`). Result: `{changed, moved: n, to: uuid, snapshotId?}`.
+    /// a folder portal moves the real files (on a worker thread: `fileMove: true`, the files
+    /// arrive shortly after the reply). A file whose name already exists at the destination is
+    /// skipped (`skipped`, plus a warning) instead of opening Explorer's replace dialog. A batch
+    /// of [`BIG_MOVE_SNAPSHOT_ITEMS`] or more desktop items into a virtual fence is preceded by
+    /// an automatic layout snapshot (`snapshotId`). Result:
+    /// `{changed, moved: n, to: uuid, fileMove, skipped: [ItemMovePlanDto], snapshotId?}`.
     #[serde(rename = "items.move")]
     ItemsMove { items: Vec<String>, to: String },
+    /// What `items.move` with the same params would do, without doing anything (the CLI's
+    /// `item move --dry-run`). A separate method so an older app answers "unknown method"
+    /// instead of ignoring a dry-run flag and moving. Result:
+    /// `{changed: false, dryRun: true, to, moved: n, fileMove, moves: [ItemMovePlanDto]}`.
+    #[serde(rename = "items.planMove")]
+    ItemsPlanMove { items: Vec<String>, to: String },
     /// Rename the file behind an item (a real rename on disk, like F2 in a fence). With
     /// `keepExt` (default) the current extension is kept unless `name` already ends with it;
     /// `keepExt: false` uses `name` verbatim. Folders are always renamed verbatim. Namespace
@@ -324,6 +338,7 @@ impl Method {
                 | Method::FencesList
                 | Method::FencesGet { .. }
                 | Method::ItemsList { .. }
+                | Method::ItemsPlanMove { .. }
                 | Method::SettingsGet { .. }
                 | Method::RulesGet
                 | Method::RulesApply { dry_run: true }
@@ -627,6 +642,13 @@ mod tests {
                 items: vec!["C:\\x.pdf".into()],
                 to: "Docs".into(),
             },
+            Method::FencesFit {
+                fence: "Work".into(),
+            },
+            Method::ItemsPlanMove {
+                items: vec!["a".into(), "b".into()],
+                to: "Docs".into(),
+            },
             Method::ItemsRename {
                 item: "C:\\x.pdf".into(),
                 name: "report".into(),
@@ -778,6 +800,21 @@ mod tests {
         assert!(!Method::SettingsOpenUi.is_mutation());
         assert!(Method::RulesApply { dry_run: false }.is_mutation());
         assert!(!Method::RulesApply { dry_run: true }.is_mutation());
+        assert!(
+            !Method::ItemsPlanMove {
+                items: vec![],
+                to: "a".into()
+            }
+            .is_mutation()
+        );
+        assert_eq!(
+            Method::ItemsPlanMove {
+                items: vec![],
+                to: "a".into()
+            }
+            .name(),
+            "items.planMove"
+        );
         assert!(
             Method::FencesSetOption {
                 fence: "a".into(),

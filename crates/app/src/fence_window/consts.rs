@@ -70,7 +70,6 @@ pub const SC_MOVE_CAPTION: usize = 0xF012;
 pub(super) const SHADOW_MIN_INTERVAL_MS: u128 = 40;
 /// Hover-peek closes this long after the pointer left (no Fluent reference value).
 pub(super) const PEEK_CLOSE_MS: u32 = 400;
-pub(super) const SNAP_GAP_DIP: i32 = 8;
 pub(super) const SNAP_DIST_DIP: i32 = 10;
 /// Tab header geometry (DIPs).
 pub(super) const TAB_MIN_W: f32 = 48.0;

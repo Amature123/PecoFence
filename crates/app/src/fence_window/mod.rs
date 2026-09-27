@@ -108,6 +108,9 @@ pub struct Behavior {
     pub floating: std::cell::Cell<bool>,
     pub hover_peek: std::cell::Cell<bool>,
     pub snapping: std::cell::Cell<bool>,
+    /// Gap kept to other fences and the work-area edges while snapping, in DIPs
+    /// (`snapping.gapPx`).
+    pub snap_gap_dip: std::cell::Cell<i32>,
     pub backdrop: std::cell::Cell<BackdropMode>,
     /// Rolled fences expand on a single title click (hover peek off while set).
     pub click_to_expand: std::cell::Cell<bool>,
@@ -118,6 +121,17 @@ pub struct Behavior {
     /// `SPI_GETWHEELSCROLLLINES`: rows per wheel notch; `u32::MAX` (`WHEEL_PAGESCROLL`) = one
     /// viewport, 0 = the wheel does not scroll. Refreshed on WM_SETTINGCHANGE.
     pub wheel_lines: std::cell::Cell<u32>,
+}
+
+/// How the shown items fit the window (see [`FenceWindow::fit_report`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FitReport {
+    pub columns: usize,
+    pub rows: usize,
+    /// Window height (device px) showing every row, capped at the work-area bottom.
+    pub fitting_height_px: i32,
+    /// The expanded height is shorter than the content needs.
+    pub overflow: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

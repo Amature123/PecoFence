@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+Found by letting an agent organise a real desktop with the CLI:
+
+- pecofence-cli: `item move --dry-run` (method `items.planMove`) lists per item whether only the icon changes fence (`membership`), a real file moves (`fileMove`, with `destination`), nothing happens, or it is skipped (`exists`, `notAFile`). The real move now skips files whose name already exists at the destination (`skipped` + warning) instead of opening Explorer's replace dialog on the user's screen, and says `fileMove: true` when files are still on their way.
+- pecofence-cli: `fence get` / `fence list` report `fit` (columns, rows, the height that shows every item, `overflow`) for the fence each window shows; `fence fit <FENCE>` applies that height.
+- pecofence-cli: when the app changes a rect on its own (auto height after `fence move/resize/fit` or `fence create --rect`, whole columns and rows after `fence set iconSize/spacing/layout/labelLines`), the reply carries `adjusted {requested, applied, reason}` instead of a silently different size.
+- pecofence-cli: `fence create --below/--above/--right-of/--left-of <FENCE> [--size w,h]` places a fence next to another one with aligned edges and the snapping gap, refuses rects that leave the work area and warns about overlaps.
+- pecofence-cli: global `--fields id,title,rect.w` keeps only those keys (no jq needed) and `--ascii` writes non-ASCII as `\uXXXX`, for readers that decode stdout with the ANSI code page (Python on a Chinese or Japanese system, Windows PowerShell 5).
+- pecofence-cli: `item list` reports `shortcutArguments`, so the same program started with other arguments no longer looks like a duplicate.
+- pecofence-cli: a folder portal that has been navigated into a subfolder reports it as `portal.current`; `item list` shows that folder and `item move` to the portal puts files there.
+- pecofence-cli: a hosted tab's `rect` is now its host window's (it was the tab's stale own geometry, which made fences look overlapped); snapshots report `fenceCount` for the current monitors (it used to sum every monitor layout, e.g. 21 for 7 fences).
+- pecofence-cli: the hint for a rule without conditions names `describe --schema Cond` (it named a command that does not exist).
+- `snapping.gapPx` now sets the gap fences keep while snapping (it was stored but ignored; the gap was always 8 DIP). `snapping.sizeToCells` and `snapping.guideLines` are still unused; setting them over the CLI returns a warning.
+
 ## 0.1.0
 
 - New `pecofence-cli` (on PATH in the Store package as `pecofence-cli.exe`): terminals, scripts and coding agents control fences, items, rules, snapshots, config export/import and backups over a local named pipe; JSON output, `describe` for the full command and schema reference.

@@ -36,7 +36,7 @@ pub(super) fn flush_window_drag(
     now: Instant,
     release: Option<(i32, i32)>,
 ) -> bool {
-    let (target_hwnd, point, offset, snapping, override_height) = {
+    let (target_hwnd, point, offset, snapping, gap_dip, override_height) = {
         let mut guard = view.borrow_mut();
         let Some(v) = guard.as_mut() else {
             return false;
@@ -62,6 +62,7 @@ pub(super) fn flush_window_drag(
             point,
             drag.offset,
             v.behavior.snapping.get(),
+            v.behavior.snap_gap_dip.get(),
             (drag.hwnd == controller).then_some(height).flatten(),
         )
     };
@@ -80,7 +81,7 @@ pub(super) fn flush_window_drag(
         snap_rect(
             &mut rect,
             target_hwnd,
-            (SNAP_GAP_DIP as f32 * scale) as i32,
+            (gap_dip as f32 * scale) as i32,
             (SNAP_DIST_DIP as f32 * scale) as i32,
         );
     }

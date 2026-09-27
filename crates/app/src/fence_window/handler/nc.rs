@@ -733,12 +733,12 @@ pub(super) fn on_moving(
     // at the target's outer edge while the cursor is already on its title.
     // Follow the cursor freely over a target.
     if behavior.snapping.get() && target == 0 {
-        // Snap to other fences and the work area (8 px gap, 10 px capture).
+        // Snap to other fences and the work area (snapping.gapPx gap, 10 px capture).
         let scale = monitors::dpi_for_window(hwnd).max(96) as f32 / 96.0;
         snap_rect(
             rect,
             hwnd,
-            (SNAP_GAP_DIP as f32 * scale) as i32,
+            (behavior.snap_gap_dip.get() as f32 * scale) as i32,
             (SNAP_DIST_DIP as f32 * scale) as i32,
         );
     }

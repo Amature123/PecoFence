@@ -12,7 +12,7 @@ use crate::cli::{
     BackupCmd, Command, ConfigCmd, FenceCmd, ItemCmd, MonitorCmd, PeekCmd, RuleAddArgs, RuleCmd,
     SettingsCmd, SnapshotCmd,
 };
-use crate::output::Reply;
+use crate::output::{Reply, Style};
 use crate::{client, describe, local, output};
 
 const SET_USAGE: &str =
@@ -25,8 +25,8 @@ type Send<'a> = &'a dyn Fn(Method) -> Result<Response, IpcError>;
 pub struct Ctx {
     pub instance: Option<String>,
     pub timeout_ms: u32,
-    /// Indented JSON (streamed `watch` lines honour it too).
-    pub pretty: bool,
+    /// Output shape (streamed `watch` lines honour it too).
+    pub style: Style,
 }
 
 impl Ctx {
@@ -164,25 +164,25 @@ fn watch(
         fence,
         events: (!events.is_empty()).then_some(events),
     };
-    let mut first: Option<Value> = None;
-    let pretty = ctx.pretty;
+    let mut first: Option<Reply> = None;
+    let style = &ctx.style;
     let finished = client::stream(ctx.instance.as_deref(), method, ctx.timeout_ms, |line| {
-        let payload = match reply_from(line) {
-            Ok(reply) => reply.payload(),
-            Err(error) => output::error_payload(&error),
+        let reply = match reply_from(line) {
+            Ok(reply) => reply,
+            Err(error) => Reply::new(output::error_payload(&error)),
         };
-        if !heartbeat && payload["event"] == "heartbeat" {
+        if !heartbeat && reply.result["event"] == "heartbeat" {
             return true;
         }
         if once {
-            first = Some(payload);
+            first = Some(reply);
             return false;
         }
-        output::print_text(&output::render(&payload, pretty), true);
+        output::print_text(&style.render(&style.shape(reply)), true);
         true
     })?;
     match (finished, first) {
-        (true, Some(event)) => Ok(Reply::new(event)),
+        (true, Some(event)) => Ok(event),
         (true, None) => Ok(Reply::new(Value::Null)),
         (false, _) => Err(IpcError::internal("PecoFence closed the event stream")
             .hint("The app exited or was restarted; run `pecofence-cli watch` again")),
@@ -200,12 +200,51 @@ fn run_fence(ctx: &Ctx, cmd: FenceCmd) -> Result<Reply, IpcError> {
             rect,
             monitor,
             portal,
-        } => ctx.call(Method::FencesCreate {
-            title,
-            rect,
-            monitor,
-            portal,
-        }),
+            below,
+            above,
+            right_of,
+            left_of,
+            size,
+        } => {
+            let placement = [
+                (Side::Below, below),
+                (Side::Above, above),
+                (Side::RightOf, right_of),
+                (Side::LeftOf, left_of),
+            ]
+            .into_iter()
+            .find_map(|(side, anchor)| anchor.map(|a| (side, a)));
+            let Some((side, anchor)) = placement else {
+                if size.is_some() {
+                    return Err(IpcError::usage(
+                        "--size goes with --below, --above, --right-of or --left-of",
+                    )
+                    .hint("Use --rect X,Y,W,H for an absolute position and size"));
+                }
+                return ctx.call(Method::FencesCreate {
+                    title,
+                    rect,
+                    monitor,
+                    portal,
+                });
+            };
+            let (rect, overlaps) = placed_rect(ctx, side, &anchor, size)?;
+            let mut reply = ctx.call(Method::FencesCreate {
+                title,
+                rect: Some(rect),
+                monitor: None,
+                portal,
+            })?;
+            if !overlaps.is_empty() {
+                let w = format!("the new fence overlaps {}", overlaps.join(", "));
+                reply.warning = Some(match reply.warning.take() {
+                    Some(existing) => format!("{existing}; {w}"),
+                    None => w,
+                });
+            }
+            Ok(reply)
+        }
+        FenceCmd::Fit { fence } => ctx.call(Method::FencesFit { fence }),
         FenceCmd::Delete { fence } => ctx.call(Method::FencesDelete { fence }),
         FenceCmd::Rename { fence, title } => ctx.call(Method::FencesRename { fence, title }),
         FenceCmd::Move {
@@ -289,8 +328,9 @@ fn roll(ctx: &Ctx, fence: Option<String>, all: bool, rolled: bool) -> Result<Rep
 }
 
 /// `fences.get`, returning the fence's id (so later calls skip selector resolution) and its
-/// expanded rectangle. The server reports a `rect` for hosted tabs too (the host's); only a
-/// fence whose monitor is disconnected has none.
+/// expanded rectangle. Hosted tabs report their host's `rect` (older apps reported the
+/// tab's own, stale one; the server rejects moving a tab either way); only a fence whose
+/// monitor is disconnected has none.
 fn current_rect(ctx: &Ctx, fence: &str) -> Result<(String, Rect), IpcError> {
     let dto = ctx
         .call(Method::FencesGet {
@@ -358,6 +398,117 @@ fn for_each_fence(send: Send<'_>, make: impl Fn(String) -> Method) -> Result<Rep
     })
 }
 
+/// Which side of the anchor fence `fence create --below/--above/--right-of/--left-of` uses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Side {
+    Below,
+    Above,
+    RightOf,
+    LeftOf,
+}
+
+impl Side {
+    fn flag(self) -> &'static str {
+        match self {
+            Side::Below => "--below",
+            Side::Above => "--above",
+            Side::RightOf => "--right-of",
+            Side::LeftOf => "--left-of",
+        }
+    }
+}
+
+/// Pure: a `w`×`h` rect `gap` px away from `anchor` on `side`, the near edges aligned (left
+/// edges above / below, top edges left / right).
+pub fn place(side: Side, anchor: Rect, w: i32, h: i32, gap: i32) -> Rect {
+    let (x, y) = match side {
+        Side::Below => (anchor.x, anchor.y + anchor.h + gap),
+        Side::Above => (anchor.x, anchor.y - gap - h),
+        Side::RightOf => (anchor.x + anchor.w + gap, anchor.y),
+        Side::LeftOf => (anchor.x - gap - w, anchor.y),
+    };
+    Rect { x, y, w, h }
+}
+
+/// Pure: `inner` lies completely inside `outer`.
+pub fn inside(inner: Rect, outer: Rect) -> bool {
+    inner.x >= outer.x
+        && inner.y >= outer.y
+        && inner.x + inner.w <= outer.x + outer.w
+        && inner.y + inner.h <= outer.y + outer.h
+}
+
+/// Pure: the two rects share some area (touching edges do not count).
+pub fn intersects(a: Rect, b: Rect) -> bool {
+    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+}
+
+/// The rect for a placed `fence create`, and the titles of fences it would overlap. The gap is
+/// `snapping.gapPx` (DIPs) at the anchor monitor's DPI; the rect must fit that work area.
+fn placed_rect(
+    ctx: &Ctx,
+    side: Side,
+    anchor: &str,
+    size: Option<(i32, i32)>,
+) -> Result<(Rect, Vec<String>), IpcError> {
+    let (anchor_id, anchor_rect) = current_rect(ctx, anchor)?;
+    let dto = ctx
+        .call(Method::FencesGet {
+            fence: anchor_id.clone(),
+        })?
+        .result;
+    let anchor_title = dto["title"].as_str().unwrap_or(anchor).to_string();
+    let monitors = ctx.call(Method::MonitorsList)?.result;
+    let monitor = monitors
+        .as_array()
+        .and_then(|list| list.iter().find(|m| m["id"] == dto["monitor"]))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let work: Option<Rect> = serde_json::from_value(monitor["workArea"].clone()).ok();
+    let dpi = monitor["dpi"].as_u64().unwrap_or(96).max(96) as f32;
+    let gap_dip = ctx
+        .call(Method::SettingsGet {
+            path: Some("snapping.gapPx".into()),
+        })
+        .ok()
+        .and_then(|r| r.result.as_i64())
+        .unwrap_or(8)
+        .clamp(0, 64) as f32;
+    let gap = (gap_dip * dpi / 96.0).round() as i32;
+    let (w, h) = size.unwrap_or((anchor_rect.w, anchor_rect.h));
+    let rect = place(side, anchor_rect, w, h, gap);
+    if let Some(work) = work
+        && !inside(rect, work)
+    {
+        return Err(IpcError::new(
+            ErrorCode::InvalidValue,
+            format!(
+                "a {w}x{h} fence {} {anchor_title:?} would leave the work area of its monitor",
+                side.flag()
+            ),
+        )
+        .hint("Pass a smaller --size, pick another side, or give an explicit --rect")
+        .details(json!({ "rect": rect, "workArea": work })));
+    }
+    let fences = ctx.call(Method::FencesList)?.result;
+    let overlaps = fences
+        .as_array()
+        .map(|list| {
+            list.iter()
+                .filter(|f| !f["tabHost"].is_string())
+                .filter(|f| {
+                    serde_json::from_value::<Option<Rect>>(f["rect"].clone())
+                        .ok()
+                        .flatten()
+                        .is_some_and(|r| intersects(rect, r))
+                })
+                .filter_map(|f| f["title"].as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok((rect, overlaps))
+}
+
 // ---- items -------------------------------------------------------------------------------
 
 fn run_item(ctx: &Ctx, cmd: ItemCmd) -> Result<Reply, IpcError> {
@@ -383,6 +534,7 @@ fn run_item(ctx: &Ctx, cmd: ItemCmd) -> Result<Reply, IpcError> {
             glob,
             from,
             to,
+            dry_run,
         } => {
             let items = match glob {
                 None => items,
@@ -407,6 +559,10 @@ fn run_item(ctx: &Ctx, cmd: ItemCmd) -> Result<Reply, IpcError> {
                     ids
                 }
             };
+            if dry_run {
+                // A method of its own: an older app refuses it instead of moving.
+                return ctx.call(Method::ItemsPlanMove { items, to });
+            }
             ctx.call(Method::ItemsMove { items, to })
         }
     }
@@ -685,6 +841,80 @@ mod tests {
     use std::cell::RefCell;
 
     use super::*;
+
+    #[test]
+    fn placement_aligns_edges_and_keeps_the_gap() {
+        let a = Rect {
+            x: 100,
+            y: 200,
+            w: 400,
+            h: 300,
+        };
+        assert_eq!(
+            place(Side::Below, a, 400, 100, 16),
+            Rect {
+                x: 100,
+                y: 516,
+                w: 400,
+                h: 100
+            }
+        );
+        assert_eq!(
+            place(Side::Above, a, 400, 100, 16),
+            Rect {
+                x: 100,
+                y: 84,
+                w: 400,
+                h: 100
+            }
+        );
+        assert_eq!(
+            place(Side::RightOf, a, 50, 60, 16),
+            Rect {
+                x: 516,
+                y: 200,
+                w: 50,
+                h: 60
+            }
+        );
+        assert_eq!(
+            place(Side::LeftOf, a, 50, 60, 16),
+            Rect {
+                x: 34,
+                y: 200,
+                w: 50,
+                h: 60
+            }
+        );
+        let work = Rect {
+            x: 0,
+            y: 0,
+            w: 3840,
+            h: 2064,
+        };
+        assert!(inside(a, work));
+        assert!(!inside(place(Side::Above, a, 400, 300, 16), work));
+        assert!(intersects(
+            a,
+            Rect {
+                x: 499,
+                y: 499,
+                w: 10,
+                h: 10
+            }
+        ));
+        // Edge to edge is not an overlap.
+        assert!(!intersects(
+            a,
+            Rect {
+                x: 500,
+                y: 200,
+                w: 10,
+                h: 10
+            }
+        ));
+        assert_eq!(Side::RightOf.flag(), "--right-of");
+    }
 
     #[test]
     fn values_parse_as_json_first_then_text() {

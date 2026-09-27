@@ -58,7 +58,10 @@ contents or undoes real file moves through folder portals.
   terminal can run it right after installation. The alias can be turned off in
   *Settings › Apps › Advanced app settings › App execution aliases*.
 - **Portable ZIP**: run it from the extracted folder (`.\pecofence-cli.exe ...`) or add that folder
-  to `PATH`. `SKILL.md` at the root of the ZIP is the same text `pecofence-cli skill` prints.
+  to your user `PATH`; in PowerShell, from inside the folder:
+  `[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $PWD, 'User')`.
+  New terminals then find `pecofence-cli` by name. `SKILL.md` at the root of the ZIP is the same
+  text `pecofence-cli skill` prints.
 
 ## How it talks to the app
 
@@ -77,6 +80,8 @@ after an exit 4 read the state back (`fence list`) before retrying a mutation.
 | `--instance <NAME>` | Talk to a named test instance. Defaults to the `PECOFENCE_INSTANCE` environment variable (the same variable the app reads at start-up). Normal installs never need it. |
 | `--timeout <MS>` | How long to wait for the reply (default 15000, minimum 100; smaller values are clamped by both the CLI and the app). |
 | `--pretty` / `--compact` | Indented or single-line JSON. Default: pretty when stdout is a terminal, compact otherwise. |
+| `--fields <PATH,...>` | Keep only these keys of the result: `fence list --fields id,title,rect`, `rule list --fields list.name,list.targetTitle`. Dotted paths reach into objects, lists are projected element by element, a missing key comes out as `null`, the server's `warning` is always kept. Errors are never projected. |
+| `--ascii` | Write every non-ASCII character as `\uXXXX`. The JSON is the same document; use it when the reader decodes stdout with the Windows ANSI code page (Python's `subprocess`/`sys.stdin` on a Chinese or Japanese system, Windows PowerShell 5's `ConvertFrom-Json` on native output), which otherwise garbles titles and paths. |
 | `-V, --version` | CLI version (the app version is in `status`). |
 
 ## Commands
@@ -95,11 +100,12 @@ unique id prefix, or a name (only while that name is unique).
 | `skill` | `pecofence-cli skill > SKILL.md` |
 | `fence list` | `pecofence-cli fence list` |
 | `fence get <FENCE>` | `pecofence-cli fence get Work` |
-| `fence create (--title <T> \| --portal <DIR>) [--rect x,y,w,h] [--monitor <ID>]` | `pecofence-cli fence create --title Work --rect 100,100,600,400` |
+| `fence create (--title <T> \| --portal <DIR>) [--rect x,y,w,h \| --monitor <ID> \| --below/--above/--right-of/--left-of <FENCE> [--size w,h]]` | `pecofence-cli fence create --title Work --rect 100,100,600,400` |
 | `fence delete <FENCE>` | `pecofence-cli fence delete Temp` |
 | `fence rename <FENCE> <TITLE>` | `pecofence-cli fence rename Work Projects` |
 | `fence move <FENCE> (--rect x,y,w,h \| --x <N> --y <N> \| --monitor <ID>)` | `pecofence-cli fence move Work --x 1200 --y 80` |
 | `fence resize <FENCE> [--w <N>] [--h <N>]` | `pecofence-cli fence resize Work --w 800` |
+| `fence fit <FENCE>` | `pecofence-cli fence fit Tools` (height that shows every item) |
 | `fence set (<FENCE> \| --all) <PROP> <VALUE> [--string]` | `pecofence-cli fence set Work layout list` |
 | `fence roll (<FENCE> \| --all)` | `pecofence-cli fence roll Work` |
 | `fence unroll (<FENCE> \| --all)` | `pecofence-cli fence unroll --all` |
@@ -109,7 +115,7 @@ unique id prefix, or a name (only while that name is unique).
 | `fence hide-all` / `fence show-all` | `pecofence-cli fence hide-all` |
 | `fence open-options <FENCE>` | `pecofence-cli fence open-options Work` |
 | `item list [--fence <FENCE>] [--kind <KIND>] [--ext <EXT>]` | `pecofence-cli item list --fence inbox --kind documents` |
-| `item move (<ITEM>... \| --glob <PATTERN> [--from <FENCE>]) --to <FENCE>` | `pecofence-cli item move --glob "*.pdf" --from inbox --to Docs` |
+| `item move (<ITEM>... \| --glob <PATTERN> [--from <FENCE>]) --to <FENCE> [--dry-run]` | `pecofence-cli item move --glob "*.pdf" --from inbox --to Docs` |
 | `item rename <ITEM> <NAME> [--keep-ext false]` | `pecofence-cli item rename "C:\Users\me\Desktop\IMG_2031.pdf" "2026-09 electricity bill"` |
 | `settings get [PATH]` | `pecofence-cli settings get peek.enabled` |
 | `settings set <PATH> <VALUE> [--string]` | `pecofence-cli settings set peek.enabled false` |
@@ -136,7 +142,17 @@ unique id prefix, or a name (only while that name is unique).
 | `paths` | `pecofence-cli paths` (config, backups, log, crash dumps; offline) |
 
 `fence create --portal <DIR>` shows a folder as a fence; `--title` is optional there and defaults to
-the folder name.
+the folder name. `--below`, `--above`, `--right-of` and `--left-of <FENCE>` place the new fence next
+to an existing one: the near edges aligned (left edges for above/below, top edges for left/right),
+the snapping gap (`snapping.gapPx` DIPs at that monitor's DPI) between the two, and the size of the
+other fence unless `--size w,h` says otherwise. A rect that would leave that monitor's work area is
+`invalid_value` with `details.rect` / `details.workArea`; overlapping other fences only adds a
+`warning` naming them.
+
+`fence fit <FENCE>` (method `fences.fit`) sets the height to `fit.fittingHeight` (see *Geometry*
+below): every item visible, no scrollbar, and no empty rows. A tab resizes the window it is shown
+in; only the tab currently shown can be measured, so another tab is `unsupported` (click it or
+`fence detach` it first).
 
 `fence set` properties (values as shown by `fence get`): `title` (or `fence rename`), `iconSize`
 32/48/64/96, `spacing` compact/normal/loose, `autoHeight`, `locked`, `excludeFromQuickHide`,
@@ -149,15 +165,30 @@ skips tabs hosted inside another fence (their options belong to the host).
 `item list` describes every item with `kind` (`folders`, `programs`, `installers`, `shortcuts`,
 `documents`, `images`, `music`, `video`, `archives`, `namespace`, `other`; the same tests the `type`
 rule condition uses), `ext`, `size`, `modified`, `created` (Unix seconds), `openCount`, `lastOpened`,
-`shortcutTarget` (resolved `.lnk` path or `.url` URL), `fileName`, `assignedBy` and `rule` (the rule
-that filed it). `--kind` and `--ext` filter the list on the client. Most of a messy desktop can be
-sorted from these fields alone; open a file only when the name and kind do not say enough.
+`shortcutTarget` (resolved `.lnk` path or `.url` URL), `shortcutArguments` (a `.lnk`'s command-line
+arguments), `fileName`, `assignedBy` and `rule` (the rule that filed it). Two shortcuts are
+duplicates only when both `shortcutTarget` and `shortcutArguments` match: the same `ModOrganizer.exe`
+with another profile argument launches something else. `--kind` and `--ext` filter the list on the
+client. Most of a messy desktop can be sorted from these fields alone; open a file
+only when the name and kind do not say enough.
 
 `item rename <ITEM> <NAME>` renames the file on disk inside its folder (the same operation as F2 in
 a fence; works for portal items too). The current extension is kept unless `NAME` already ends with
 it; `--keep-ext false` renames verbatim; folders are always renamed verbatim. A name that exists
 already, or one with `\ / : * ? " < > |`, is `invalid_value`; shell namespace items (This PC,
 Recycle Bin) are `unsupported`.
+
+`item move --dry-run` (wire method `items.planMove`) changes nothing and returns
+`{"dryRun": true, "changed": false, "to", "moved": n, "fileMove": bool, "moves": [...]}` with one
+entry per requested item: `item`, `name`, `path`, `from`/`fromTitle`, `action` and, where it applies,
+`destination` and `reason`. `action` is `membership` (only the icon changes fence), `fileMove` (a
+real move on disk; `destination` is where the file lands), `none` (already there) or `skip`:
+`reason` `exists` (a file of that name is already at the destination), `notAFile` (This PC,
+Recycle Bin and friends cannot go into a folder) or `unsupported`. The real `item move` skips the
+same items, lists them in `skipped` with a `warning`, and never opens Explorer's replace-or-skip
+dialog on the user's screen. When a portal is involved its reply says `fileMove: true`: the files
+are moved on a worker thread and appear in `item list` a moment after the reply, with new ids (a
+portal item's id follows its path), so list the fence again before addressing them.
 
 `rule apply --dry-run` returns `{"dryRun": true, "changed": false, "moved": n, "moves": [...]}`
 where each move has `item`, `name`, `path`, `from`/`fromTitle`, `to`/`toTitle`, `rule`/`ruleName`
@@ -177,7 +208,10 @@ is rejected with `invalid_value` and the hint to re-save it (`| Set-Content -Enc
 
 `settings set` paths are dotted camelCase keys of the Settings object, e.g. `iconSize`, `theme`,
 `themeStyle`, `hideRealIcons`, `autostart`, `peek.enabled`, `quickHide.enabled`, `quickHide.delayMs`,
-`rollUp.hoverPeek`, `rollUp.clickToExpand`, `snapping.enabled`, `snapping.gapPx`, `icons.chameleon`.
+`rollUp.hoverPeek`, `rollUp.clickToExpand`, `snapping.enabled`, `snapping.gapPx` (the gap, in DIPs,
+fences keep to each other and the screen edges while snapping; 0 to 64, default 8),
+`icons.chameleon`. `snapping.sizeToCells` and `snapping.guideLines` are stored but not used yet;
+setting them returns a `warning` saying so.
 `describe --schema Settings` lists them all with their allowed values (the name is matched
 case-insensitively; an unknown name is a `usage` error listing `details.allowed`).
 
@@ -186,7 +220,7 @@ case-insensitively; an unknown name is a `usage` error listing `details.allowed`
 `fence set` and `settings set` parse `VALUE` as JSON first (`48`, `true`, `null`, `"dark"`, `[1,2]`);
 anything that is not JSON is taken as a string, so `list` and `dark` need no quotes. `--string` forces
 a string even for values that look like JSON (`fence set Work title 2024 --string`). Negative numbers
-work as they are: `settings set snapping.gapPx -4`.
+work as they are: `fence move Work --x -1800` (a monitor to the left of the primary one).
 
 Quote values that start with `#`, `[` or `*`, or that contain spaces, so the shell does not swallow
 them: in Git Bash and other POSIX shells `#ff8800` starts a comment, so write
@@ -203,6 +237,11 @@ reason `item move --glob` without `--from` never touches items shown by a portal
 (`"assignedBy": "portal"` in `item list`); name the portal with `--from <portal>` to include them. As
 a rule, always pair `--glob` with `--from`, and check `fence list` for `"kind": "portal"` before
 choosing `--to`.
+
+A portal whose `portalNavigate` is on can be double-clicked into a subfolder. It then reports that
+folder as `portal.current` (next to `portal.path`, the folder it was created for): `item list` shows
+the subfolder's contents and `item move --to <portal>` puts files there. `--dry-run` shows the exact
+`destination` of every file.
 
 ## Watching for changes
 
@@ -263,7 +302,14 @@ The app ignores the field's value.
   (`not_running`, `timeout`, `busy`, `version_mismatch`) aborts the batch at once and is reported as
   the command's error with its own exit code, instead of being repeated for every fence.
 - A `warning` string may be added when the command was applied but something secondary failed
-  (typically: the config file could not be written, or no automatic snapshot could be taken).
+  (typically: the config file could not be written, or no automatic snapshot could be taken), or
+  part of it was skipped (`item move`: files whose name already exists at the destination).
+- `adjusted: {"requested", "applied", "reason"}` appears when the app changed a rect on its own:
+  `fence move`/`resize`/`fit` and `fence create --rect` (virtual fences and portals alike) on a fence
+  with `autoHeight` (`reason: "autoHeight"`, the height follows the content) or clamped to the size
+  limits (`"clamped"`), and `fence set` of `iconSize`, `spacing`, `layout` or `labelLines`, which
+  snaps the window to whole icon columns and rows (`"cellSnap"`; `requested` is the rect before the
+  change). Use `applied` for further placement.
 - Failure: stderr gets `{"error": {"code", "message", "hint"?, "details"?}}`. Nothing else is ever
   printed to stdout, so `pecofence-cli ... | jq` is always safe.
 - Usage errors detected by the argument parser keep clap's human-readable message and exit code 2.
@@ -306,15 +352,28 @@ The app ignores the field's value.
 **physical pixels in virtual-screen coordinates**: the primary monitor's top-left corner is `0,0`,
 monitors placed to the left of it have negative `x`. `monitor list` shows each monitor's `rect`,
 `workArea` and `dpi`. A fence's `rect` is its expanded size (what `fence move`/`resize` change);
-`windowRect` is what is currently on screen (only the title bar while rolled up). The saved,
-DPI-independent form is in `geometry`. Rects that lie off every monitor or exceed the virtual screen
-are rejected with `invalid_value`.
+`windowRect` is what is currently on screen (only the title bar while rolled up). A tab hosted in
+another fence's window reports that window's `rect` and a `null` `windowRect`, so skip entries with
+a `tabHost` when checking fences for overlaps. The saved, DPI-independent form is in `geometry`.
+Rects that lie off every monitor or exceed the virtual screen are rejected with `invalid_value`.
+
+### Geometry: does everything fit?
+
+`fence get` / `fence list` carry `fit` for every fence that is currently on screen: `columns` and
+`rows` of the item grid at the current width, icon size and spacing (the list and details layouts
+have one column), `fittingHeight` (the window height in physical px that shows every item, capped at
+the bottom of the work area) and `overflow` (`true` when the fence is shorter than that and scrolls).
+It is `null` for a tab that is not the one shown and for fences on a disconnected monitor. `fence fit`
+applies `fittingHeight`; `fence set <FENCE> autoHeight true` keeps it applied as items come and go.
 
 ## Snapshots
 
 `snapshot save <NAME>` stores the current fence layout and returns `{"changed": true, "snapshot":
-{"id", "name", "ts", "fenceCount"}}`. Keep `snapshot.id`: `snapshot restore <ID>` (full id or a
-unique prefix) is unambiguous, whereas a name only resolves while exactly one snapshot carries it.
+{"id", "name", "ts", "fenceCount"}}`. PecoFence keeps one layout per monitor combination it has seen
+(a laptop docked and undocked has two), and a snapshot holds all of them; `fenceCount` counts the
+fences of the layout for the monitors connected now (what `fence list` shows after a restore). Keep
+`snapshot.id`: `snapshot restore <ID>` (full id or a unique prefix) is unambiguous, whereas a name
+only resolves while exactly one snapshot carries it.
 Restoring snapshots the current layout first and returns that `snapshotId`, so a restore can itself
 be undone. Snapshots do not include settings, rules, or files moved through portals.
 
@@ -352,6 +411,8 @@ New-Item -ItemType Directory -Force .claude/skills/pecofence-cli
 pecofence-cli skill | Set-Content -Encoding utf8 .claude/skills/pecofence-cli/SKILL.md
 ```
 
-Use the skills location your agent supports; `.claude/skills/` is the Claude Code example. You can
+Use the skills location your agent supports; `.claude/skills/` is the Claude Code example. With the
+ZIP build, put its folder on `PATH` (see *Install and PATH*) so the agent can call `pecofence-cli`
+by name (and a permission rule such as Claude Code's `Bash(pecofence-cli:*)` matches it). You can
 also copy the short AGENTS.md snippet at the end of the guide into your project's `AGENTS.md`.
 `pecofence-cli describe` prints the machine-readable catalog the guide refers to.

@@ -1132,6 +1132,11 @@ impl FenceWindow {
         self.view.borrow().as_ref().and_then(|v| v.auto_height_px())
     }
 
+    /// Columns, rows and fitting height of the fence currently shown ([`Self::active_fence`]).
+    pub fn fit_report(&self) -> Option<FitReport> {
+        self.view.borrow().as_ref().map(|v| v.fit_report())
+    }
+
     /// Applies a new expanded height. `animate` (auto-height following an item change) glides
     /// the bottom edge there over 250 ms; otherwise, or when the animation declines (hidden
     /// window, animations off, roll in progress), the window snaps. The returned rectangle is

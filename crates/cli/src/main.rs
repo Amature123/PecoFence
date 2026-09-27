@@ -29,19 +29,24 @@ fn main() {
         .or_else(|| brand::var("PECOFENCE_INSTANCE").ok())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
+    let style = output::Style {
+        pretty,
+        ascii: cli.ascii,
+        fields: cli.fields,
+    };
     let ctx = run::Ctx {
         instance,
         timeout_ms: cli.timeout,
-        pretty,
+        style,
     };
     let is_describe_catalog = matches!(cli.command, cli::Command::Describe { schema: None });
     let code = match run::run(&ctx, cli.command) {
-        Ok(reply) if is_describe_catalog && pretty => {
+        Ok(reply) if is_describe_catalog && pretty && ctx.style.fields.is_empty() => {
             output::print_text(&describe::render_pretty(&reply.payload()), true);
             0
         }
-        Ok(reply) => output::print_result(reply, pretty),
-        Err(error) => output::print_error(&error, pretty),
+        Ok(reply) => output::print_result(reply, &ctx.style),
+        Err(error) => output::print_error(&error, &ctx.style),
     };
     std::process::exit(code);
 }

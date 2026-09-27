@@ -275,15 +275,41 @@ impl FenceViewState {
     /// Window height (device px) that fits every row of the grid at the current width,
     /// regardless of the roll state (the expand animation targets it directly).
     pub(super) fn fitting_height_px(&self) -> i32 {
-        let scale = self.scale();
+        let desired = self.desired_height_px(&self.current_layout());
+        self.bounded_height_px(desired)
+    }
+
+    /// The item layout at the content surface's current width.
+    fn current_layout(&self) -> ItemLayout {
         let (cw, _) = self.content_size_px();
-        let layout = self.layout(cw as f32 / scale);
+        self.layout(cw as f32 / self.scale())
+    }
+
+    /// Window height (device px) that shows every row of `layout`, ignoring the work area.
+    fn desired_height_px(&self, layout: &ItemLayout) -> i32 {
         // Header bands and per-group row blocks included; an empty fence keeps one row.
         let content = layout.fixed_top()
             + layout
                 .content_height()
                 .max(layout.top_pad() * 2.0 + layout.row_step());
-        let desired = self.title_h_px() + (content * scale).ceil() as i32 + 2;
+        self.title_h_px() + (content * self.scale()).ceil() as i32 + 2
+    }
+
+    /// Columns, rows and the fitting height of the shown items at the current width, and
+    /// whether the expanded height cuts them off (the CLI's `FenceDto.fit`).
+    pub(super) fn fit_report(&self) -> FitReport {
+        let layout = self.current_layout();
+        let desired = self.desired_height_px(&layout);
+        FitReport {
+            columns: layout.columns(),
+            rows: layout.row_count(),
+            fitting_height_px: self.bounded_height_px(desired),
+            overflow: desired > self.expanded_h_px,
+        }
+    }
+
+    /// `desired` capped so the window ends at the bottom of its monitor's work area.
+    fn bounded_height_px(&self, desired: i32) -> i32 {
         let rect = window::window_rect(self.hwnd);
         monitors::query(monitors::monitor_from_window(self.hwnd)).map_or(desired, |monitor| {
             bounded_auto_height(

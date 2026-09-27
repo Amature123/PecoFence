@@ -20,6 +20,8 @@ pub const SCHEMA_NAMES: &[&str] = &[
     "RuleListDto",
     "BackupDto",
     "PlannedMoveDto",
+    "ItemMovePlanDto",
+    "AdjustedDto",
     "EventDto",
     "Config",
 ];
@@ -46,6 +48,8 @@ pub fn schema(name: &str) -> Option<Value> {
         "RuleListDto" => to_value::<crate::RuleListDto>(),
         "BackupDto" => to_value::<crate::BackupDto>(),
         "PlannedMoveDto" => to_value::<crate::PlannedMoveDto>(),
+        "ItemMovePlanDto" => to_value::<crate::ItemMovePlanDto>(),
+        "AdjustedDto" => to_value::<crate::AdjustedDto>(),
         "EventDto" => to_value::<crate::EventDto>(),
         "Config" => to_value::<pecofence_core::Config>(),
         _ => return None,

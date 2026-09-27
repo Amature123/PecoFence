@@ -3,6 +3,15 @@
 
 use super::*;
 
+/// Largest snapping gap honoured, in DIPs; `snapping.gapPx` is clamped to `0..=` this.
+pub(super) const MAX_SNAP_GAP_DIP: i32 = 64;
+
+/// `snapping.gapPx` as the gap (DIPs) fence windows keep to each other and the work-area edges
+/// while snapping.
+pub(super) fn snap_gap_dip(snapping: &pecofence_core::SnappingSettings) -> i32 {
+    snapping.gap_px.clamp(0, MAX_SNAP_GAP_DIP)
+}
+
 impl App {
     /// Replaces the configuration wholesale (import / backup) and rebuilds everything.
     pub(super) fn adopt_config(&mut self, cfg: pecofence_core::Config, what: &str) {
@@ -502,6 +511,10 @@ impl App {
         }
         self.ctx.behavior.hover_peek.set(new.roll_up.hover_peek);
         self.ctx.behavior.snapping.set(new.snapping.enabled);
+        self.ctx
+            .behavior
+            .snap_gap_dip
+            .set(snap_gap_dip(&new.snapping));
         self.ctx
             .behavior
             .click_to_expand

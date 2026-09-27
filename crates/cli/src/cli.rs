@@ -29,6 +29,12 @@ pub struct Cli {
     /// Single-line JSON output (default when stdout is not a terminal)
     #[arg(long, global = true)]
     pub compact: bool,
+    /// Keep only these keys of the result (dotted paths, comma-separated; lists element-wise)
+    #[arg(long, global = true, value_name = "PATH,...", value_delimiter = ',')]
+    pub fields: Vec<String>,
+    /// Escape every non-ASCII character as \uXXXX (readers that decode stdout with the ANSI code page)
+    #[arg(long, global = true)]
+    pub ascii: bool,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -148,20 +154,36 @@ pub enum FenceCmd {
     },
     /// New virtual fence, or a folder portal with --portal
     #[command(
-        after_help = "Example: pecofence-cli fence create --title Work --rect 100,100,600,400"
+        after_help = "Example: pecofence-cli fence create --title Work --rect 100,100,600,400\n         pecofence-cli fence create --title Tools --below Games --size 1152,400\n\n--below/--above/--right-of/--left-of place the fence next to another one, edges aligned and\nthe snapping gap between them; the size defaults to that fence's."
     )]
+    #[command(group(ArgGroup::new("place").multiple(false)))]
     Create {
         /// Title of the new fence (defaults to the folder name with --portal)
         #[arg(long, value_name = "TITLE", required_unless_present = "portal")]
         title: Option<String>,
-        #[arg(long, value_name = "X,Y,W,H", value_parser = Rect::parse, allow_hyphen_values = true, help = RECT_HELP)]
+        #[arg(long, value_name = "X,Y,W,H", value_parser = Rect::parse, allow_hyphen_values = true, group = "place", help = RECT_HELP)]
         rect: Option<Rect>,
         /// Monitor id (see `monitor list`) to place the fence on when --rect is omitted
-        #[arg(long, value_name = "ID", conflicts_with = "rect")]
+        #[arg(long, value_name = "ID", group = "place")]
         monitor: Option<String>,
         /// Folder path: show this folder as a portal instead of a virtual fence
         #[arg(long, value_name = "DIR")]
         portal: Option<String>,
+        /// Place under this fence (left edges aligned)
+        #[arg(long, value_name = "FENCE", group = "place")]
+        below: Option<String>,
+        /// Place above this fence (left edges aligned)
+        #[arg(long, value_name = "FENCE", group = "place")]
+        above: Option<String>,
+        /// Place to the right of this fence (top edges aligned)
+        #[arg(long, value_name = "FENCE", group = "place")]
+        right_of: Option<String>,
+        /// Place to the left of this fence (top edges aligned)
+        #[arg(long, value_name = "FENCE", group = "place")]
+        left_of: Option<String>,
+        /// Size in physical px with --below/--above/--right-of/--left-of (default: that fence's)
+        #[arg(long, value_name = "W,H", value_parser = parse_size)]
+        size: Option<(i32, i32)>,
     },
     /// Delete a fence; its items return to the desktop (inbox) fence, rules targeting it are removed
     #[command(after_help = "Example: pecofence-cli fence delete Temp")]
@@ -204,6 +226,14 @@ pub enum FenceCmd {
         /// Move to this monitor id, keeping the relative position
         #[arg(long, value_name = "ID", group = "where")]
         monitor: Option<String>,
+    },
+    /// Size a fence so all of its items show without scrolling (see `fit` in `fence get`)
+    #[command(
+        after_help = "Example: pecofence-cli fence fit Tools\n\nThe height becomes fit.fittingHeight. A tab resizes its host window; only the tab currently shown\ncan be measured."
+    )]
+    Fit {
+        #[arg(help = FENCE_HELP)]
+        fence: String,
     },
     /// Resize a fence (physical px); position is kept
     #[command(after_help = "Example: pecofence-cli fence resize Work --w 800")]
@@ -319,7 +349,7 @@ pub enum ItemCmd {
     },
     /// Move items into a fence (into or out of a folder portal moves the real files)
     #[command(
-        after_help = "Example: pecofence-cli item move --glob \"*.pdf\" --to Docs\n         pecofence-cli item move \"C:\\Users\\me\\Desktop\\report.pdf\" Steam --to Work"
+        after_help = "Example: pecofence-cli item move --glob \"*.pdf\" --to Docs\n         pecofence-cli item move \"C:\\Users\\me\\Desktop\\report.pdf\" Steam --to Work\n         pecofence-cli item move --glob \"*.jpg\" --from Games --to Pictures --dry-run\n\n--dry-run lists per item: membership (icon only), fileMove (a real move, with destination),\nnone, or skip (reason exists / notAFile). A name that already exists at the destination is\nskipped by the real move too, instead of opening Explorer's replace dialog. Files moved through a\nportal arrive a moment after the reply: list the fence again to see them."
     )]
     #[command(group(ArgGroup::new("which").required(true)))]
     Move {
@@ -339,6 +369,9 @@ pub enum ItemCmd {
             help = "Destination fence (id, id prefix, or title)"
         )]
         to: String,
+        /// Only report what would happen (per item: action, destination, skip reason)
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -554,6 +587,23 @@ pub enum PeekCmd {
     End,
 }
 
+/// `W,H` for `fence create --size`: two positive integers.
+pub fn parse_size(text: &str) -> Result<(i32, i32), String> {
+    let parts: Vec<&str> = text.split(',').map(str::trim).collect();
+    let [w, h] = parts.as_slice() else {
+        return Err(format!("expected W,H but got {text:?}"));
+    };
+    let num = |p: &str| {
+        p.parse::<i32>()
+            .map_err(|_| format!("{p:?} in {text:?} is not an integer"))
+    };
+    let (w, h) = (num(w)?, num(h)?);
+    if w <= 0 || h <= 0 {
+        return Err(format!("width and height must be positive in {text:?}"));
+    }
+    Ok((w, h))
+}
+
 /// `fence set` positionals: `FENCE PROP VALUE`, or `PROP VALUE` together with `--all`.
 pub fn split_set_args(args: &[String], all: bool) -> Result<(Option<&str>, &str, &str), String> {
     match (args, all) {
@@ -753,6 +803,85 @@ mod tests {
     }
 
     #[test]
+    fn output_flags_are_global() {
+        let cli = parse(&["fence", "list", "--fields", "id,title,rect.w", "--ascii"]).unwrap();
+        assert_eq!(cli.fields, vec!["id", "title", "rect.w"]);
+        assert!(cli.ascii);
+        let cli = parse(&["--fields", "id", "status"]).unwrap();
+        assert_eq!(cli.fields, vec!["id"]);
+        assert!(!cli.ascii);
+    }
+
+    #[test]
+    fn fence_create_places_next_to_another_fence() {
+        let cli = parse(&[
+            "fence", "create", "--title", "T", "--below", "Games", "--size", "1152,400",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Fence {
+                cmd: FenceCmd::Create { below, size, .. },
+            } => {
+                assert_eq!(below.as_deref(), Some("Games"));
+                assert_eq!(size, Some((1152, 400)));
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(parse(&["fence", "create", "--title", "T", "--right-of", "a"]).is_ok());
+        assert!(
+            parse(&[
+                "fence",
+                "create",
+                "--title",
+                "T",
+                "--below",
+                "a",
+                "--left-of",
+                "b"
+            ])
+            .is_err()
+        );
+        assert!(
+            parse(&[
+                "fence", "create", "--title", "T", "--below", "a", "--rect", "1,2,3,4"
+            ])
+            .is_err()
+        );
+        assert!(
+            parse(&[
+                "fence",
+                "create",
+                "--title",
+                "T",
+                "--above",
+                "a",
+                "--monitor",
+                "m"
+            ])
+            .is_err()
+        );
+        assert!(
+            parse(&[
+                "fence",
+                "create",
+                "--title",
+                "T",
+                "--rect",
+                "1,2,3,4",
+                "--monitor",
+                "m"
+            ])
+            .is_err()
+        );
+        assert!(parse_size("0,4").is_err());
+        assert!(parse_size("4").is_err());
+        assert!(parse_size("a,4").is_err());
+        assert_eq!(parse_size(" 10, 20 "), Ok((10, 20)));
+        assert!(parse(&["fence", "fit", "Tools"]).is_ok());
+        assert!(parse(&["fence", "fit"]).is_err());
+    }
+
+    #[test]
     fn item_move_takes_items_or_a_glob() {
         assert!(parse(&["item", "move", "--to", "Work"]).is_err());
         assert!(parse(&["item", "move", "a", "b", "--to", "Work"]).is_ok());
@@ -765,6 +894,13 @@ mod tests {
         );
         assert!(parse(&["item", "move", "a", "--glob", "*.pdf", "--to", "Work"]).is_err());
         assert!(parse(&["item", "move", "a", "--from", "Inbox", "--to", "Work"]).is_err());
+        let cli = parse(&["item", "move", "a", "--to", "Work", "--dry-run"]).unwrap();
+        match cli.command {
+            Command::Item {
+                cmd: ItemCmd::Move { dry_run, .. },
+            } => assert!(dry_run),
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

@@ -620,6 +620,11 @@ pub fn shell_execute(path: &Path, verb: Option<&str>, owner: Option<HWND>) -> Re
 
 /// Resolves a `.lnk` file's target path (raw, unexpanded), or `None`.
 pub fn shortcut_target(path: &Path) -> Option<String> {
+    shortcut_info(path).map(|(target, _)| target)
+}
+
+/// A `.lnk`'s target path and its command-line arguments (`None` when it has none).
+pub fn shortcut_info(path: &Path) -> Option<(String, Option<String>)> {
     let w = path_wide(path);
     // SAFETY: standard IShellLink usage; buffers are sized and NUL-terminated.
     unsafe {
@@ -638,8 +643,19 @@ pub fn shortcut_target(path: &Path) -> Option<String> {
         )
         .ok()
         .ok()?;
-        let s = crate::wide::from_wide(&buf);
-        (!s.is_empty()).then_some(s)
+        let target = crate::wide::from_wide(&buf);
+        if target.is_empty() {
+            return None;
+        }
+        // Longer arguments come back truncated, which is enough to tell shortcuts apart.
+        let mut args = [0u16; 1024];
+        let arguments = link
+            .GetArguments(PWSTR(args.as_mut_ptr()), args.len() as i32)
+            .ok()
+            .ok()
+            .map(|_| crate::wide::from_wide(&args).trim().to_string())
+            .filter(|a| !a.is_empty());
+        Some((target, arguments))
     }
 }
 

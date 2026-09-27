@@ -103,8 +103,12 @@ pub struct MonitorDto {
 #[cfg_attr(feature = "describe", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct PortalDto {
-    /// Folder the portal shows.
+    /// Folder the portal was created for.
     pub path: String,
+    /// The subfolder the portal has been navigated into, if any: `items.list` shows its
+    /// contents and `items.move` to the portal puts files there. Left out at `path` itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current: Option<String>,
     /// Double-clicking a subfolder navigates inside the portal instead of opening Explorer.
     pub navigate: bool,
     /// Folder glyph shown before the title.
@@ -119,8 +123,8 @@ pub struct FenceDto {
     pub title: String,
     /// `virtual` | `inbox` | `portal`.
     pub kind: String,
-    /// Expanded geometry in physical px (what `fences.setBounds` sets). `null` while the fence's
-    /// monitor is disconnected.
+    /// Expanded geometry in physical px (what `fences.setBounds` sets). A hosted tab reports its
+    /// host's rect (the window it is shown in). `null` while the fence's monitor is disconnected.
     pub rect: Option<Rect>,
     /// The window as currently shown (only the title bar when rolled up); `null` for hosted
     /// tabs and disconnected monitors.
@@ -159,6 +163,41 @@ pub struct FenceDto {
     pub group_by_date: bool,
     pub label_lines: u8,
     pub portal: Option<PortalDto>,
+    /// How the items fit the window; `null` for a tab that is not the one currently shown and
+    /// for fences without a window (disconnected monitor).
+    #[serde(default)]
+    pub fit: Option<FitDto>,
+}
+
+/// Whether a fence's items fit its window at the current width, icon size and spacing.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "describe", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct FitDto {
+    /// Icon columns at the current width (1 in the list and details layouts).
+    pub columns: usize,
+    /// Rows of items (date-group headers not counted).
+    pub rows: usize,
+    /// Window height in physical px that shows every item without scrolling, capped at the
+    /// bottom of the work area (what `fence fit` sets).
+    pub fitting_height: i32,
+    /// The expanded height is shorter than the content: the fence scrolls.
+    pub overflow: bool,
+}
+
+/// A geometry the app changed on its own after a request: `fences.setBounds` with auto height,
+/// or an option (`iconSize`, `spacing`, `layout`, `labelLines`) that snaps the window to whole
+/// icon columns and rows.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "describe", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct AdjustedDto {
+    /// The rect that was asked for (`fences.setBounds`) or the one before the option changed.
+    pub requested: Rect,
+    /// The window's rect now (expanded height).
+    pub applied: Rect,
+    /// `autoHeight` (the height follows the content) | `cellSnap` (whole columns / rows).
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -191,6 +230,9 @@ pub struct ItemDto {
     pub last_opened: Option<i64>,
     /// Resolved target of a `.lnk` (path) or `.url` (URL); `null` otherwise.
     pub shortcut_target: Option<String>,
+    /// Command-line arguments of a `.lnk` (`null` when it has none).
+    #[serde(default)]
+    pub shortcut_arguments: Option<String>,
     pub fence: Uuid,
     pub fence_title: String,
     /// `user` | `rule` | `migration` | `portal` (folder portal contents are not assigned).
@@ -215,6 +257,30 @@ pub struct PlannedMoveDto {
     /// The matching rule; `null` when the item goes to the default target.
     pub rule: Option<Uuid>,
     pub rule_name: Option<String>,
+}
+
+/// One entry of `items.planMove`: what `items.move` would do with an item.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "describe", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct ItemMovePlanDto {
+    pub item: Uuid,
+    pub name: String,
+    pub path: Option<String>,
+    pub from: Uuid,
+    pub from_title: String,
+    /// `membership` (the icon changes fence, the file stays) | `fileMove` (a real move on disk:
+    /// a folder portal on either side) | `none` (already there) | `skip` (see `reason`).
+    pub action: String,
+    /// Where the file ends up for a `fileMove`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    /// Why the item would stay: `exists` (the destination already has a file of that name;
+    /// `items.move` skips it instead of opening Explorer's replace dialog), `notAFile` (This
+    /// PC, Recycle Bin and friends cannot go into a folder) or `unsupported` (not a desktop
+    /// item, or the desktop folder a portal item would go to cannot be resolved).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Names `events.subscribe` can emit; `heartbeat` keeps an idle subscription alive.
@@ -267,6 +333,8 @@ pub struct SnapshotDto {
     pub name: String,
     /// Unix seconds.
     pub ts: i64,
+    /// Fences of the layout for the current monitor set (the ones `fences.list` would show
+    /// after a restore); the first layout's when none matches.
     pub fence_count: usize,
 }
 

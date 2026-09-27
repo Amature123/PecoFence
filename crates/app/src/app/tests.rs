@@ -23,9 +23,9 @@ fn url_shortcut_names_prefer_the_browser_title() {
 mod ipc {
     use super::super::fence_options::{FenceProp, parse_fence_prop};
     use super::super::ipc::{
-        AUTO_SNAPSHOT_PREFIX, MAX_NAME_CHARS, MIN_EXPIRY_MS, auto_snapshot_slot,
+        AUTO_SNAPSHOT_PREFIX, MAX_NAME_CHARS, MIN_EXPIRY_MS, adjusted, auto_snapshot_slot,
         check_rule_conditions, checked_name, is_inbox_alias, patch_settings_path,
-        prune_auto_snapshots, request_expiry, rolled_back_settings, validate_rect,
+        prune_auto_snapshots, request_expiry, rolled_back_settings, snapshot_dto, validate_rect,
     };
     use pecofence_core::geometry::WorkArea;
     use pecofence_core::{Cond, MAX_SNAPSHOTS, Settings, Snapshot, ViewLayout};
@@ -162,6 +162,14 @@ mod ipc {
             err.message.contains("at least one condition"),
             "{}",
             err.message
+        );
+        // The hint once named `describe rules.add`, which the CLI does not have.
+        assert!(
+            err.hint
+                .as_deref()
+                .is_some_and(|h| h.contains("describe --schema Cond")),
+            "{:?}",
+            err.hint
         );
         assert!(check_rule_conditions(&[Cond::Ext(vec![".pdf".into()])]).is_ok());
     }
@@ -325,6 +333,71 @@ mod ipc {
             ts,
             layouts: Vec::new(),
         }
+    }
+
+    fn layout(devices: &[&str], fences: usize) -> pecofence_core::Layout {
+        let geometry = pecofence_core::NormGeometry {
+            monitor: devices[0].to_string(),
+            x: 0.0,
+            y: 0.0,
+            w: 300.0,
+            h: 200.0,
+            work_w: 1920.0,
+            work_h: 1032.0,
+            anchor: pecofence_core::Anchor::LeftTop,
+        };
+        pecofence_core::Layout {
+            fingerprint: devices
+                .iter()
+                .map(|d| pecofence_core::MonitorIdentity {
+                    device_path: d.to_string(),
+                    work_dip: [1920.0, 1032.0],
+                    dpi: 96,
+                })
+                .collect(),
+            fences: (0..fences)
+                .map(|i| {
+                    pecofence_core::Fence::new(
+                        &format!("f{i}"),
+                        pecofence_core::FenceKind::Virtual,
+                        geometry.clone(),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn adjusted_ignores_the_one_pixel_dip_round_trip() {
+        let r = |x, y, w, h| Rect { x, y, w, h };
+        assert_eq!(
+            adjusted(r(10, 10, 300, 200), r(11, 9, 301, 199), "clamped"),
+            None
+        );
+        let a = adjusted(r(2250, 40, 1360, 517), r(2250, 40, 1360, 458), "cellSnap").unwrap();
+        assert_eq!(
+            (a.applied.h, a.requested.h, a.reason.as_str()),
+            (458, 517, "cellSnap")
+        );
+    }
+
+    #[test]
+    fn snapshot_counts_the_layout_of_the_current_monitors() {
+        // One layout per monitor combination seen: the old sum (6 here) read like 3x the fences.
+        let mut s = snap("before-cleanup", 1);
+        s.layouts = vec![
+            layout(&["\\\\.\\DISPLAY1"], 2),
+            layout(&["\\\\.\\DISPLAY1", "\\\\.\\DISPLAY2"], 3),
+            layout(&["\\\\.\\DISPLAY2"], 1),
+        ];
+        let now = ["\\\\.\\DISPLAY2".to_string(), "\\\\.\\DISPLAY1".to_string()];
+        let dto = snapshot_dto(&s, &now);
+        assert_eq!(dto.fence_count, 3);
+        // No layout for these monitors: a restore would start from the first one.
+        let dto = snapshot_dto(&s, &["\\\\.\\DISPLAY9".to_string()]);
+        assert_eq!(dto.fence_count, 2);
+        let empty = snapshot_dto(&snap("x", 2), &now);
+        assert_eq!(empty.fence_count, 0);
     }
 
     #[test]

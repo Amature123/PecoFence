@@ -642,7 +642,6 @@ impl ItemLayout {
         }
     }
 
-    #[cfg(test)]
     pub fn columns(&self) -> usize {
         match self {
             Self::Grid(g) => g.columns,
@@ -650,7 +649,6 @@ impl ItemLayout {
         }
     }
 
-    #[cfg(test)]
     pub fn row_count(&self) -> usize {
         self.bands().total_rows()
     }

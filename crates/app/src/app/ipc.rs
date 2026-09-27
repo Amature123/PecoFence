@@ -14,10 +14,10 @@ use pecofence_core::rules::{self, Rule};
 use pecofence_core::{AssignedBy, Fence, Item, ItemSourceSpec, Settings, Snapshot};
 use pecofence_ipc::selector::{self, SelectorError};
 use pecofence_ipc::{
-    BIG_MOVE_SNAPSHOT_ITEMS, BackupDto, EVENT_HEARTBEAT_SECS, EVENT_NAMES, ErrorCode, EventDto,
-    FenceDto, IpcError, ItemDto, MAX_SUBSCRIBERS, Method, MonitorDto, PROTOCOL_VERSION,
-    PlannedMoveDto, PortalDto, Rect, Response, RuleEntry, RuleListDto, SnapshotDto, StatusDto,
-    dotted_to_pointer, mutation,
+    AdjustedDto, BIG_MOVE_SNAPSHOT_ITEMS, BackupDto, EVENT_HEARTBEAT_SECS, EVENT_NAMES, ErrorCode,
+    EventDto, FenceDto, FitDto, IpcError, ItemDto, ItemMovePlanDto, MAX_SUBSCRIBERS, Method,
+    MonitorDto, PROTOCOL_VERSION, PlannedMoveDto, PortalDto, Rect, Response, RuleEntry,
+    RuleListDto, SnapshotDto, StatusDto, dotted_to_pointer, mutation,
 };
 use serde_json::{Value, json};
 use std::sync::mpsc;
@@ -27,7 +27,7 @@ use uuid::Uuid;
 const EVENT_TICK_MS: u32 = 500;
 /// `FenceDto` fields left out of `fence.changed` detection: they follow the window during
 /// animations and item events already report membership.
-const EVENT_IGNORED_FENCE_FIELDS: &[&str] = &["windowRect", "itemCount"];
+const EVENT_IGNORED_FENCE_FIELDS: &[&str] = &["windowRect", "itemCount", "fit"];
 
 /// One `events.subscribe` client: the connection thread's reply channel plus its filter.
 pub(super) struct IpcSubscriber {
@@ -177,6 +177,21 @@ pub(super) fn validate_rect(
         })));
     }
     Ok(work.clone())
+}
+
+/// File name with extension as the user spells it. The key is lower-cased; the display name
+/// has the real spelling minus the hidden extension, which the suffix puts back. Namespace
+/// items (no path) keep their display name.
+fn item_file_name(it: &Item) -> String {
+    let Some(path) = (!it.is_namespace()).then(|| it.key.as_path()).flatten() else {
+        return it.display_name.clone();
+    };
+    let key_file_name = path.rsplit('\\').next().unwrap_or_default();
+    format!(
+        "{}{}",
+        it.display_name,
+        crate::rename::rename_hidden_suffix(&it.display_name, key_file_name, it.is_folder)
+    )
 }
 
 fn to_json<T: serde::Serialize>(v: &T) -> IpcResult {
@@ -332,7 +347,7 @@ pub(super) fn check_rule_conditions(
             "a rule needs at least one condition in allOf",
             &["allOf: [<condition>, ...]"],
         )
-        .hint("Run `pecofence-cli describe rules.add` for the condition shapes"));
+        .hint("Run `pecofence-cli describe --schema Cond` for the condition shapes"));
     }
     Ok(())
 }
@@ -361,13 +376,60 @@ pub(super) fn rolled_back_settings(requested: &Settings, applied: &Settings) -> 
         .collect()
 }
 
-fn snapshot_dto(s: &Snapshot) -> SnapshotDto {
+/// `fenceCount` is the layout a restore would show on the current monitors (`device_paths`),
+/// matched like `Config::layout_for`; a restore falls back to the first layout otherwise.
+pub(super) fn snapshot_dto(s: &Snapshot, device_paths: &[String]) -> SnapshotDto {
+    let mut wanted: Vec<&str> = device_paths.iter().map(String::as_str).collect();
+    wanted.sort_unstable();
+    let current = s
+        .layouts
+        .iter()
+        .find(|l| {
+            let mut have: Vec<&str> = l
+                .fingerprint
+                .iter()
+                .map(|m| m.device_path.as_str())
+                .collect();
+            have.sort_unstable();
+            have == wanted
+        })
+        .or_else(|| s.layouts.first());
     SnapshotDto {
         id: s.id,
         name: s.name.clone(),
         ts: s.ts,
-        fence_count: s.layouts.iter().map(|l| l.fences.len()).sum(),
+        fence_count: current.map_or(0, |l| l.fences.len()),
     }
+}
+
+/// Settings that are stored but not acted on yet; patching them gets a warning instead of a
+/// silent `changed: true`.
+const INERT_SETTINGS: &[(&str, fn(&Settings) -> bool)] = &[
+    ("snapping.sizeToCells", |s| s.snapping.size_to_cells),
+    ("snapping.guideLines", |s| s.snapping.guide_lines),
+];
+
+/// `AdjustedDto` when the app's final rect differs from `requested` by more than the 1 px the
+/// DIP round trip of the saved geometry can introduce at fractional scale factors.
+pub(super) fn adjusted(requested: Rect, applied: Rect, reason: &str) -> Option<AdjustedDto> {
+    let off = |a: i32, b: i32| (a - b).abs() > 1;
+    let differs = off(requested.x, applied.x)
+        || off(requested.y, applied.y)
+        || off(requested.w, applied.w)
+        || off(requested.h, applied.h);
+    differs.then(|| AdjustedDto {
+        requested,
+        applied,
+        reason: reason.to_string(),
+    })
+}
+
+/// `extra` with `adjusted` added when there is one.
+fn with_adjusted(mut extra: Value, adj: Option<AdjustedDto>) -> IpcResult {
+    if let (Some(adj), Value::Object(map)) = (adj, &mut extra) {
+        map.insert("adjusted".into(), to_json(&adj)?);
+    }
+    Ok(extra)
 }
 
 impl App {
@@ -481,12 +543,13 @@ impl App {
             }
             Method::RulesGet => to_json(&self.rule_list_dto()),
             Method::SnapshotsList => {
+                let paths = self.device_paths();
                 let list: Vec<SnapshotDto> = self
                     .state
                     .config
                     .snapshots
                     .iter()
-                    .map(snapshot_dto)
+                    .map(|s| snapshot_dto(s, &paths))
                     .collect();
                 to_json(&list)
             }
@@ -517,10 +580,28 @@ impl App {
             Method::FencesSetOption { fence, prop, value } => {
                 let id = self.resolve_fence(fence)?;
                 let prop = parse_fence_prop(prop, value)?;
+                // Icon size, spacing, layout and label lines snap the window to whole columns
+                // and rows (auto height follows the content): report it instead of letting the
+                // caller find out from a changed rect.
+                let host = self.state.host_of(id);
+                let before = self.expanded_rect(host);
                 let changed = self.apply_fence_prop(id, prop);
                 self.push_settings_state();
-                Ok(mutation(changed, None, self.fence_extra(id)?))
+                let reason = if self.state.fence(host).is_some_and(|f| f.view.auto_height) {
+                    "autoHeight"
+                } else {
+                    "cellSnap"
+                };
+                let adj = before
+                    .zip(self.expanded_rect(host))
+                    .and_then(|(b, a)| adjusted(b, a, reason));
+                Ok(mutation(
+                    changed,
+                    None,
+                    with_adjusted(self.fence_extra(id)?, adj)?,
+                ))
             }
+            Method::FencesFit { fence } => self.ipc_fit(fence),
             Method::FencesRoll { fence, rolled } => {
                 let id = self.resolve_fence(fence)?;
                 let host = self.state.host_of(id);
@@ -564,6 +645,21 @@ impl App {
             }
 
             Method::ItemsMove { items, to } => self.ipc_move_items(items, to),
+            Method::ItemsPlanMove { items, to } => {
+                let (to, plan) = self.plan_item_move(items, to)?;
+                let moving: Vec<&ItemMovePlanDto> = plan
+                    .iter()
+                    .filter(|m| m.action == "membership" || m.action == "fileMove")
+                    .collect();
+                Ok(json!({
+                    "changed": false,
+                    "dryRun": true,
+                    "to": to,
+                    "moved": moving.len(),
+                    "fileMove": moving.iter().any(|m| m.action == "fileMove"),
+                    "moves": to_json(&plan)?,
+                }))
+            }
             Method::ItemsRename {
                 item,
                 name,
@@ -587,6 +683,17 @@ impl App {
                     self.ipc_warnings.push(format!(
                         "PecoFence rolled back {}: the change could not be applied (see the log)",
                         rolled_back.join(", ")
+                    ));
+                }
+                let inert: Vec<&str> = INERT_SETTINGS
+                    .iter()
+                    .filter(|(_, get)| get(&before) != get(after))
+                    .map(|(name, _)| *name)
+                    .collect();
+                if !inert.is_empty() {
+                    self.ipc_warnings.push(format!(
+                        "{} is stored but has no effect in this version",
+                        inert.join(", ")
                     ));
                 }
                 Ok(mutation(
@@ -687,13 +794,14 @@ impl App {
                 let id = self.state.save_snapshot(&name);
                 self.schedule_save();
                 self.push_settings_state();
+                let paths = self.device_paths();
                 let snap = self
                     .state
                     .config
                     .snapshots
                     .iter()
                     .find(|s| s.id == id)
-                    .map(snapshot_dto)
+                    .map(|s| snapshot_dto(s, &paths))
                     .ok_or_else(|| IpcError::internal("snapshot vanished after saving"))?;
                 Ok(mutation(true, None, json!({ "snapshot": to_json(&snap)? })))
             }
@@ -1056,6 +1164,12 @@ impl App {
 
     /// The CLI's view of a fence: the settings page's option strings plus geometry.
     pub(super) fn fence_dto(&self, f: &Fence) -> FenceDto {
+        self.fence_dto_with(f, true)
+    }
+
+    /// [`Self::fence_dto`], leaving `fit` out unless `measure` (it lays the items out again,
+    /// which the event tick has no use for).
+    fn fence_dto_with(&self, f: &Fence, measure: bool) -> FenceDto {
         let host_id = self.state.host_of(f.id);
         let host = self.state.fence(host_id).unwrap_or(f);
         let connected = self
@@ -1088,6 +1202,12 @@ impl App {
                     ItemSourceSpec::Desktop => None,
                 })
                 .unwrap_or_default(),
+            current: self
+                .state
+                .portal_navigated(f.id)
+                .then(|| self.state.portal_path(f.id))
+                .flatten()
+                .map(|p| p.to_string_lossy().into_owned()),
             navigate: f.portal_navigate,
             title_icon: !f.hide_title_icon,
         });
@@ -1100,7 +1220,8 @@ impl App {
                 FenceKind::FolderPortal => "portal",
             }
             .to_string(),
-            rect: connected.then(|| Rect::from(self.state.fence_px_rect(f))),
+            // A tab is shown in its host's window, so that is where it is on screen.
+            rect: connected.then(|| Rect::from(self.state.fence_px_rect(host))),
             window_rect: (connected && f.tab_host.is_none())
                 .then(|| self.fences.get(&f.id).map(|w| rect_of(w.rect())))
                 .flatten(),
@@ -1137,7 +1258,37 @@ impl App {
             group_by_date: f.view.group_by_date,
             label_lines: f.view.label_lines,
             portal,
+            // Only the fence the window currently shows has a measured layout.
+            fit: (connected && measure)
+                .then(|| self.fences.get(&host_id))
+                .flatten()
+                .filter(|w| w.active_fence() == f.id)
+                .and_then(|w| w.fit_report())
+                .map(|r| FitDto {
+                    columns: r.columns,
+                    rows: r.rows,
+                    fitting_height: r.fitting_height_px,
+                    overflow: r.overflow,
+                }),
         }
+    }
+
+    /// The fence's expanded rect as the state has it (`None` on a disconnected monitor).
+    fn expanded_rect(&self, id: FenceId) -> Option<Rect> {
+        let f = self.state.fence(id)?;
+        self.state
+            .work_areas
+            .iter()
+            .any(|w| w.device_path == f.geometry.monitor)
+            .then(|| Rect::from(self.state.fence_px_rect(f)))
+    }
+
+    fn device_paths(&self) -> Vec<String> {
+        self.state
+            .work_areas
+            .iter()
+            .map(|w| w.device_path.clone())
+            .collect()
     }
 
     /// `{"fence": FenceDto}` for a mutation result.
@@ -1195,30 +1346,18 @@ impl App {
         let path = (!it.is_namespace())
             .then(|| it.key.as_path().map(str::to_string))
             .flatten();
-        let key_file_name = path
-            .as_deref()
-            .and_then(|p| p.rsplit('\\').next())
-            .unwrap_or_default();
-        // The key is lower-cased; the display name has the real spelling minus the hidden
-        // extension, which the suffix puts back.
-        let file_name = if path.is_some() {
-            format!(
-                "{}{}",
-                it.display_name,
-                crate::rename::rename_hidden_suffix(&it.display_name, key_file_name, it.is_folder)
-            )
-        } else {
-            it.display_name.clone()
-        };
+        let file_name = item_file_name(it);
         let ext = if it.is_folder || it.is_namespace() {
             String::new()
         } else {
             rules::ext_of(&file_name)
         };
-        let shortcut_target = match (path.as_deref(), ext.as_str()) {
-            (Some(p), ".lnk") => shell::shortcut_target(Path::new(p)),
-            (Some(p), ".url") => shell::url_shortcut_target(Path::new(p)),
-            _ => None,
+        let (shortcut_target, shortcut_arguments) = match (path.as_deref(), ext.as_str()) {
+            (Some(p), ".lnk") => {
+                shell::shortcut_info(Path::new(p)).map_or((None, None), |(t, a)| (Some(t), a))
+            }
+            (Some(p), ".url") => (shell::url_shortcut_target(Path::new(p)), None),
+            _ => (None, None),
         };
         let kind = if it.is_namespace() {
             "namespace".to_string()
@@ -1260,6 +1399,7 @@ impl App {
             open_count: it.open_count,
             last_opened: it.last_opened,
             shortcut_target,
+            shortcut_arguments,
             fence: f.id,
             fence_title: f.title.clone(),
             assigned_by: assigned_by.to_string(),
@@ -1444,6 +1584,7 @@ impl App {
             )
             .hint("Delete or merge a fence first"));
         }
+        let requested = rect;
         let rect = match rect {
             Some(r) => rect_to_win(r),
             None => self.place_new_fence(3, 200.0, cx, cy, None),
@@ -1452,7 +1593,14 @@ impl App {
             .create_fence_at(rect, title)
             .ok_or_else(|| unsupported("no monitor to place the fence on"))?;
         self.push_settings_state();
-        Ok(mutation(true, None, self.fence_extra(id)?))
+        let adj = requested
+            .zip(self.expanded_rect(id))
+            .and_then(|(r, applied)| adjusted(r, applied, "clamped"));
+        Ok(mutation(
+            true,
+            None,
+            with_adjusted(self.fence_extra(id)?, adj)?,
+        ))
     }
 
     fn ipc_create_portal(
@@ -1505,14 +1653,23 @@ impl App {
         self.create_portal(canonical, cx, cy, None);
         let id = existing_portal(self)
             .ok_or_else(|| IpcError::internal("the portal fence was not created; see the log"))?;
-        if let Some(r) = rect {
-            self.ipc_set_bounds(&id.to_string(), r)?;
-        }
+        // setBounds reports what it had to change; keep that for this reply.
+        let adj = match rect {
+            Some(r) => self
+                .ipc_set_bounds(&id.to_string(), r)?
+                .get("adjusted")
+                .cloned(),
+            None => None,
+        };
         if let Some(title) = title.map(str::trim).filter(|t| !t.is_empty()) {
             self.apply_fence_prop(id, fence_options::FenceProp::Title(title.to_string()));
         }
         self.push_settings_state();
-        Ok(mutation(true, None, self.fence_extra(id)?))
+        let mut extra = self.fence_extra(id)?;
+        if let (Some(adj), Value::Object(map)) = (adj, &mut extra) {
+            map.insert("adjusted".into(), adj);
+        }
+        Ok(mutation(true, None, extra))
     }
 
     fn ipc_delete_fence(&mut self, sel: &str) -> IpcResult {
@@ -1564,7 +1721,19 @@ impl App {
         self.schedule_save();
         let changed = self.state.fence(id) != Some(&before);
         self.push_settings_state();
-        Ok(mutation(changed, None, self.fence_extra(id)?))
+        let reason = if before.view.auto_height {
+            "autoHeight"
+        } else {
+            "clamped"
+        };
+        let adj = self
+            .expanded_rect(id)
+            .and_then(|applied| adjusted(rect, applied, reason));
+        Ok(mutation(
+            changed,
+            None,
+            with_adjusted(self.fence_extra(id)?, adj)?,
+        ))
     }
 
     fn ipc_move_to_monitor(&mut self, sel: &str, monitor: &str) -> IpcResult {
@@ -1667,7 +1836,13 @@ impl App {
         Ok(mutation(changed, None, self.fence_extra(id)?))
     }
 
-    fn ipc_move_items(&mut self, items: &[String], to: &str) -> IpcResult {
+    /// What `items.move` would do with each requested item (resolved and de-duplicated, in
+    /// request order); shared by `items.planMove` and `items.move` itself.
+    fn plan_item_move(
+        &self,
+        items: &[String],
+        to: &str,
+    ) -> std::result::Result<(FenceId, Vec<ItemMovePlanDto>), IpcError> {
         let to = self.resolve_fence(to)?;
         let mut ids: Vec<ItemId> = Vec::new();
         for sel in items {
@@ -1676,51 +1851,102 @@ impl App {
                 ids.push(id);
             }
         }
-        // Where each item lives now; items already in `to` do not count as moved.
-        let mut located: HashMap<ItemId, FenceId> = HashMap::new();
-        for f in self.state.fences() {
-            for it in self.state.items_of(f) {
-                located.insert(it.id, f.id);
-            }
-        }
-        let moving: Vec<ItemId> = ids
-            .into_iter()
-            .filter(|id| located.get(id) != Some(&to))
-            .collect();
-        // What `move_items` will actually act on: into a portal only real files go (the
-        // Recycle Bin and friends are not files); into a virtual fence, desktop items change
-        // membership and portal items are moved out as files.
-        let into_portal = self.state.portal_path(to).is_some();
-        let (accepted, skipped): (Vec<ItemId>, Vec<ItemId>) = moving.iter().partition(|id| {
-            let Some(it) = self.state.item(**id) else {
-                return false;
+        let into_portal = self.state.portal_path(to);
+        let desktop = shell::user_desktop();
+        let mut plan = Vec::with_capacity(ids.len());
+        for id in ids {
+            let Some((from, it)) = self.locate_item(id) else {
+                return Err(IpcError::internal(format!("item {id} vanished")));
             };
-            if into_portal {
-                !it.is_namespace() && it.key.as_path().is_some()
+            let path = (!it.is_namespace())
+                .then(|| it.key.as_path().map(str::to_string))
+                .flatten();
+            // Into a portal only real files go (the Recycle Bin and friends are not files);
+            // into a virtual fence, desktop items change membership and portal items are moved
+            // out to the desktop folder as files.
+            let file_dest = match (&into_portal, &path) {
+                _ if from.id == to => None,
+                (Some(dir), Some(_)) => Some(dir.clone()),
+                (None, Some(_)) if self.state.is_portal_item(id) => desktop.clone(),
+                _ => None,
+            };
+            let destination =
+                file_dest.map(|dir| dir.join(item_file_name(it)).to_string_lossy().into_owned());
+            let (action, reason) = if from.id == to {
+                ("none", None)
+            } else if into_portal.is_some() && path.is_none() {
+                ("skip", Some("notAFile"))
+            } else if into_portal.is_none()
+                && !self.state.is_portal_item(id)
+                && !self.state.config.items.contains_key(&id)
+            {
+                ("skip", Some("unsupported"))
+            } else if into_portal.is_none()
+                && self.state.is_portal_item(id)
+                && destination.is_none()
+            {
+                // Out of a portal means onto the desktop folder, which could not be resolved.
+                ("skip", Some("unsupported"))
+            } else if let Some(dest) = &destination {
+                // The shell would stop and ask "replace or skip?" on the user's screen.
+                if Path::new(dest).exists() {
+                    ("skip", Some("exists"))
+                } else {
+                    ("fileMove", None)
+                }
             } else {
-                self.state.is_portal_item(**id) || self.state.config.items.contains_key(id)
-            }
-        });
+                ("membership", None)
+            };
+            plan.push(ItemMovePlanDto {
+                item: id,
+                name: it.display_name.clone(),
+                path,
+                from: from.id,
+                from_title: from.title.clone(),
+                action: action.to_string(),
+                destination: (action == "fileMove" || reason == Some("exists"))
+                    .then_some(destination)
+                    .flatten(),
+                reason: reason.map(str::to_string),
+            });
+        }
+        Ok((to, plan))
+    }
+
+    fn ipc_move_items(&mut self, items: &[String], to: &str) -> IpcResult {
+        let (to, plan) = self.plan_item_move(items, to)?;
+        let accepted: Vec<ItemId> = plan
+            .iter()
+            .filter(|m| m.action == "membership" || m.action == "fileMove")
+            .map(|m| m.item)
+            .collect();
+        let file_move = plan.iter().any(|m| m.action == "fileMove");
+        let skipped: Vec<&ItemMovePlanDto> = plan.iter().filter(|m| m.action == "skip").collect();
         if !skipped.is_empty() {
             let names: Vec<String> = skipped
                 .iter()
-                .filter_map(|id| self.state.item(*id))
-                .map(|it| it.display_name.clone())
+                .map(|m| match m.reason.as_deref() {
+                    Some("exists") => format!("{} (a file of that name is already there)", m.name),
+                    _ => format!("{} (cannot go into a folder)", m.name),
+                })
                 .collect();
             self.ipc_warnings.push(format!(
-                "{} item(s) cannot go into a folder and stayed where they are: {}",
+                "{} item(s) stayed where they are: {}",
                 skipped.len(),
                 names.join(", ")
             ));
         }
+        let skipped = to_json(&skipped)?;
         if accepted.is_empty() {
-            return Ok(mutation(false, None, json!({ "moved": 0, "to": to })));
+            return Ok(mutation(
+                false,
+                None,
+                json!({ "moved": 0, "to": to, "fileMove": false, "skipped": skipped }),
+            ));
         }
         // A large re-filing of desktop items is a layout change worth a way back. Real file
         // moves (a portal on either side) are not: a snapshot could not undo them.
-        let membership_only =
-            !into_portal && accepted.iter().all(|id| !self.state.is_portal_item(*id));
-        let snapshot = (membership_only && accepted.len() >= BIG_MOVE_SNAPSHOT_ITEMS)
+        let snapshot = (!file_move && accepted.len() >= BIG_MOVE_SNAPSHOT_ITEMS)
             .then(|| self.auto_snapshot())
             .flatten();
         // Portal sources / targets move real files on a worker thread; the fences update when
@@ -1730,8 +1956,55 @@ impl App {
         Ok(mutation(
             true,
             snapshot,
-            json!({ "moved": accepted.len(), "to": to }),
+            json!({
+                "moved": accepted.len(),
+                "to": to,
+                "fileMove": file_move,
+                "skipped": skipped,
+            }),
         ))
+    }
+
+    /// `fences.fit`: height to `fit.fittingHeight`. A tab resizes its host.
+    fn ipc_fit(&mut self, sel: &str) -> IpcResult {
+        let id = self.resolve_fence(sel)?;
+        let f = self.fence_or_err(id)?.clone();
+        let host = self.state.host_of(id);
+        let Some(w) = self.fences.get(&host) else {
+            return Err(unsupported(format!(
+                "{:?} has no window to measure (its monitor is disconnected)",
+                f.title
+            )));
+        };
+        if w.active_fence() != id {
+            return Err(unsupported(format!(
+                "{:?} is a tab that is not shown right now, so it cannot be measured",
+                f.title
+            ))
+            .hint(
+                "Click its tab in the host window, or `pecofence-cli fence detach` it, then retry",
+            ));
+        }
+        let Some(mut rect) = self.expanded_rect(host) else {
+            return Err(unsupported(format!(
+                "{:?} has no on-screen geometry (its monitor is disconnected)",
+                f.title
+            )));
+        };
+        let report = w
+            .fit_report()
+            .ok_or_else(|| IpcError::internal("the fence window has no view"))?;
+        rect.h = report.fitting_height_px;
+        let result = self.ipc_set_bounds(&host.to_string(), rect)?;
+        let changed = result
+            .get("changed")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let mut extra = self.fence_extra(id)?;
+        if let (Some(adj), Value::Object(map)) = (result.get("adjusted").cloned(), &mut extra) {
+            map.insert("adjusted".into(), adj);
+        }
+        Ok(mutation(changed, None, extra))
     }
 
     /// `items.rename`: a real rename inside the item's folder (see [`App::rename_item_to`]).
@@ -1856,7 +2129,7 @@ impl App {
     fn event_state(&self) -> EventState {
         let mut state = EventState::default();
         for f in self.state.fences() {
-            state.fences.insert(f.id, self.fence_dto(f));
+            state.fences.insert(f.id, self.fence_dto_with(f, false));
             for it in self.state.items_of(f) {
                 state.items.insert(
                     it.id,
@@ -1909,6 +2182,7 @@ impl App {
             open_count: 0,
             last_opened: None,
             shortcut_target: None,
+            shortcut_arguments: None,
             fence: sig.fence,
             fence_title: sig.fence_title.clone(),
             assigned_by: "removed".into(),

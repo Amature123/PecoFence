@@ -288,6 +288,88 @@ try {
     Check "watch event is item.added for arrived.png in the portal" ($ev.event -eq "item.added" -and $ev.item.fileName -eq "arrived.png" -and $ev.item.fence -eq $portalId -and $ev.seq -ge 1) $watchText
     $r = Invoke-Cli @("watch", "--events", "nope")
     Check "watch with an unknown event -> invalid_value" ($r.Code -eq 1 -and (Json $r.Err).error.code -eq "invalid_value") "code=$($r.Code) $($r.Err)"
+    # 7a''. Dogfooding follow-ups: --fields/--ascii, fit + fence fit, adjusted, placement,
+    # item move --dry-run and collision skips between two scratch portals, tab rect, snapshot counts.
+    $r = Invoke-Cli @("fence", "list", "--fields", "id,title")
+    $fl = @(Json $r.Out)
+    $keys = @($fl | ForEach-Object { ($_.PSObject.Properties | ForEach-Object { $_.Name }) -join "," } | Sort-Object -Unique)
+    Check "fence list --fields keeps only id,title" ($r.Code -eq 0 -and $fl.Count -ge 2 -and $keys.Count -eq 1 -and $keys[0] -eq "id,title") "$($r.Out) $($r.Err)"
+    $cjk = "$([char]0x6E38)$([char]0x620F) $instance"
+    $r = Invoke-Cli @("fence", "rename", $id, $cjk)
+    Check "fence rename to a CJK title" ($r.Code -eq 0) "$($r.Out) $($r.Err)"
+    $r = Invoke-Cli @("fence", "get", $id, "--ascii", "--fields", "title")
+    $isAscii = -not ($r.Out.ToCharArray() | Where-Object { [int]$_ -gt 127 })
+    Check "--ascii output is pure ASCII and decodes to the same title" ($r.Code -eq 0 -and $isAscii -and $r.Out.Contains(([string][char]92) + 'u6e38') -and (Json $r.Out).title -eq $cjk) "$($r.Out) $($r.Err)"
+
+    $r = Invoke-Cli @("fence", "get", $portalId)
+    $pg = Json $r.Out
+    Check "portal reports fit" ($r.Code -eq 0 -and $null -ne $pg.fit -and $pg.fit.columns -ge 1 -and $pg.fit.rows -ge 1 -and $pg.fit.fittingHeight -gt 0) "$($r.Out) $($r.Err)"
+    Check "a portal at its own folder has no portal.current" ($null -eq $pg.portal.current -and $pg.portal.path) "$($r.Out)"
+    $r = Invoke-Cli @("fence", "fit", $portalId)
+    $pf = Json $r.Out
+    Check "fence fit sets fittingHeight and leaves no overflow" ($r.Code -eq 0 -and $pf.fence.rect.h -eq $pg.fit.fittingHeight -and $pf.fence.fit.overflow -eq $false) "$($r.Out) $($r.Err)"
+    $before96 = $pf.fence.rect
+    $r = Invoke-Cli @("fence", "set", $portalId, "iconSize", "96")
+    $s96 = Json $r.Out
+    $moved = ($s96.fence.rect.w -ne $before96.w) -or ($s96.fence.rect.h -ne $before96.h) -or ($s96.fence.rect.x -ne $before96.x)
+    Check "fence set iconSize reports adjusted exactly when the rect changed" ($r.Code -eq 0 -and ($moved -eq ($null -ne $s96.adjusted)) -and (-not $moved -or $s96.adjusted.reason -eq "cellSnap")) "$($r.Out) $($r.Err)"
+
+    $pr = $s96.fence.rect
+    $r = Invoke-Cli @("fence", "create", "--title", "Placed $instance", "--right-of", $portalId, "--size", "400,300")
+    $pl = Json $r.Out
+    Check "fence create --right-of aligns the top edge and keeps the gap" ($r.Code -eq 0 -and $pl.fence.rect.y -eq $pr.y -and $pl.fence.rect.x -ge ($pr.x + $pr.w) -and $pl.fence.rect.w -eq 400) "$($r.Out) $($r.Err)"
+    $placedId = $pl.fence.id
+    $r = Invoke-Cli @("fence", "create", "--title", "x", "--left-of", $portalId, "--size", "100000,300")
+    Check "placement off the work area -> invalid_value" ($r.Code -eq 1 -and (Json $r.Err).error.code -eq "invalid_value") "code=$($r.Code) $($r.Err)"
+    $r = Invoke-Cli @("fence", "create", "--title", "x", "--size", "300,200")
+    Check "--size without a side -> usage" ($r.Code -eq 2) "code=$($r.Code) $($r.Err)"
+
+    $r = Invoke-Cli @("fence", "merge", $placedId, "--into", $id)
+    Check "merge placed fence into the test fence" ($r.Code -eq 0) "$($r.Out) $($r.Err)"
+    $tab = Json (Invoke-Cli @("fence", "get", $placedId)).Out
+    $hostDto = Json (Invoke-Cli @("fence", "get", $id)).Out
+    $sameRect = ($tab.rect.x -eq $hostDto.rect.x) -and ($tab.rect.y -eq $hostDto.rect.y) -and ($tab.rect.w -eq $hostDto.rect.w) -and ($tab.rect.h -eq $hostDto.rect.h)
+    Check "a tab reports its host's rect and no windowRect" ($sameRect -and $null -eq $tab.windowRect -and $tab.tabHost -eq $id) (($tab | ConvertTo-Json -Compress -Depth 3) + " / " + ($hostDto.rect | ConvertTo-Json -Compress))
+    Check "only the shown tab has fit" ((($null -ne $tab.fit) -xor ($null -ne $hostDto.fit))) "tab.fit=$($tab.fit) host.fit=$($hostDto.fit)"
+    $r = Invoke-Cli @("fence", "delete", $placedId)
+    Check "delete the tab" ($r.Code -eq 0) "$($r.Out) $($r.Err)"
+
+    $otherDir = Join-Path $stage "portal-b"
+    New-Item -ItemType Directory -Path $otherDir | Out-Null
+    Set-Content -LiteralPath (Join-Path $otherDir "notes.md") -Value "already here" -Encoding Ascii
+    $r = Invoke-Cli @("fence", "create", "--portal", $otherDir, "--title", "SmokePortalB $instance")
+    $otherId = (Json $r.Out).fence.id
+    Check "second portal create" ($r.Code -eq 0 -and $otherId) "$($r.Out) $($r.Err)"
+    Start-Sleep -Milliseconds 800
+    $billPath = Join-Path $portalDir "2026-09 electricity bill.pdf"
+    $notesPath = Join-Path $portalDir "notes.md"
+    $r = Invoke-Cli @("item", "move", $billPath, $notesPath, "--to", $otherId, "--dry-run")
+    $dm = Json $r.Out
+    $bill = @($dm.moves) | Where-Object { $_.name -like "2026-09*" } | Select-Object -First 1
+    $notes = @($dm.moves) | Where-Object { $_.name -like "notes*" } | Select-Object -First 1
+    Check "item move --dry-run changes nothing" ($r.Code -eq 0 -and $dm.dryRun -eq $true -and $dm.changed -eq $false -and (Test-Path $billPath) -and (Test-Path $notesPath)) "$($r.Out) $($r.Err)"
+    Check "dry run: fileMove with the destination" ($bill.action -eq "fileMove" -and [IO.Path]::GetFullPath([string]$bill.destination) -eq [IO.Path]::GetFullPath((Join-Path $otherDir "2026-09 electricity bill.pdf"))) "$($r.Out)"
+    Check "dry run: a name that exists is skip/exists" ($notes.action -eq "skip" -and $notes.reason -eq "exists" -and $dm.moved -eq 1 -and $dm.fileMove -eq $true) "$($r.Out)"
+    $r = Invoke-Cli @("item", "move", $billPath, $notesPath, "--to", $otherId)
+    $mv = Json $r.Out
+    Check "item move skips the collision with a warning" ($r.Code -eq 0 -and $mv.moved -eq 1 -and $mv.fileMove -eq $true -and @($mv.skipped).Count -eq 1 -and @($mv.skipped)[0].reason -eq "exists" -and $mv.warning -like "*already there*") "$($r.Out) $($r.Err)"
+    $deadline = (Get-Date).AddSeconds(8)
+    while (-not (Test-Path (Join-Path $otherDir "2026-09 electricity bill.pdf")) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+    Check "the real file arrived and the colliding one stayed" ((Test-Path (Join-Path $otherDir "2026-09 electricity bill.pdf")) -and (Test-Path $notesPath) -and ((Get-Content -Raw (Join-Path $otherDir "notes.md")).Trim() -eq "already here")) ""
+    $r = Invoke-Cli @("item", "move", (Join-Path $otherDir "notes.md"), "--to", $otherId, "--dry-run")
+    Check "dry run into its own fence is none" ($r.Code -eq 0 -and @((Json $r.Out).moves)[0].action -eq "none") "$($r.Out) $($r.Err)"
+    $r = Invoke-Cli @("fence", "delete", $otherId)
+    Check "second portal delete" ($r.Code -eq 0) "$($r.Out) $($r.Err)"
+
+    $r = Invoke-Cli @("snapshot", "save", "counts $instance")
+    $sc = Json $r.Out
+    $fenceCount = @(Json (Invoke-Cli @("fence", "list")).Out).Count
+    Check "snapshot fenceCount is the current layout's" ($r.Code -eq 0 -and $sc.snapshot.fenceCount -eq $fenceCount) "$($r.Out) fences=$fenceCount"
+    $null = Invoke-Cli @("snapshot", "delete", $sc.snapshot.id)
+    $r = Invoke-Cli @("settings", "set", "snapping.sizeToCells", "true")
+    Check "an inert setting is stored with a warning" ($r.Code -eq 0 -and (Json $r.Out).warning -like "*no effect*") "$($r.Out) $($r.Err)"
+    $r = Invoke-Cli @("settings", "set", "snapping.gapPx", "12")
+    Check "snapping.gapPx stored" ($r.Code -eq 0 -and (Json $r.Out).settings.snapping.gapPx -eq 12) "$($r.Out) $($r.Err)"
     $r = Invoke-Cli @("fence", "delete", $portalId)
     Check "portal delete" ($r.Code -eq 0) "$($r.Out) $($r.Err)"
 

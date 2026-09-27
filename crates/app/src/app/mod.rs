@@ -636,6 +636,9 @@ impl App {
                 floating: std::cell::Cell::new(false),
                 hover_peek: std::cell::Cell::new(state.config.settings.roll_up.hover_peek),
                 snapping: std::cell::Cell::new(state.config.settings.snapping.enabled),
+                snap_gap_dip: std::cell::Cell::new(settings::snap_gap_dip(
+                    &state.config.settings.snapping,
+                )),
                 backdrop: std::cell::Cell::new(backdrop_mode_for(state.config.settings.backdrop)),
                 click_to_expand: std::cell::Cell::new(
                     state.config.settings.roll_up.click_to_expand,
