@@ -53,13 +53,22 @@ git push origin v0.0.1
 
 The release workflow checks the tag against `Cargo.toml`, verifies the project,
 builds the x64 portable archive and publishes the GitHub Release with its ZIP
-and checksum right away (pushing a `v*` tag is the publish action; the winget
-workflow then opens the manifest PR). Edit the generated notes afterwards if needed.
+and checksum right away (pushing a `v*` tag is the publish action). Edit the generated
+notes afterwards if needed.
 
-The winget workflow copies the previous manifest, so after the first release that ships
-`pecofence-cli.exe` add it once to the portable manifest by hand: a second
-`NestedInstallerFiles` entry (`RelativeFilePath: pecofence-cli.exe`,
-`PortableCommandAlias: pecofence-cli`) next to `pecofence.exe`.
+A release published by the workflow's `GITHUB_TOKEN` does not trigger other workflows,
+so start the winget update by hand once the release exists:
+
+```powershell
+gh workflow run winget.yml -f tag=v0.1.0
+```
+
+It only works once `DayuanJiang.PecoFence` is in winget-pkgs. Until the first-submission
+PR (microsoft/winget-pkgs#433982) is merged, move its manifest folder to the new version
+instead (new URL, `InstallerSha256`, `ReleaseDate`, `ReleaseNotesUrl`), run
+`winget validate --manifest <folder>` and push to the PR branch. The workflow copies the
+previous manifest, which lists both portable commands (`pecofence` and `pecofence-cli`)
+since 0.1.0.
 
 Current packaging is x64 and unsigned. ARM64 is not configured. winget publishing runs
 from `.github/workflows/winget.yml` on published releases; the Microsoft Store package is
