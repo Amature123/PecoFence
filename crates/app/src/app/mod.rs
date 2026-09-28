@@ -3,7 +3,7 @@
 use crate::anchor::{self, AnchorCell, DesktopAnchor, ShowDesktopBehavior, ZMode};
 use crate::commands::{
     Command, CommandQueue, TransferMode, WM_APP_COMMAND, WM_APP_FRAME, WM_APP_FS_CHANGED,
-    WM_APP_PEEK_FOCUSED, WM_APP_SHELL_CHANGED, WM_APP_TRAY, WM_APP_WALLPAPER,
+    WM_APP_PEEK_FOCUSED, WM_APP_PREWARM_DONE, WM_APP_SHELL_CHANGED, WM_APP_TRAY, WM_APP_WALLPAPER,
 };
 use crate::fence_window::{
     BackdropMode, BackdropSets, Behavior, FenceContext, FenceWindow, ItemView, TabView,
@@ -101,6 +101,11 @@ const TIMER_DESKTOP_ID: usize = 51;
 /// GPU scratch memory (`RenderStack::trim`).
 const TIMER_GPU_TRIM: usize = 54;
 const GPU_TRIM_IDLE_MS: u32 = 3_000;
+/// Prepares the other virtual desktops' wallpapers once wallpaper signals have been quiet
+/// this long (every signal re-arms it), and finishes a prepared one.
+const TIMER_WALLPAPER_PREWARM: usize = 55;
+const TIMER_PREWARM_FINISH: usize = 56;
+const WALLPAPER_PREWARM_DELAY_MS: u32 = 3_000;
 const SPI_SETDESKWALLPAPER: usize = 0x0014;
 const SPI_SETWORKAREA: usize = 0x002F;
 const TRAY_ID: u32 = 1;
@@ -210,6 +215,8 @@ pub struct App {
     /// Fingerprint of the snapshot the current backdrops were built from.
     wallpaper_sig: Option<String>,
     wallpaper_cache: BackdropCache,
+    /// Another virtual desktop's wallpaper being decoded ahead of a switch there.
+    prewarm: Option<visuals::PrewarmJob>,
     /// The hotkey currently registered (None = registration failed or Peek disabled).
     peek_hotkey: Option<PeekHotkey>,
     /// The combination the last `sync_peek_hotkey` tried to register (the user's choice), so a
@@ -289,6 +296,7 @@ impl App {
                         window::set_timer(hwnd, TIMER_WALLPAPER, delay);
                     }
                     wallpaper_schedule.set(schedule);
+                    window::set_timer(hwnd, TIMER_WALLPAPER_PREWARM, WALLPAPER_PREWARM_DELAY_MS);
                 }
             };
             Box::new(
@@ -338,6 +346,10 @@ impl App {
                                 let delay = if storm { FS_STORM_MS } else { FS_DEBOUNCE_MS };
                                 window::set_timer(hwnd, TIMER_FS, delay as u32);
                             }
+                            Some(0)
+                        }
+                        WM_APP_PREWARM_DONE => {
+                            window::set_timer(hwnd, TIMER_PREWARM_FINISH, 1);
                             Some(0)
                         }
                         WM_APP_ICON_READY => {
@@ -403,6 +415,20 @@ impl App {
                                     {
                                         window::kill_timer(hwnd, TIMER_GPU_TRIM);
                                         app.trim_gpu_if_idle();
+                                    }
+                                }
+                                TIMER_WALLPAPER_PREWARM | TIMER_PREWARM_FINISH => {
+                                    if let Ok(mut guard) = cell.try_borrow_mut()
+                                        && let Some(app) = guard.as_mut()
+                                    {
+                                        window::kill_timer(hwnd, wparam);
+                                        if wparam == TIMER_PREWARM_FINISH {
+                                            app.finish_prewarm();
+                                        } else {
+                                            app.prewarm_wallpapers();
+                                        }
+                                    } else {
+                                        window::set_timer(hwnd, wparam, 200);
                                     }
                                 }
                                 TIMER_HOUSEKEEPING => {
@@ -764,6 +790,7 @@ impl App {
             cut_clip_seq: 0,
             wallpaper_sig,
             wallpaper_cache: BackdropCache::default(),
+            prewarm: None,
         };
         if let Some(signature) = app.wallpaper_sig.clone() {
             app.wallpaper_cache

@@ -81,6 +81,9 @@ pub(super) struct BackdropCache {
     bytes: usize,
     max_entries: usize,
     max_bytes: usize,
+    /// Bumped by `clear` (theme / layout change): work started for an older generation
+    /// (a wallpaper prepared in advance) must not be inserted.
+    generation: u64,
 }
 
 impl Default for BackdropCache {
@@ -96,16 +99,39 @@ impl BackdropCache {
             bytes: 0,
             max_entries,
             max_bytes,
+            generation: 0,
         }
     }
 
     pub(super) fn clear(&mut self) {
         self.entries.clear();
         self.bytes = 0;
+        self.generation += 1;
+    }
+
+    pub(super) fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// Windows paths and monitor ids are case-insensitive, and Explorer does not keep one
+    /// spelling (per-desktop registry values differ in case for the same picture).
+    fn position(&self, signature: &str) -> Option<usize> {
+        self.entries
+            .iter()
+            .position(|e| e.signature.eq_ignore_ascii_case(signature))
+    }
+
+    pub(super) fn contains(&self, signature: &str) -> bool {
+        self.position(signature).is_some()
+    }
+
+    /// Room for `bytes` more without evicting anything.
+    pub(super) fn has_room(&self, bytes: usize) -> bool {
+        self.entries.len() < self.max_entries && self.bytes + bytes <= self.max_bytes
     }
 
     pub(super) fn get(&mut self, signature: &str) -> Option<Rc<BackdropSets>> {
-        let index = self.entries.iter().position(|e| e.signature == signature)?;
+        let index = self.position(signature)?;
         let entry = self.entries.remove(index)?;
         let backdrops = entry.backdrops.clone();
         self.entries.push_front(entry);
@@ -113,20 +139,38 @@ impl BackdropCache {
     }
 
     pub(super) fn remove(&mut self, signature: &str) {
-        if let Some(index) = self.entries.iter().position(|e| e.signature == signature) {
+        if let Some(index) = self.position(signature) {
             self.bytes -= self.entries.remove(index).unwrap().bytes;
         }
     }
 
-    pub(super) fn insert(&mut self, signature: String, backdrops: Rc<BackdropSets>) {
-        self.remove(&signature);
-        // A GPU-backed set keeps its full-resolution image as a texture (or, before the
-        // upload, in memory): count that, not just the small sampling copy.
-        let bytes = backdrops
+    /// A GPU-backed set keeps its full-resolution image as a texture (or, before the upload,
+    /// in memory): count that, not just the small sampling copy.
+    fn set_bytes(backdrops: &BackdropSets) -> usize {
+        backdrops
             .acrylic
             .iter()
             .map(|b| b.image.bgra.len() + b.gpu.as_ref().map_or(0, |g| g.full_bytes()))
-            .sum();
+            .sum()
+    }
+
+    /// Inserts a set prepared ahead of use only if nothing has to be evicted for it: the
+    /// sets of desktops already visited stay. Returns whether it was kept.
+    pub(super) fn insert_if_room(
+        &mut self,
+        signature: String,
+        backdrops: Rc<BackdropSets>,
+    ) -> bool {
+        if self.contains(&signature) || !self.has_room(Self::set_bytes(&backdrops)) {
+            return false;
+        }
+        self.insert(signature, backdrops);
+        true
+    }
+
+    pub(super) fn insert(&mut self, signature: String, backdrops: Rc<BackdropSets>) {
+        self.remove(&signature);
+        let bytes = Self::set_bytes(&backdrops);
         // Very large monitor sets can still be displayed without retaining another copy.
         if self.max_entries == 0 || bytes > self.max_bytes {
             return;
@@ -234,6 +278,25 @@ mod tests {
         cache.clear();
         assert!(cache.get("b").is_none());
         assert_eq!(cache.bytes, 0);
+    }
+
+    #[test]
+    fn sets_prepared_in_advance_never_evict_and_match_any_case() {
+        let mut cache = BackdropCache::with_limits(3, 20);
+        cache.insert("current".into(), backdrop(2));
+        assert!(cache.insert_if_room(r"C:\Web\img28.jpg".into(), backdrop(2)));
+        // Same picture spelled differently by another desktop's registry value.
+        assert!(cache.contains(r"c:\web\IMG28.jpg"));
+        assert!(!cache.insert_if_room(r"c:\web\img28.jpg".into(), backdrop(1)));
+        // Over the byte cap: refused, nothing evicted.
+        assert!(!cache.insert_if_room("big".into(), backdrop(4)));
+        assert!(cache.contains("current"));
+        assert!(cache.insert_if_room("small".into(), backdrop(1)));
+        // Over the entry cap.
+        assert!(!cache.insert_if_room("fourth".into(), backdrop(0)));
+        let generation = cache.generation();
+        cache.clear();
+        assert_ne!(cache.generation(), generation);
     }
 
     #[test]

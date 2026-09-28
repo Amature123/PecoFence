@@ -1,9 +1,11 @@
 //! GPU bitmap cache: CPU `Image`s uploaded once per D2D device and reused across frames.
 
-use crate::backdrop::Image;
+use crate::backdrop::{Image, MonitorBackdrop};
+use crate::stack::RenderStack;
 use std::collections::HashMap;
+use std::rc::Rc;
 use windows_canvas::{Bitmap, DrawingSession};
-use windows_core::Result;
+use windows_core::{Interface, Result};
 
 #[derive(Default)]
 pub struct BitmapCache {
@@ -53,6 +55,25 @@ impl BitmapCache {
     /// Releases wallpaper textures whose backdrop set is gone (see `WallpaperCache::prune`).
     pub fn prune_wallpapers(&mut self) {
         self.glass_wallpaper.prune();
+    }
+
+    /// Uploads a Liquid Glass wallpaper set no fence draws yet (another virtual desktop's,
+    /// prepared in advance), so its full-resolution pixels leave process memory now rather
+    /// than at the first draw. The upload goes through a 1x1 surface of the stack's device.
+    pub fn preload_wallpaper(
+        &mut self,
+        stack: &RenderStack,
+        sources: &Rc<Vec<MonitorBackdrop>>,
+    ) -> Result<()> {
+        let surface = stack.graphics().create_drawing_surface(1.0, 1.0)?;
+        let (context, _) = surface.begin_draw::<windows_canvas::ID2D1DeviceContext>()?;
+        let result = context
+            .cast()
+            .and_then(|context| self.glass_wallpaper.preload(&context, sources));
+        let ended = surface.end_draw();
+        // The upload leaves driver staging memory behind, like a panel draw: schedule the trim.
+        crate::stack::note_draw();
+        result.and(ended)
     }
 
     /// Drops everything (e.g. after device loss).

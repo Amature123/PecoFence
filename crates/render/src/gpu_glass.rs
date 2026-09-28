@@ -107,6 +107,15 @@ impl WallpaperCache {
         self.entries.retain(|e| e.source.strong_count() > 0);
     }
 
+    /// Uploads `sources` now instead of at its first draw (see `BitmapCache::preload_wallpaper`).
+    pub(crate) fn preload(
+        &mut self,
+        context: &b::ID2D1DeviceContext,
+        sources: &Rc<Vec<MonitorBackdrop>>,
+    ) -> Result<()> {
+        self.get(context, sources).map(drop)
+    }
+
     fn get(
         &mut self,
         context: &b::ID2D1DeviceContext,

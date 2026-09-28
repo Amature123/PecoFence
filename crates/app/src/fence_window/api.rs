@@ -76,7 +76,9 @@ impl FenceWindow {
         let hwnd = window.hwnd();
         apply_window_shape(hwnd, ctx.theme.borrow().liquid_glass);
         let _ = dwm::set_border_color_none(hwnd);
-        let _ = dwm::set_excluded_from_peek(hwnd, true);
+        // Not DWMWA_EXCLUDED_FROM_PEEK: DWM hides such windows for the whole virtual-desktop
+        // switch animation while their shadows slide, leaving empty panes. Plain windows slide
+        // out and in with the desktop.
         let _ = dwm::set_transitions_disabled(hwnd, true);
         apply_system_backdrop(
             hwnd,

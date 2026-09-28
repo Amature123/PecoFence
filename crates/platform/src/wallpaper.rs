@@ -96,6 +96,87 @@ pub fn desktop_id() -> Option<[u8; 16]> {
     (status.0 == 0 && size == 16).then_some(id)
 }
 
+const DESKTOPS_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops";
+
+/// Reads a registry value of `kind` (RRF_RT_*) into a byte buffer.
+fn registry_value(key: &str, value: &str, kind: u32) -> Option<Vec<u8>> {
+    let key = to_wide(key);
+    let value = to_wide(value);
+    let mut size = 0u32;
+    // SAFETY: size query, then a read into a buffer of that size; strings outlive the calls.
+    unsafe {
+        let status = RegGetValueW(
+            HKEY_CURRENT_USER,
+            PCWSTR(key.as_ptr()),
+            PCWSTR(value.as_ptr()),
+            kind,
+            None,
+            None,
+            Some(&mut size),
+        );
+        if status.0 != 0 || size == 0 {
+            return None;
+        }
+        let mut data = vec![0u8; size as usize];
+        let status = RegGetValueW(
+            HKEY_CURRENT_USER,
+            PCWSTR(key.as_ptr()),
+            PCWSTR(value.as_ptr()),
+            kind,
+            None,
+            Some(data.as_mut_ptr().cast()),
+            Some(&mut size),
+        );
+        (status.0 == 0).then(|| {
+            data.truncate(size as usize);
+            data
+        })
+    }
+}
+
+/// `{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}` for a GUID stored in its binary layout.
+fn guid_string(id: &[u8; 16]) -> String {
+    let d1 = u32::from_le_bytes([id[0], id[1], id[2], id[3]]);
+    let d2 = u16::from_le_bytes([id[4], id[5]]);
+    let d3 = u16::from_le_bytes([id[6], id[7]]);
+    let tail: String = id[8..].iter().map(|b| format!("{b:02X}")).collect();
+    format!(
+        "{{{d1:08X}-{d2:04X}-{d3:04X}-{}-{}}}",
+        &tail[..4],
+        &tail[4..]
+    )
+}
+
+/// Every virtual desktop in task-view order with the picture Explorer keeps for it (`None`
+/// when the desktop has no picture of its own). Like [`desktop_id`], an Explorer detail: a
+/// hint for preparing backdrops, never what is displayed.
+pub fn desktop_wallpapers() -> Vec<([u8; 16], Option<PathBuf>)> {
+    const RRF_RT_REG_SZ: u32 = 0x02;
+    const RRF_RT_REG_BINARY: u32 = 0x08;
+    let Some(ids) = registry_value(DESKTOPS_KEY, "VirtualDesktopIDs", RRF_RT_REG_BINARY) else {
+        return Vec::new();
+    };
+    ids.as_chunks::<16>()
+        .0
+        .iter()
+        .map(|chunk| {
+            let id = *chunk;
+            let key = format!(r"{DESKTOPS_KEY}\Desktops\{}", guid_string(&id));
+            let path = registry_value(&key, "Wallpaper", RRF_RT_REG_SZ).and_then(|data| {
+                let wide: Vec<u16> = data
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                    .take_while(|&c| c != 0)
+                    .collect();
+                (!wide.is_empty()).then(|| PathBuf::from(String::from_utf16_lossy(&wide)))
+            });
+            (id, path)
+        })
+        .collect()
+}
+
 /// Watch both wallpaper settings and Explorer's virtual-desktop state. The latter is only
 /// an opportunistic trigger (an Explorer implementation detail); callers must keep a poll
 /// fallback and re-query IDesktopWallpaper before displaying anything.
@@ -374,6 +455,15 @@ mod tests {
             delivered,
             "real registry writes did not wake the wallpaper watcher"
         );
+    }
+
+    #[test]
+    fn desktop_ids_format_as_their_registry_key_names() {
+        let id = [
+            0x39, 0xF8, 0x5B, 0xB3, 0x0F, 0xB5, 0xC7, 0x40, 0xAB, 0x31, 0xB2, 0xF7, 0xDB, 0xD5,
+            0x5B, 0x32,
+        ];
+        assert_eq!(guid_string(&id), "{B35BF839-B50F-40C7-AB31-B2F7DBD55B32}");
     }
 
     #[test]

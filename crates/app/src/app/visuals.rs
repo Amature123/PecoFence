@@ -97,13 +97,104 @@ fn file_stamp(path: &std::path::Path) -> Option<(u64, u64)> {
     Some((meta.file_size(), meta.last_write_time()))
 }
 
-/// Build from the snapshot we fingerprinted, rather than querying a possibly newer desktop.
-/// A transient decode failure leaves the last good background on screen and is retried.
-fn build_backdrops(
-    theme: &Theme,
-    snapshot: &wallpaper::WallpaperSnapshot,
-) -> Result<Vec<MonitorBackdrop>> {
-    let started = std::time::Instant::now();
+/// Everything needed to build one monitor's backdrop. `Send`, so another virtual desktop's
+/// wallpaper can be decoded on a worker thread.
+#[derive(Clone)]
+struct MonitorRecipe {
+    path: Option<PathBuf>,
+    position: WallpaperPosition,
+    left: i32,
+    top: i32,
+    width: i32,
+    height: i32,
+    background: [u8; 3],
+    tint: pecofence_render::backdrop::MicaTint,
+    downscale: u32,
+    decode_divisor: u32,
+}
+
+impl MonitorRecipe {
+    /// Decode, map, blur and tint: the expensive part (~360 ms for a 4K picture).
+    fn build_image(&self) -> Result<Image> {
+        let image = match &self.path {
+            Some(p) => {
+                let d = wallpaper::decode_scaled(
+                    p,
+                    (self.width as u32 / self.decode_divisor).max(1),
+                    (self.height as u32 / self.decode_divisor).max(1),
+                )?;
+                Image {
+                    width: d.width,
+                    height: d.height,
+                    bgra: d.bgra,
+                }
+            }
+            None => Image::solid(1, 1, self.background),
+        };
+        let MonitorBackdrop { image, .. } = MonitorBackdrop::build(
+            &image,
+            self.position,
+            self.left,
+            self.top,
+            self.width,
+            self.height,
+            self.background,
+            self.tint,
+            self.downscale,
+        );
+        Ok(image)
+    }
+
+    /// The backdrop around an image from [`MonitorRecipe::build_image`]. Clear glass keeps
+    /// full-resolution pixels (a solid colour is monitor-sized too) only until the GPU upload;
+    /// contrast sampling uses a copy 8x smaller. Uploading again (device loss) re-decodes.
+    /// Bytes a set with this monitor adds to the backdrop cache (see `BackdropCache`).
+    fn estimated_bytes(&self) -> usize {
+        let w = (self.width as usize).div_ceil(self.downscale as usize);
+        let h = (self.height as usize).div_ceil(self.downscale as usize);
+        let full = w * h * 4;
+        if self.downscale == 1 {
+            // Clear glass: the full image plus its 8x sampling copy.
+            full + w.div_ceil(8) * h.div_ceil(8) * 4
+        } else {
+            full
+        }
+    }
+
+    fn finish(self, image: Image, liquid_glass: bool) -> MonitorBackdrop {
+        let backdrop = MonitorBackdrop {
+            left: self.left,
+            top: self.top,
+            width: self.width,
+            height: self.height,
+            downscale: self.downscale,
+            image,
+            gpu: None,
+        };
+        if !liquid_glass {
+            return backdrop;
+        }
+        // A rebuild must reproduce these pixels: a file rewritten in place since is a new
+        // wallpaper (the next check replaces the whole set), not this one.
+        let stamp = self.path.as_deref().map(file_stamp);
+        backdrop.into_gpu_backed(8, move || {
+            if self.path.as_deref().map(file_stamp) != stamp {
+                tracing::info!("wallpaper file changed; not rebuilding the old set");
+                return None;
+            }
+            match self.build_image() {
+                Ok(image) => Some(image),
+                Err(error) => {
+                    tracing::warn!(%error, "wallpaper rebuild for GPU upload failed");
+                    None
+                }
+            }
+        })
+    }
+}
+
+/// One recipe per live monitor of `snapshot`.
+fn monitor_recipes(theme: &Theme, snapshot: &wallpaper::WallpaperSnapshot) -> Vec<MonitorRecipe> {
     let position = match snapshot.position {
         wallpaper::Position::Center => WallpaperPosition::Center,
         wallpaper::Position::Tile => WallpaperPosition::Tile,
@@ -112,8 +203,6 @@ fn build_backdrops(
         wallpaper::Position::Fill => WallpaperPosition::Fill,
         wallpaper::Position::Span => WallpaperPosition::Span,
     };
-    // Clear glass needs wallpaper detail for refraction. Acrylic intentionally discards it.
-    let downscale = if theme.liquid_glass { 1 } else { 4 };
     let infos = monitors::enumerate();
     let mut out = Vec::new();
     for m in &snapshot.monitors {
@@ -146,61 +235,46 @@ fn build_backdrops(
             tuned_tint(theme.acrylic_tint())
         };
         tint.blur_sigma_dip *= dpi as f32 / 96.0;
-        let decode_divisor = if theme.liquid_glass { 1 } else { 2 };
-        let (left, top, background) = (m.rect.left, m.rect.top, snapshot.background);
-        let build = move |path: Option<&std::path::Path>| -> Result<MonitorBackdrop> {
-            let image = match path {
-                Some(p) => {
-                    let d = wallpaper::decode_scaled(
-                        p,
-                        (w as u32 / decode_divisor).max(1),
-                        (h as u32 / decode_divisor).max(1),
-                    )?;
-                    Image {
-                        width: d.width,
-                        height: d.height,
-                        bgra: d.bgra,
-                    }
-                }
-                None => Image::solid(1, 1, background),
-            };
-            Ok(MonitorBackdrop::build(
-                &image, position, left, top, w, h, background, tint, downscale,
-            ))
-        };
-        let backdrop = build(m.path.as_deref())?;
-        // Clear glass keeps full-resolution pixels (a solid colour is monitor-sized too) only
-        // until the GPU upload; contrast sampling uses a copy 8x smaller. Uploading again
-        // (device loss) re-decodes the file.
-        out.push(if theme.liquid_glass {
-            let path = m.path.clone();
-            // A rebuild must reproduce these pixels: a file rewritten in place since is a new
-            // wallpaper (the next check replaces the whole set), not this one.
-            let stamp = path.as_deref().map(file_stamp);
-            backdrop.into_gpu_backed(8, move || {
-                if path.as_deref().map(file_stamp) != stamp {
-                    tracing::info!("wallpaper file changed; not rebuilding the old set");
-                    return None;
-                }
-                match build(path.as_deref()) {
-                    Ok(rebuilt) => Some(rebuilt.image),
-                    Err(error) => {
-                        tracing::warn!(%error, "wallpaper rebuild for GPU upload failed");
-                        None
-                    }
-                }
-            })
-        } else {
-            backdrop
+        out.push(MonitorRecipe {
+            path: m.path.clone(),
+            position,
+            left: m.rect.left,
+            top: m.rect.top,
+            width: w,
+            height: h,
+            background: snapshot.background,
+            tint,
+            // Clear glass needs wallpaper detail for refraction. Acrylic intentionally
+            // discards it.
+            downscale: if theme.liquid_glass { 1 } else { 4 },
+            decode_divisor: if theme.liquid_glass { 1 } else { 2 },
         });
     }
+    out
+}
+
+/// E_PENDING: the monitor topology or the wallpaper is not ready yet.
+fn pending() -> windows_core::Error {
+    windows_core::Error::from_hresult(windows_core::HRESULT(0x8000000Au32 as i32))
+}
+
+/// Build from the snapshot we fingerprinted, rather than querying a possibly newer desktop.
+/// A transient decode failure leaves the last good background on screen and is retried.
+fn build_backdrops(
+    theme: &Theme,
+    snapshot: &wallpaper::WallpaperSnapshot,
+) -> Result<Vec<MonitorBackdrop>> {
+    let started = std::time::Instant::now();
+    let mut out = Vec::new();
+    for recipe in monitor_recipes(theme, snapshot) {
+        let image = recipe.build_image()?;
+        out.push(recipe.finish(image, theme.liquid_glass));
+    }
     if out.is_empty() {
-        return Err(windows_core::Error::from_hresult(windows_core::HRESULT(
-            0x8000000Au32 as i32, // E_PENDING: monitor topology is not ready.
-        )));
+        return Err(pending());
     }
     tracing::info!(
-        ?position,
+        position = ?snapshot.position,
         elapsed_ms = started.elapsed().as_millis(),
         count = out.len(),
         "backdrops ready"
@@ -222,9 +296,7 @@ fn build_snapshot_backdrops(
     if signature != snapshot.signature() {
         // Explorer finished replacing the image while WIC read it. Do not cache that read
         // under the old metadata, or a later desktop round trip could resurrect it.
-        return Err(windows_core::Error::from_hresult(windows_core::HRESULT(
-            0x8000000Au32 as i32, // E_PENDING
-        )));
+        return Err(pending());
     }
     Ok(Rc::new(BackdropSets {
         acrylic: Rc::new(backdrops),
@@ -239,6 +311,57 @@ pub(super) fn build_backdrop_sets(
     let signature = snapshot.signature();
     let backdrops = build_snapshot_backdrops(theme, &snapshot, &signature)?;
     Ok((backdrops, signature))
+}
+
+/// Another virtual desktop's wallpaper, decoded on a worker thread ahead of a switch there:
+/// a cache miss at switch time (a 4K decode) outlasts the switch animation, so the fences
+/// would arrive showing the previous desktop's picture.
+pub(super) struct PrewarmJob {
+    signature: String,
+    /// `BackdropCache::generation` and material when the job started.
+    generation: u64,
+    liquid_glass: bool,
+    snapshot: wallpaper::WallpaperSnapshot,
+    recipes: Vec<MonitorRecipe>,
+    result: Arc<Mutex<Option<std::result::Result<Vec<Image>, String>>>>,
+}
+
+/// The other virtual desktops' pictures laid out like `current` (same position, colour and
+/// monitors), nearest desktop first since Ctrl+Win+Arrow moves one step. Desktops without a
+/// picture of their own, and a picture already listed (in any spelling), are skipped.
+fn other_desktop_snapshots(
+    current: &wallpaper::WallpaperSnapshot,
+    desktops: &[([u8; 16], Option<PathBuf>)],
+    current_id: Option<[u8; 16]>,
+) -> Vec<wallpaper::WallpaperSnapshot> {
+    let here = current_id
+        .and_then(|id| desktops.iter().position(|(d, _)| *d == id))
+        .unwrap_or(0) as isize;
+    let mut order: Vec<(isize, &PathBuf)> = desktops
+        .iter()
+        .enumerate()
+        .filter_map(|(i, (_, path))| Some((i as isize - here, path.as_ref()?)))
+        .filter(|(distance, _)| *distance != 0)
+        .collect();
+    // Nearest first; to the right before to the left at the same distance.
+    order.sort_by_key(|(distance, _)| (distance.abs(), *distance < 0));
+    let mut seen: Vec<String> = Vec::new();
+    let mut out = Vec::new();
+    for (_, path) in order {
+        let key = path.to_string_lossy().to_lowercase();
+        if seen.contains(&key) {
+            continue;
+        }
+        seen.push(key);
+        let mut snapshot = current.clone();
+        for m in &mut snapshot.monitors {
+            if m.rect.right > m.rect.left && m.rect.bottom > m.rect.top {
+                m.path = Some(path.clone());
+            }
+        }
+        out.push(snapshot);
+    }
+    out
 }
 
 pub(super) fn backdrop_mode_for(b: pecofence_core::Backdrop) -> BackdropMode {
@@ -391,6 +514,152 @@ pub(super) fn tray_icon_image(size: i32, _accent: [u8; 3], _dark: bool) -> Vec<u
 }
 
 impl App {
+    /// Starts decoding the nearest other virtual desktop's wallpaper that is not cached yet,
+    /// if the cache has room for it without evicting a visited desktop.
+    pub(super) fn prewarm_wallpapers(&mut self) {
+        if self.prewarm.is_some()
+            || self.wallpaper_override.is_some()
+            || pecofence_core::brand::var_os("PECOFENCE_SOLID").is_some()
+        {
+            return;
+        }
+        let Some(current) = self.wallpaper_sig.clone() else {
+            return;
+        };
+        let Ok(snapshot) = wallpaper::query() else {
+            return;
+        };
+        if snapshot.signature() != current {
+            // A switch or a wallpaper change in progress: its signal re-arms this.
+            return;
+        }
+        let theme = *self.ctx.theme.borrow();
+        let candidates = other_desktop_snapshots(
+            &snapshot,
+            &wallpaper::desktop_wallpapers(),
+            wallpaper::desktop_id(),
+        );
+        for candidate in candidates {
+            if candidate
+                .monitors
+                .iter()
+                .filter_map(|m| m.path.as_deref())
+                .any(|p| !p.is_file())
+            {
+                continue;
+            }
+            let signature = candidate.signature();
+            if signature.eq_ignore_ascii_case(&current) || self.wallpaper_cache.contains(&signature)
+            {
+                continue;
+            }
+            let recipes = monitor_recipes(&theme, &candidate);
+            let bytes = recipes.iter().map(MonitorRecipe::estimated_bytes).sum();
+            if recipes.is_empty() || !self.wallpaper_cache.has_room(bytes) {
+                tracing::debug!(bytes, "no room to prepare another desktop's wallpaper");
+                return;
+            }
+            let result = Arc::new(Mutex::new(None));
+            let spawned = {
+                let recipes = recipes.clone();
+                let result = result.clone();
+                let control = self.control.hwnd().0 as isize;
+                std::thread::Builder::new()
+                    .name("pecofence-wallpaper-prewarm".into())
+                    .spawn(move || {
+                        let images = pecofence_platform::com::MtaGuard::init()
+                            .and_then(|_com| {
+                                recipes
+                                    .iter()
+                                    .map(MonitorRecipe::build_image)
+                                    .collect::<Result<Vec<_>>>()
+                            })
+                            .map_err(|error| error.to_string());
+                        if let Ok(mut slot) = result.lock() {
+                            *slot = Some(images);
+                        }
+                        window::post_message(
+                            HWND(control as *mut core::ffi::c_void),
+                            WM_APP_PREWARM_DONE,
+                            0,
+                            0,
+                        );
+                    })
+            };
+            if let Err(error) = spawned {
+                tracing::warn!(%error, "wallpaper prewarm thread failed to start");
+                return;
+            }
+            tracing::debug!(%signature, "preparing another desktop's wallpaper");
+            self.prewarm = Some(PrewarmJob {
+                signature,
+                generation: self.wallpaper_cache.generation(),
+                liquid_glass: theme.liquid_glass,
+                snapshot: candidate,
+                recipes,
+                result,
+            });
+            return;
+        }
+    }
+
+    /// The worker finished: cache the set (uploading clear glass right away, so its pixels
+    /// leave process memory) unless the theme, layout or file changed meanwhile, then
+    /// prepare the next desktop.
+    pub(super) fn finish_prewarm(&mut self) {
+        let Some(job) = self.prewarm.take() else {
+            return;
+        };
+        let Some(result) = job.result.lock().ok().and_then(|mut slot| slot.take()) else {
+            self.prewarm = Some(job);
+            return;
+        };
+        let images = match result {
+            Ok(images) => images,
+            Err(error) => {
+                tracing::debug!(%error, "another desktop's wallpaper could not be prepared");
+                return;
+            }
+        };
+        let liquid_glass = self.ctx.theme.borrow().liquid_glass;
+        if job.generation != self.wallpaper_cache.generation()
+            || job.liquid_glass != liquid_glass
+            || job.snapshot.signature() != job.signature
+        {
+            tracing::debug!("prepared wallpaper is stale; discarded");
+            self.prewarm_wallpapers();
+            return;
+        }
+        let set: Rc<Vec<MonitorBackdrop>> = Rc::new(
+            job.recipes
+                .into_iter()
+                .zip(images)
+                .map(|(recipe, image)| recipe.finish(image, liquid_glass))
+                .collect(),
+        );
+        let backdrops = Rc::new(BackdropSets {
+            acrylic: set.clone(),
+        });
+        if !self
+            .wallpaper_cache
+            .insert_if_room(job.signature, backdrops)
+        {
+            return;
+        }
+        if liquid_glass
+            && let Err(error) = self
+                .ctx
+                .bitmaps
+                .borrow_mut()
+                .preload_wallpaper(&self.ctx.stack, &set)
+        {
+            // The first draw uploads it instead.
+            tracing::debug!(%error, "prepared wallpaper upload deferred");
+        }
+        tracing::info!("wallpaper prepared for another desktop");
+        self.prewarm_wallpapers();
+    }
+
     /// Wallpaper-only refresh: reuse a recent desktop's pixels and preserve icon/geometry
     /// caches. Failed reads must not advance the signature, so the next check can retry.
     pub(super) fn check_wallpaper(&mut self, reason: &str) {
@@ -524,6 +793,11 @@ impl App {
         let backdrops = if theme_changed || force {
             // Theme/DPI/layout changes invalidate cached material recipes and coordinates.
             self.wallpaper_cache.clear();
+            window::set_timer(
+                self.control.hwnd(),
+                TIMER_WALLPAPER_PREWARM,
+                WALLPAPER_PREWARM_DELAY_MS,
+            );
             match build_backdrop_sets(&theme, self.wallpaper_override.as_deref()) {
                 Ok((backdrops, signature)) => {
                     self.wallpaper_cache
@@ -576,6 +850,66 @@ impl App {
                 w.drop_icons();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod prewarm_tests {
+    use super::other_desktop_snapshots;
+    use pecofence_platform::RECT;
+    use pecofence_platform::wallpaper::{MonitorWallpaper, Position, WallpaperSnapshot};
+    use std::path::PathBuf;
+
+    #[test]
+    fn other_desktops_nearest_first_each_picture_once() {
+        let rect = |right| RECT {
+            left: 0,
+            top: 0,
+            right,
+            bottom: 10,
+        };
+        let current = WallpaperSnapshot {
+            position: Position::Fill,
+            background: [0, 0, 0],
+            monitors: vec![
+                MonitorWallpaper {
+                    monitor_id: "live".into(),
+                    rect: rect(10),
+                    path: Some("C:/here.jpg".into()),
+                },
+                // Disconnected output: stays without a picture.
+                MonitorWallpaper {
+                    monitor_id: "gone".into(),
+                    rect: rect(0),
+                    path: None,
+                },
+            ],
+        };
+        let desk = |n: u8, path: Option<&str>| ([n; 16], path.map(PathBuf::from));
+        let desktops = [
+            desk(0, Some("C:/a.jpg")),
+            desk(1, Some("C:/b.jpg")),
+            desk(2, Some("C:/here.jpg")),
+            desk(3, None),
+            desk(4, Some("C:/A.JPG")),
+            desk(5, Some("C:/c.jpg")),
+        ];
+        let paths: Vec<Vec<Option<PathBuf>>> =
+            other_desktop_snapshots(&current, &desktops, Some([2; 16]))
+                .into_iter()
+                .map(|s| s.monitors.into_iter().map(|m| m.path).collect())
+                .collect();
+        let p = |s: &str| Some(PathBuf::from(s));
+        assert_eq!(
+            paths,
+            vec![
+                // The current desktop (2) and desktop 3 (no picture of its own) are skipped;
+                // desktop 4's picture is desktop 0's in another spelling, listed once.
+                vec![p("C:/b.jpg"), None],
+                vec![p("C:/A.JPG"), None],
+                vec![p("C:/c.jpg"), None],
+            ]
+        );
     }
 }
 
