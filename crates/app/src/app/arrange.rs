@@ -286,8 +286,17 @@ impl App {
             }
         }
         tracing::info!(moved, "tidy align");
+        if moved == 0
+            && let Some(t) = &self.tray
+        {
+            t.show_info(
+                "PecoFence",
+                pecofence_core::i18n::text("已经很整齐了，没有需要对齐的栅栏。"),
+                false,
+            );
+        }
     }
 }
 
 /// Edges closer than this line up in 「整理对齐」 (DIPs); farther ones are left alone.
-const TIDY_REACH_DIP: f32 = 48.0;
+const TIDY_REACH_DIP: f32 = 96.0;

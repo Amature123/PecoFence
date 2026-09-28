@@ -74,6 +74,7 @@
   "合并到…": "Merge into…",
   "锁定位置和大小": "Lock position and size",
   "整理对齐": "Align fences",
+  "已经很整齐了，没有需要对齐的栅栏。": "Already tidy: no fences to align.",
   "栅栏选项…": "Fence options…",
   "删除栅栏": "Delete fence",
   "恢复默认列宽": "Reset column widths",

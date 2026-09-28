@@ -891,10 +891,9 @@ pub mod clearance {
     }
 
     /// Groups near-equal edge values (within `reach` of a group's first value) and picks each
-    /// group's target: a fixed fence's edge, then the work-area edge (when the whole group is within
-    /// `reach / 2` of it), then the largest fence's.
-    /// `values` holds (value, fence index or `None` for the work area, priority).
-    fn edge_targets(mut values: Vec<(i32, Option<usize>, i64)>, reach: i32) -> Vec<(usize, i32)> {
+    /// group's target: a fixed fence's edge, otherwise the largest fence's. `values` holds
+    /// (value, fence index, priority).
+    fn edge_targets(mut values: Vec<(i32, usize, i64)>, reach: i32) -> Vec<(usize, i32)> {
         values.sort_by_key(|v| v.0);
         let mut out = Vec::new();
         let mut start = 0;
@@ -904,15 +903,8 @@ pub mod clearance {
                 end += 1;
             }
             let group = &values[start..end];
-            // The work-area edge only wins when every edge of the group is close to it.
-            let far_from_work = |w: i32| group.iter().any(|v| (v.0 - w).abs() > reach / 2);
-            let target = group
-                .iter()
-                .filter(|v| v.1.is_some() || !far_from_work(v.0))
-                .max_by_key(|v| v.2)
-                .map(|v| v.0);
-            if let Some(target) = target {
-                out.extend(group.iter().filter_map(|v| v.1.map(|i| (i, target))));
+            if let Some(target) = group.iter().max_by_key(|v| v.2).map(|v| v.0) {
+                out.extend(group.iter().map(|v| (v.1, target)));
             }
             start = end;
         }
@@ -926,7 +918,6 @@ pub mod clearance {
     /// `work` or newly overlap another one stays where it was.
     pub fn tidy(fences: &[TidyFence], work: &RECT, gap: i32, reach: i32) -> Vec<RECT> {
         const FIXED: i64 = i64::MAX;
-        const WORK: i64 = i64::MAX - 1;
         let orig: Vec<RECT> = fences.iter().map(|f| f.rect).collect();
         let mut r = orig.clone();
         let prio = |i: usize, r: &[RECT]| {
@@ -938,10 +929,7 @@ pub mod clearance {
         };
         let movable = |i: usize| !fences[i].fixed;
         // Left edges, then top edges: move the fence.
-        let lefts = (0..r.len())
-            .map(|i| (r[i].left, Some(i), prio(i, &r)))
-            .chain([(work.left + gap, None, WORK)])
-            .collect();
+        let lefts = (0..r.len()).map(|i| (r[i].left, i, prio(i, &r))).collect();
         for (i, x) in edge_targets(lefts, reach) {
             if movable(i) {
                 let w = r[i].right - r[i].left;
@@ -949,10 +937,7 @@ pub mod clearance {
                 r[i].right = x + w;
             }
         }
-        let tops = (0..r.len())
-            .map(|i| (r[i].top, Some(i), prio(i, &r)))
-            .chain([(work.top + gap, None, WORK)])
-            .collect();
+        let tops = (0..r.len()).map(|i| (r[i].top, i, prio(i, &r))).collect();
         for (i, y) in edge_targets(tops, reach) {
             if movable(i) {
                 let h = r[i].bottom - r[i].top;
@@ -1000,10 +985,7 @@ pub mod clearance {
         }
         // Right edges last, so a column whose width a side gap just set shares it: set the
         // width.
-        let rights = (0..r.len())
-            .map(|i| (r[i].right, Some(i), prio(i, &r)))
-            .chain([(work.right - gap, None, WORK)])
-            .collect();
+        let rights = (0..r.len()).map(|i| (r[i].right, i, prio(i, &r))).collect();
         for (i, x) in edge_targets(rights, reach) {
             if movable(i) && x - r[i].left >= fences[i].min_w {
                 r[i].right = x;
@@ -1162,6 +1144,31 @@ mod tests {
         let out = tidy(&[a, b], &work, 16, 96);
         assert_eq!(out[0], a.rect);
         assert_eq!(out[1].top, 200);
+    }
+
+    /// A real desktop at 200 %: the fence under 「工具」 was 101 px off on both sides and 186 px
+    /// below it. It lines up and moves up to the gap; the top margin the user left stays.
+    #[test]
+    fn tidy_fixes_a_real_near_miss_and_keeps_the_screen_margin() {
+        use clearance::{TidyFence, tidy};
+        let f = |r| TidyFence {
+            rect: r,
+            fixed: false,
+            min_w: 160,
+        };
+        let folder = rc(2351, 735, 3711, 1017);
+        let desk = rc(954, 91, 2234, 389);
+        let games = rc(954, 405, 1466, 799);
+        let pics = rc(1926, 1033, 2566, 1331);
+        let tools = rc(2250, 91, 3610, 549);
+        let out = tidy(
+            &[f(folder), f(desk), f(games), f(pics), f(tools)],
+            &rc(0, 0, 3840, 2064),
+            16,
+            192,
+        );
+        assert_eq!(out[0], rc(2250, 565, 3610, 847), "{out:?}");
+        assert_eq!((out[1], out[2], out[4]), (desk, games, tools));
     }
 
     /// Closing a side gap moves the right edge of every fence beside it, so a column that was
