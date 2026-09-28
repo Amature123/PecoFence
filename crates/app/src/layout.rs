@@ -371,6 +371,10 @@ impl Bands {
 pub struct Grid {
     pub metrics: GridMetrics,
     pub columns: usize,
+    /// Column pitch: the cell width plus an equal share of the width left over after the
+    /// whole columns, so the grid fills any fence width (Explorer's auto-arrange). Cells keep
+    /// `metrics.cell_w` and sit centred in their pitch.
+    pub pitch: f32,
     /// Rows over all groups.
     #[allow(dead_code)]
     pub rows: usize,
@@ -391,6 +395,7 @@ impl Grid {
         Self {
             metrics,
             columns,
+            pitch: usable / columns as f32,
             rows: bands.total_rows(),
             content_height: bands.content_height,
             bands,
@@ -401,7 +406,9 @@ impl Grid {
     pub fn cell(&self, index: usize) -> CellRect {
         let (gi, row, col) = self.bands.place(index);
         CellRect {
-            x: self.metrics.pad_x + col as f32 * self.metrics.cell_w,
+            x: self.metrics.pad_x
+                + col as f32 * self.pitch
+                + (self.pitch - self.metrics.cell_w) / 2.0,
             y: self.bands.groups[gi].rows_y + row as f32 * self.metrics.cell_h,
             w: self.metrics.cell_w,
             h: self.metrics.cell_h,
@@ -413,7 +420,7 @@ impl Grid {
         if x < self.metrics.pad_x || y < self.metrics.pad_y {
             return None;
         }
-        let col = ((x - self.metrics.pad_x) / self.metrics.cell_w).floor() as usize;
+        let col = ((x - self.metrics.pad_x) / self.pitch).floor() as usize;
         if col >= self.columns {
             return None;
         }
@@ -431,7 +438,7 @@ impl Grid {
         if count == 0 {
             return 0;
         }
-        let colf = ((x - self.metrics.pad_x) / self.metrics.cell_w).max(0.0);
+        let colf = ((x - self.metrics.pad_x) / self.pitch).max(0.0);
         self.bands.insertion(y, colf.round() as usize).min(count)
     }
 
@@ -637,7 +644,7 @@ impl ItemLayout {
     /// its left pad to the right edge of the last column).
     fn header_width(&self) -> f32 {
         match self {
-            Self::Grid(g) => g.metrics.pad_x * 2.0 + g.columns as f32 * g.metrics.cell_w,
+            Self::Grid(g) => g.metrics.pad_x * 2.0 + g.columns as f32 * g.pitch,
             Self::Rows { width, .. } => *width,
         }
     }
@@ -831,16 +838,6 @@ pub mod clearance {
             .min()
     }
 
-    /// Rightmost right edge `r` may grow to: `gap` before the nearest fence that shares some of
-    /// its height and starts at or right of its right edge.
-    pub fn limit_right(others: &[RECT], r: &RECT, gap: i32) -> Option<i32> {
-        others
-            .iter()
-            .filter(|o| spans_y(o, r) && o.left >= r.right)
-            .map(|o| o.left - gap)
-            .min()
-    }
-
     /// True when `a` and `b` overlap by more than half a gap (fences snapped a gap apart, or
     /// touching, do not count).
     pub fn overlaps(a: &RECT, b: &RECT, gap: i32) -> bool {
@@ -884,30 +881,165 @@ pub mod clearance {
         best.map(|(_, c)| c)
     }
 
-    /// Heights for a stack of `(wanted, minimum)` fences that must fit in `available` px:
-    /// the wanted heights when they fit, otherwise each gives up the same share of what it has
-    /// above its minimum (never below it, even if the minimums alone do not fit).
-    pub fn share_heights(slots: &[(i32, i32)], available: i32) -> Vec<i32> {
-        let total: i32 = slots.iter().map(|(want, _)| want).sum();
-        if total <= available {
-            return slots.iter().map(|(want, _)| *want).collect();
+    /// One fence for [`tidy`]: its rect, whether it must stay put (locked) and its minimum
+    /// width.
+    #[derive(Clone, Copy, Debug)]
+    pub struct TidyFence {
+        pub rect: RECT,
+        pub fixed: bool,
+        pub min_w: i32,
+    }
+
+    /// Groups near-equal edge values (within `reach` of a group's first value) and picks each
+    /// group's target: a fixed fence's edge, then the work-area edge (when the whole group is within
+    /// `reach / 2` of it), then the largest fence's.
+    /// `values` holds (value, fence index or `None` for the work area, priority).
+    fn edge_targets(mut values: Vec<(i32, Option<usize>, i64)>, reach: i32) -> Vec<(usize, i32)> {
+        values.sort_by_key(|v| v.0);
+        let mut out = Vec::new();
+        let mut start = 0;
+        while start < values.len() {
+            let mut end = start + 1;
+            while end < values.len() && values[end].0 - values[start].0 <= reach {
+                end += 1;
+            }
+            let group = &values[start..end];
+            // The work-area edge only wins when every edge of the group is close to it.
+            let far_from_work = |w: i32| group.iter().any(|v| (v.0 - w).abs() > reach / 2);
+            let target = group
+                .iter()
+                .filter(|v| v.1.is_some() || !far_from_work(v.0))
+                .max_by_key(|v| v.2)
+                .map(|v| v.0);
+            if let Some(target) = target {
+                out.extend(group.iter().filter_map(|v| v.1.map(|i| (i, target))));
+            }
+            start = end;
         }
-        let flexible: i64 = slots
-            .iter()
-            .map(|(want, min)| (want - min).max(0) as i64)
-            .sum();
-        let excess = (total - available) as i64;
-        slots
-            .iter()
-            .map(|&(want, min)| {
-                let spare = (want - min).max(0) as i64;
-                if flexible == 0 {
-                    return want.max(min);
+        out
+    }
+
+    /// 「整理对齐」: lines up near-miss edges and evens out small gaps without rearranging.
+    /// Left and top edges within `reach` of each other move the fences onto one line,
+    /// neighbours closer than `reach` (stacked or side by side) end up exactly `gap` apart, and
+    /// right edges within `reach` then set one width. Heights never change. A fence that would leave
+    /// `work` or newly overlap another one stays where it was.
+    pub fn tidy(fences: &[TidyFence], work: &RECT, gap: i32, reach: i32) -> Vec<RECT> {
+        const FIXED: i64 = i64::MAX;
+        const WORK: i64 = i64::MAX - 1;
+        let orig: Vec<RECT> = fences.iter().map(|f| f.rect).collect();
+        let mut r = orig.clone();
+        let prio = |i: usize, r: &[RECT]| {
+            if fences[i].fixed {
+                FIXED
+            } else {
+                (r[i].right - r[i].left) as i64 * (r[i].bottom - r[i].top) as i64
+            }
+        };
+        let movable = |i: usize| !fences[i].fixed;
+        // Left edges, then top edges: move the fence.
+        let lefts = (0..r.len())
+            .map(|i| (r[i].left, Some(i), prio(i, &r)))
+            .chain([(work.left + gap, None, WORK)])
+            .collect();
+        for (i, x) in edge_targets(lefts, reach) {
+            if movable(i) {
+                let w = r[i].right - r[i].left;
+                r[i].left = x;
+                r[i].right = x + w;
+            }
+        }
+        let tops = (0..r.len())
+            .map(|i| (r[i].top, Some(i), prio(i, &r)))
+            .chain([(work.top + gap, None, WORK)])
+            .collect();
+        for (i, y) in edge_targets(tops, reach) {
+            if movable(i) {
+                let h = r[i].bottom - r[i].top;
+                r[i].top = y;
+                r[i].bottom = y + h;
+            }
+        }
+        // Stacked neighbours: the lower one moves to exactly `gap` below (top-down, so a
+        // whole stack follows).
+        let mut by_top: Vec<usize> = (0..r.len()).collect();
+        by_top.sort_by_key(|&i| (r[i].top, r[i].left));
+        for &b in &by_top {
+            let above = (0..r.len())
+                .filter(|&a| a != b && spans_x(&r[a], &r[b]))
+                .filter(|&a| {
+                    let d = r[b].top - r[a].bottom;
+                    (-gap..=reach).contains(&d) && r[a].top < r[b].top
+                })
+                .max_by_key(|&a| r[a].bottom);
+            if let Some(a) = above
+                && movable(b)
+            {
+                let h = r[b].bottom - r[b].top;
+                r[b].top = r[a].bottom + gap;
+                r[b].bottom = r[b].top + h;
+            }
+        }
+        // Side-by-side neighbours: every fence just left of another one closes the gap to
+        // exactly `gap` with its width (all of them, so right edges aligned above stay so).
+        let mut by_left: Vec<usize> = (0..r.len()).collect();
+        by_left.sort_by_key(|&i| (r[i].left, r[i].top));
+        for &b in &by_left {
+            let beside: Vec<usize> = (0..r.len())
+                .filter(|&a| a != b && spans_y(&r[a], &r[b]))
+                .filter(|&a| {
+                    let d = r[b].left - r[a].right;
+                    (-gap..=reach).contains(&d) && r[a].left < r[b].left
+                })
+                .collect();
+            for a in beside {
+                if movable(a) && r[b].left - gap - r[a].left >= fences[a].min_w {
+                    r[a].right = r[b].left - gap;
                 }
-                let cut = ((spare * excess + flexible - 1) / flexible).min(spare);
-                (want as i64 - cut) as i32
-            })
-            .collect()
+            }
+        }
+        // Right edges last, so a column whose width a side gap just set shares it: set the
+        // width.
+        let rights = (0..r.len())
+            .map(|i| (r[i].right, Some(i), prio(i, &r)))
+            .chain([(work.right - gap, None, WORK)])
+            .collect();
+        for (i, x) in edge_targets(rights, reach) {
+            if movable(i) && x - r[i].left >= fences[i].min_w {
+                r[i].right = x;
+            }
+        }
+        // Undo what leaves the work area or creates an overlap that was not there before.
+        let inside = |c: &RECT| {
+            c.left >= work.left
+                && c.top >= work.top
+                && c.right <= work.right
+                && c.bottom <= work.bottom
+        };
+        for i in 0..r.len() {
+            if !inside(&r[i]) && inside(&orig[i]) {
+                r[i] = orig[i];
+            }
+        }
+        for _ in 0..=r.len() {
+            let mut reverted = false;
+            for i in 0..r.len() {
+                for j in 0..r.len() {
+                    if i != j
+                        && r[i] != orig[i]
+                        && overlaps(&r[i], &r[j], gap)
+                        && !overlaps(&orig[i], &orig[j], gap)
+                    {
+                        r[i] = orig[i];
+                        reverted = true;
+                    }
+                }
+            }
+            if !reverted {
+                break;
+            }
+        }
+        r
     }
 
     /// How far each edge of a window being resized from `cur` to `proposed` may go.
@@ -962,18 +1094,17 @@ mod tests {
         }
     }
 
-    /// Growth stops a gap short of a fence below / to the right; fences beside, above or
+    /// Growth stops a gap short of a fence below; fences beside, above or
     /// already overlapped do not count.
     #[test]
     fn clearance_limits_only_count_fences_beyond_the_edge() {
-        use clearance::{limit_below, limit_right};
+        use clearance::limit_below;
         let me = rc(100, 100, 300, 140); // e.g. a rolled fence: title row only
         let below = rc(120, 200, 320, 400);
         let beside = rc(400, 100, 500, 400);
         let overlapped = rc(150, 120, 250, 160);
         let others = [below, beside, overlapped];
         assert_eq!(limit_below(&others, &me, 8), Some(192));
-        assert_eq!(limit_right(&others, &me, 8), Some(392));
         assert_eq!(limit_below(&[beside], &me, 8), None);
     }
 
@@ -998,23 +1129,81 @@ mod tests {
         assert_eq!(nearest_free(&rc(10, 10, 110, 110), &[work], &work, 8), None);
     }
 
-    /// A stack that fits keeps its heights; one that does not is squeezed toward the
-    /// minimums in proportion to each fence's spare height.
+    /// Near-miss edges line up and small gaps even out; far-apart fences and heights stay.
     #[test]
-    fn share_heights_squeezes_only_when_needed() {
-        use clearance::share_heights;
-        assert_eq!(
-            share_heights(&[(300, 100), (200, 100)], 600),
-            vec![300, 200]
-        );
-        let h = share_heights(&[(1400, 300), (600, 300), (300, 300)], 1500);
-        assert!(h.iter().sum::<i32>() <= 1500, "{h:?}");
-        assert_eq!(h[2], 300, "no spare height, nothing to give");
-        assert!(h[0] > h[1] && h[1] >= 300, "{h:?}");
-        assert_eq!(
-            share_heights(&[(500, 400), (500, 400)], 600),
-            vec![400, 400]
-        );
+    fn tidy_lines_up_near_misses_only() {
+        use clearance::{TidyFence, tidy};
+        let work = rc(0, 0, 3840, 2064);
+        let f = |r| TidyFence {
+            rect: r,
+            fixed: false,
+            min_w: 160,
+        };
+        // Issue #1: two stacked fences, left edges 15 px apart, widths off, a 30 px gap.
+        let top = rc(165, 100, 700, 1300);
+        let below = rc(180, 1330, 720, 2000);
+        let out = tidy(&[f(top), f(below)], &work, 16, 96);
+        assert_eq!(out[0].left, out[1].left, "left edges aligned");
+        assert_eq!(out[0].right, out[1].right, "one width");
+        assert_eq!(out[1].top, out[0].bottom + 16, "gap evened out");
+        assert_eq!(out[1].bottom - out[1].top, 670, "height kept");
+        // The user's layout is already tidy: a wide fence over two side by side, 128 px apart.
+        let desk = rc(954, 91, 2234, 389);
+        let games = rc(954, 405, 1466, 799);
+        let pics = rc(1594, 405, 2234, 703);
+        let out = tidy(&[f(desk), f(games), f(pics)], &work, 16, 96);
+        assert_eq!(out, vec![desk, games, pics]);
+        // Tops 20 px apart line up; a locked fence stays and wins the edge.
+        let a = TidyFence {
+            fixed: true,
+            ..f(rc(100, 200, 500, 600))
+        };
+        let b = f(rc(600, 220, 900, 500));
+        let out = tidy(&[a, b], &work, 16, 96);
+        assert_eq!(out[0], a.rect);
+        assert_eq!(out[1].top, 200);
+    }
+
+    /// Closing a side gap moves the right edge of every fence beside it, so a column that was
+    /// just given one width keeps it.
+    #[test]
+    fn tidy_side_gap_keeps_a_column_width() {
+        use clearance::{TidyFence, tidy};
+        let work = rc(0, 0, 3840, 2064);
+        let f = |r| TidyFence {
+            rect: r,
+            fixed: false,
+            min_w: 160,
+        };
+        let a = rc(2980, 40, 3500, 370);
+        let b = rc(2995, 396, 3495, 694);
+        let side = rc(3530, 52, 3820, 446);
+        let below = rc(3010, 740, 3480, 1038); // same column, not beside `side`
+        let out = tidy(&[f(a), f(b), f(side), f(below)], &work, 16, 96);
+        assert_eq!(out[0].right, out[1].right, "{out:?}");
+        assert_eq!(out[0].right, out[3].right, "{out:?}");
+        assert_eq!(out[0].right, out[2].left - 16, "{out:?}");
+    }
+
+    /// A step that would cover another fence is undone.
+    #[test]
+    fn tidy_never_creates_an_overlap() {
+        use clearance::{TidyFence, overlaps, tidy};
+        let work = rc(0, 0, 2000, 2000);
+        let f = |r| TidyFence {
+            rect: r,
+            fixed: false,
+            min_w: 100,
+        };
+        let a = rc(100, 100, 400, 300);
+        let b = rc(140, 700, 440, 900);
+        let c = rc(0, 650, 130, 950);
+        let out = tidy(&[f(a), f(b), f(c)], &work, 16, 96);
+        for i in 0..3 {
+            for j in 0..3 {
+                assert!(i == j || !overlaps(&out[i], &out[j], 16), "{out:?}");
+            }
+        }
     }
 
     /// Dragged edges stop at neighbours beyond them, and a neighbour already inside the gap
@@ -1060,6 +1249,26 @@ mod tests {
             .with_line_h(20.0)
             .with_spacing(pecofence_core::Spacing::Compact);
         assert_eq!(compact.cell_h, big.cell_h - 8.0);
+    }
+
+    /// Any width fills: the space past the whole columns widens every column's pitch equally,
+    /// cells keep their size centred in it, and the gaps between them are not hit.
+    #[test]
+    fn grid_spreads_the_leftover_width_over_the_columns() {
+        let m = GridMetrics::for_icon_size(48, 2); // 80 DIP cells, no side padding
+        let g = Grid::new(m, 300.0, 7);
+        assert_eq!(g.columns, 3);
+        assert_eq!(g.pitch, 100.0);
+        let c = g.cell(1);
+        assert_eq!((c.x, c.w), (110.0, 80.0));
+        assert_eq!(
+            g.cell(2).x + g.cell(2).w + 10.0,
+            300.0,
+            "last column ends at the edge"
+        );
+        assert_eq!(g.hit_test(105.0, c.y + 1.0, 7), None, "gap between cells");
+        assert_eq!(g.hit_test(150.0, c.y + 1.0, 7), Some(1));
+        assert_eq!(g.insertion_index(200.0, c.y + 1.0, 7), 2);
     }
 
     #[test]

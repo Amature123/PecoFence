@@ -634,16 +634,14 @@ pub(super) fn on_syscommand(
 
 pub(super) fn on_sizing(h: &HandlerCtx, hwnd: HWND, wparam: usize, lparam: isize) -> Option<isize> {
     let HandlerCtx { view, behavior, .. } = h;
-    // Fences-style: the width snaps to whole icon columns and the height to
-    // whole rows, so a fence never shows a partial column or row.
+    // The height snaps to whole rows (Fences); the width is free, the icon grid
+    // spreads its columns over it, down to one column.
     let guard = view.try_borrow().ok()?;
     let v = guard.as_ref()?;
     let scale = v.scale();
     let metrics = v.grid_metrics();
-    let cell_px = (metrics.cell_w * scale).max(1.0);
-    let pad_px = metrics.pad_x * 2.0 * scale;
-    // Rows (List / Details) have no column rhythm: free width, row-snapped
-    // height below the title (+ fixed header).
+    let min_w = ((metrics.cell_w + metrics.pad_x * 2.0) * scale).round() as i32;
+    // Rows (List / Details): row-snapped height below the title (+ fixed header).
     let rows_layout = v.row_metrics();
     let (row_px, fixed_px) = match rows_layout {
         Some(rm) => (
@@ -673,14 +671,37 @@ pub(super) fn on_sizing(h: &HandlerCtx, hwnd: HWND, wparam: usize, lparam: isize
     const WMSZ_BOTTOM: usize = 6;
     const WMSZ_BOTTOMLEFT: usize = 7;
     const WMSZ_BOTTOMRIGHT: usize = 8;
-    if rows_layout.is_none() {
-        let w = (rect.right - rect.left) as f32;
-        let cols = ((w - pad_px) / cell_px).round().max(1.0);
-        let snapped = (pad_px + cols * cell_px).round() as i32;
-        if matches!(wparam, WMSZ_LEFT | WMSZ_TOPLEFT | WMSZ_BOTTOMLEFT) {
-            rect.left = rect.right - snapped;
+    let left_edge = matches!(wparam, WMSZ_LEFT | WMSZ_TOPLEFT | WMSZ_BOTTOMLEFT);
+    let right_edge = matches!(wparam, WMSZ_RIGHT | WMSZ_TOPRIGHT | WMSZ_BOTTOMRIGHT);
+    if behavior.snapping.get() {
+        // A dragged side edge snaps to the other fences' side edges (aligned, or a gap
+        // apart), so fences can be sized to line up exactly.
+        let gap = (behavior.snap_gap_dip.get() as f32 * scale).round() as i32;
+        let dist = (SNAP_DIST_DIP as f32 * scale) as i32;
+        let others = other_fence_rects(hwnd);
+        let edges: Vec<i32> = others
+            .iter()
+            .flat_map(|o| [o.left, o.right, o.left - gap, o.right + gap])
+            .collect();
+        let snap = |x: i32| {
+            edges
+                .iter()
+                .copied()
+                .filter(|e| (e - x).abs() <= dist)
+                .min_by_key(|e| (e - x).abs())
+                .unwrap_or(x)
+        };
+        if right_edge {
+            rect.right = snap(rect.right);
+        } else if left_edge {
+            rect.left = snap(rect.left);
+        }
+    }
+    if rows_layout.is_none() && rect.right - rect.left < min_w {
+        if left_edge {
+            rect.left = rect.right - min_w;
         } else {
-            rect.right = rect.left + snapped;
+            rect.right = rect.left + min_w;
         }
     }
     if rolled {
@@ -698,18 +719,13 @@ pub(super) fn on_sizing(h: &HandlerCtx, hwnd: HWND, wparam: usize, lparam: isize
         }
     }
     if behavior.snapping.get() {
-        // A dragged edge stops a gap short of a fence lying beyond it, still on whole columns
-        // and rows (fences it already overlaps do not count).
-        let gap = (behavior.snap_gap_dip.get() as f32 * scale) as i32;
+        // A dragged edge stops a gap short of a fence lying beyond it, still on whole rows
+        // (fences it already overlaps do not count).
+        let gap = (behavior.snap_gap_dip.get() as f32 * scale).round() as i32;
         let cur = window::window_rect(hwnd);
         let lim =
             crate::layout::clearance::sizing_limits(&other_fence_rects(hwnd), &cur, rect, gap);
-        let fit_cols = |w: i32| match rows_layout {
-            None => {
-                (pad_px + ((w as f32 - pad_px) / cell_px).floor().max(1.0) * cell_px).round() as i32
-            }
-            Some(_) => w,
-        };
+        let fit_cols = |w: i32| w.max(if rows_layout.is_none() { min_w } else { 1 });
         let fit_rows = |h: i32| {
             if rolled || grouped {
                 h
@@ -718,13 +734,13 @@ pub(super) fn on_sizing(h: &HandlerCtx, hwnd: HWND, wparam: usize, lparam: isize
                     as i32
             }
         };
-        if matches!(wparam, WMSZ_RIGHT | WMSZ_TOPRIGHT | WMSZ_BOTTOMRIGHT)
+        if right_edge
             && let Some(limit) = lim.right
             && rect.right > limit
         {
             rect.right = rect.left + fit_cols(limit - rect.left);
         }
-        if matches!(wparam, WMSZ_LEFT | WMSZ_TOPLEFT | WMSZ_BOTTOMLEFT)
+        if left_edge
             && let Some(limit) = lim.left
             && rect.left < limit
         {

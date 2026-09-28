@@ -964,7 +964,7 @@ impl App {
             .collect();
         // Ordinary housekeeping must preserve a tabbed window's shared geometry.
         for id in changed_dpi {
-            self.apply_column_snap(id);
+            self.apply_row_snap(id);
         }
         // Startup hide that kept failing: converge to the same end state as apply_settings
         // (setting reflects reality, user is told) instead of silently showing the toggle on.

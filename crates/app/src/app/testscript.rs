@@ -192,9 +192,9 @@ impl App {
                         }
                     }
                 }
-                ["arrange", title] => {
+                ["tidy", title] => {
                     if let Some(id) = self.test_fence(title) {
-                        self.arrange_column(id);
+                        self.tidy_align(Some(id), 0, 0);
                     }
                 }
                 ["detach", title] => {

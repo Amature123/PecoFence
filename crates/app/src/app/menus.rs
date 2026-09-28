@@ -13,6 +13,7 @@ const CMD_EXIT: u32 = 9;
 const CMD_PEEK: u32 = 10;
 /// Tray 「在桌面显示文件夹」 entries: 11..=14 (see `App::show_folder_submenu`).
 const CMD_SHOW_FOLDER: u32 = 11;
+const CMD_TIDY: u32 = 15;
 const CMD_ITEM_OPEN: u32 = 100;
 const CMD_ITEM_LOCATION: u32 = 101;
 const CMD_ITEM_PROPERTIES: u32 = 102;
@@ -42,7 +43,7 @@ const CMD_FENCE_SORT_REVERSE: u32 = 325;
 const CMD_FENCE_SORT_OPENED: u32 = 326;
 const CMD_FENCE_SORT_GROUP: u32 = 327;
 const CMD_FENCE_LOCK: u32 = 333;
-const CMD_FENCE_ARRANGE: u32 = 334;
+const CMD_FENCE_TIDY: u32 = 334;
 const CMD_FENCE_RENAME: u32 = 330;
 /// Opens the settings page on the 「栅栏」 tab for this fence.
 const CMD_FENCE_OPTIONS: u32 = 331;
@@ -115,6 +116,12 @@ impl App {
             false,
         )
         .item(
+            CMD_TIDY,
+            pecofence_core::i18n::text("整理对齐"),
+            false,
+            false,
+        )
+        .item(
             CMD_APPLY_RULES,
             pecofence_core::i18n::text("立即应用整理规则"),
             false,
@@ -161,6 +168,7 @@ impl App {
                 self.show_folder_command(c - CMD_SHOW_FOLDER, x, y - 300, None)
             }
             CMD_APPLY_RULES => self.queue.push(Command::ApplyRulesNow),
+            CMD_TIDY => self.tidy_align(None, x, y),
             CMD_REPAIR_ICONS => self.set_desktop_icons_hidden(false),
             CMD_HIDE_ICONS_AGAIN => {
                 self.set_desktop_icons_hidden(
@@ -590,10 +598,10 @@ impl App {
             menu.submenu(pecofence_core::i18n::text("标签页"), tab_menu);
         }
         menu.item(
-            CMD_FENCE_ARRANGE,
-            pecofence_core::i18n::text("排列这一列"),
+            CMD_FENCE_TIDY,
+            pecofence_core::i18n::text("整理对齐"),
             false,
-            h.locked || self.column_of(host).0.len() < 2,
+            false,
         );
         menu.item(
             CMD_FENCE_LOCK,
@@ -707,7 +715,7 @@ impl App {
                 {
                     w.set_layout(layout);
                 }
-                self.apply_column_snap(fence);
+                self.apply_row_snap(fence);
                 self.apply_auto_height(fence);
                 self.schedule_save();
             }
@@ -742,7 +750,7 @@ impl App {
                 self.schedule_save();
             }
             CMD_FENCE_LOCK => self.set_fence_locked(host, !h.locked),
-            CMD_FENCE_ARRANGE => self.arrange_column(host),
+            CMD_FENCE_TIDY => self.tidy_align(Some(host), x, y),
             CMD_FENCE_OPTIONS => self.open_fence_options(fence),
             CMD_FENCE_NEW => {
                 let rect = self.place_new_fence(3, 200.0, x, y, Some(host));

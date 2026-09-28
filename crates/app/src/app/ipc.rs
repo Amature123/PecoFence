@@ -580,9 +580,9 @@ impl App {
             Method::FencesSetOption { fence, prop, value } => {
                 let id = self.resolve_fence(fence)?;
                 let prop = parse_fence_prop(prop, value)?;
-                // Icon size, spacing, layout and label lines snap the window to whole columns
-                // and rows (auto height follows the content): report it instead of letting the
-                // caller find out from a changed rect.
+                // Icon size, spacing, layout and label lines snap the window to whole rows or
+                // fit it to the content: report it instead of letting the caller find out from
+                // a changed rect.
                 let host = self.state.host_of(id);
                 let before = self.expanded_rect(host);
                 let changed = self.apply_fence_prop(id, prop);
@@ -1705,7 +1705,7 @@ impl App {
         let Some(w) = self.fences.get(&id) else {
             return Err(IpcError::internal("the fence has no window"));
         };
-        // Same steps as a user move/resize (`FenceBoundsChanged`) and the column snap: the
+        // Same steps as a user move/resize (`FenceBoundsChanged`) and the row snap: the
         // window first, then the state with the expanded height. Rolled up, only the title bar
         // shows; `h` becomes the height it unrolls to.
         let full = rect_to_win(rect);
