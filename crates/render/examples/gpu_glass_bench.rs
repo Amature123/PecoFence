@@ -14,6 +14,7 @@ fn source(image: Image) -> Rc<Vec<MonitorBackdrop>> {
         height: image.height as i32,
         downscale: 1,
         image,
+        gpu: None,
     }])
 }
 
@@ -158,6 +159,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 height: 400,
                 downscale: 2,
                 image: Image::solid(200, 200, [60; 3]),
+                gpu: None,
             },
             MonitorBackdrop {
                 left: 0,
@@ -166,6 +168,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 height: 400,
                 downscale: 1,
                 image: Image::solid(400, 400, [180; 3]),
+                gpu: None,
             },
         ]);
         for (left, expected) in [(-350, 60), (40, 180)] {

@@ -673,6 +673,7 @@ mod tests {
                 height: 100,
                 downscale: 1,
                 image: Image::solid(100, 100, [255, 0, 0]),
+                gpu: None,
             },
             MonitorBackdrop {
                 left: 0,
@@ -681,6 +682,7 @@ mod tests {
                 height: 100,
                 downscale: 1,
                 image: Image::solid(100, 100, [0, 0, 255]),
+                gpu: None,
             },
         ];
         let plate = crop_from_monitors(
@@ -783,6 +785,7 @@ mod tests {
             height: 600,
             downscale: 1,
             image,
+            gpu: None,
         };
         for scale in [1.0, 1.25, 1.5, 2.0] {
             let (w, h) = ((250.0 * scale) as i32, (180.0 * scale) as i32);
@@ -825,6 +828,7 @@ mod tests {
             height: 320,
             downscale: 4,
             image,
+            gpu: None,
         }
     }
 

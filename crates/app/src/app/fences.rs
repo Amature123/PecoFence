@@ -361,6 +361,9 @@ impl App {
                 });
             }
         }
+        for w in self.fences.values() {
+            w.repaint_shadow();
+        }
         // Wallpaper regions moved with the monitors: rebuild the backdrops unconditionally.
         self.refresh_visuals(true);
     }

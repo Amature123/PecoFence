@@ -72,7 +72,7 @@ use visuals::{
     backdrop_mode_for, build_backdrop_sets, fence_style_for, icon_variant_for, pick_theme_mode,
     shadow_style_for, theme_for, tray_icon_image,
 };
-use wallpaper_refresh::{BackdropCache, FIRST_CHECK_MS, RefreshSchedule};
+use wallpaper_refresh::{BackdropCache, FIRST_CHECK_MS, RefreshSchedule, supersedes};
 
 const TIMER_SAVE: usize = 40;
 const TIMER_FS: usize = 41;
@@ -97,6 +97,10 @@ const TIMER_WALLPAPER_POLL: usize = 50;
 const TIMER_IPC_EVENTS: usize = 53;
 /// Read only the 16-byte desktop identity, never images/COM, while otherwise idle.
 const TIMER_DESKTOP_ID: usize = 51;
+/// Re-armed by every panel draw: fires once drawing has been quiet this long and releases
+/// GPU scratch memory (`RenderStack::trim`).
+const TIMER_GPU_TRIM: usize = 54;
+const GPU_TRIM_IDLE_MS: u32 = 3_000;
 const SPI_SETDESKWALLPAPER: usize = 0x0014;
 const SPI_SETWORKAREA: usize = 0x002F;
 const TRAY_ID: u32 = 1;
@@ -391,6 +395,14 @@ impl App {
                                     } else {
                                         // Busy (modal loop): retry shortly; stays armed.
                                         window::set_timer(hwnd, TIMER_FS, FS_STORM_MS as u32);
+                                    }
+                                }
+                                TIMER_GPU_TRIM => {
+                                    if let Ok(mut guard) = cell.try_borrow_mut()
+                                        && let Some(app) = guard.as_mut()
+                                    {
+                                        window::kill_timer(hwnd, TIMER_GPU_TRIM);
+                                        app.trim_gpu_if_idle();
                                     }
                                 }
                                 TIMER_HOUSEKEEPING => {
@@ -805,6 +817,13 @@ impl App {
                 }
             }
         }
+        // Installed before the first fence draws, and armed once: an idle startup with no
+        // later draw must still release its scratch memory.
+        let control = app.control.hwnd();
+        pecofence_render::stack::set_draw_hook(move || {
+            window::set_timer(control, TIMER_GPU_TRIM, GPU_TRIM_IDLE_MS)
+        });
+        window::set_timer(control, TIMER_GPU_TRIM, GPU_TRIM_IDLE_MS);
         // Initial desktop sync + windows.
         app.sync_desktop_if_available("startup");
         app.state.refresh_all_portals();

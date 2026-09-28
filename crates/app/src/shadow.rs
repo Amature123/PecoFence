@@ -1,7 +1,7 @@
 //! Soft drop shadow for a fence, drawn in a separate click-through layered window so the fence
 //! HWND stays exactly the size of its visible body (plan review: no dead zones around fences).
 
-use pecofence_platform::layered::LayeredImage;
+use pecofence_platform::layered::{self, LayeredImage};
 use pecofence_platform::window::{
     self, ClassOptions, MessageHandler, Window, WindowBuilder, WindowClass, style,
 };
@@ -219,9 +219,9 @@ pub struct ShadowWindow {
     /// changes would otherwise re-run the full Gaussian.
     short: Option<(u32, i32, ShadowTemplate)>,
     last: Option<(RECT, u32)>,
-    /// The padded shadow bitmap for `last`, resident in a DIB section: `set_alpha` re-presents
-    /// it with a new constant alpha without re-rendering or copying the pixels.
-    image: Option<LayeredImage>,
+    /// The bitmap for `last` has been presented. The window keeps it, so its pixels are
+    /// released right away and `set_alpha` only changes the blend.
+    presented: bool,
     /// Constant alpha of the layered window (`SourceConstantAlpha`): the fence's whole-window
     /// fade drives it so the shadow fades with the plate.
     alpha: u8,
@@ -256,7 +256,7 @@ impl ShadowWindow {
             template: None,
             short: None,
             last: None,
-            image: None,
+            presented: false,
             alpha: 255,
         })
     }
@@ -276,13 +276,20 @@ impl ShadowWindow {
             self.template = None;
             self.short = None;
             self.last = None;
-            self.image = None;
+            self.presented = false;
         }
     }
 
+    /// Forgets the presented bitmap so the next `update` renders and presents it again (the
+    /// window may have lost its content, e.g. across a display change).
+    pub fn invalidate(&mut self) {
+        self.last = None;
+        self.presented = false;
+    }
+
     /// Constant alpha the shadow is shown with (0 = invisible, 255 = the style's opacity).
-    /// Changing it re-presents the resident bitmap with the new blend alpha — no allocation,
-    /// copy or re-render — so a whole-window fade can carry the shadow along frame by frame.
+    /// Changing it updates only the window's blend alpha — no bitmap, copy or re-render — so a
+    /// whole-window fade can carry the shadow along frame by frame.
     /// Current constant alpha (see `set_alpha`).
     pub fn alpha(&self) -> u8 {
         self.alpha
@@ -293,13 +300,15 @@ impl ShadowWindow {
             return;
         }
         self.alpha = alpha;
-        if let (Some((body, dpi)), Some(img)) = (self.last, self.image.as_ref()) {
-            let scale = dpi.max(96) as f32 / 96.0;
-            let pad = self.style.pad_px(scale);
-            if let Err(e) = img.present(self.window.hwnd(), body.left - pad, body.top - pad, alpha)
-            {
-                tracing::warn!(error = %e, "shadow alpha update failed");
-            }
+        if let Some((body, dpi)) = self.last
+            && self.presented
+            && let Err(e) = layered::set_alpha(self.window.hwnd(), alpha)
+        {
+            // Rare: the call failed outright. (Content the system silently dropped is not
+            // detected here; `invalidate` on display changes covers that.)
+            tracing::warn!(error = %e, "shadow alpha update failed; re-rendering");
+            self.last = None;
+            self.update(body, dpi);
         }
     }
 
@@ -400,25 +409,29 @@ impl ShadowWindow {
                 "shadow bitmap"
             );
         }
-        // Uploaded once into a DIB section and kept: `set_alpha` re-presents the same bitmap
-        // with a new constant alpha (no allocation or copy per fade frame).
-        let uploaded =
+        // Presented once; the window keeps the content, so the DIB is released here and
+        // fades go through `set_alpha`.
+        let presented =
             LayeredImage::new(img.width as i32, img.height as i32, &img.bgra).and_then(|up| {
                 up.present(
                     self.window.hwnd(),
                     body.left - pad,
                     body.top - pad,
                     self.alpha,
-                )?;
-                Ok(up)
+                )
             });
-        self.image = match uploaded {
-            Ok(up) => Some(up),
+        self.presented = match presented {
+            Ok(()) => true,
             Err(e) => {
                 tracing::warn!(error = %e, "shadow update failed");
-                None
+                false
             }
         };
+        if !self.presented {
+            // Retry with a full render on the next update.
+            self.last = None;
+            return;
+        }
         if pecofence_core::brand::var_os("PECOFENCE_DEBUG_SHADOW").is_some() {
             let r = window::window_rect(self.window.hwnd());
             tracing::info!(?r, visible = self.window.is_visible(), body = ?body, "shadow window placed");

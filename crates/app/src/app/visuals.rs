@@ -90,6 +90,13 @@ fn wallpaper_snapshot(wallpaper_override: Option<&str>) -> Result<wallpaper::Wal
     Ok(snapshot)
 }
 
+/// Size and last-write time of a wallpaper file (None when it cannot be read).
+fn file_stamp(path: &std::path::Path) -> Option<(u64, u64)> {
+    use std::os::windows::fs::MetadataExt;
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.file_size(), meta.last_write_time()))
+}
+
 /// Build from the snapshot we fingerprinted, rather than querying a possibly newer desktop.
 /// A transient decode failure leaves the last good background on screen and is retried.
 fn build_backdrops(
@@ -139,33 +146,53 @@ fn build_backdrops(
             tuned_tint(theme.acrylic_tint())
         };
         tint.blur_sigma_dip *= dpi as f32 / 96.0;
-        let image = match &m.path {
-            Some(p) => {
-                let decode_divisor = if theme.liquid_glass { 1 } else { 2 };
-                let d = wallpaper::decode_scaled(
-                    p,
-                    (w as u32 / decode_divisor).max(1),
-                    (h as u32 / decode_divisor).max(1),
-                )?;
-                Image {
-                    width: d.width,
-                    height: d.height,
-                    bgra: d.bgra,
+        let decode_divisor = if theme.liquid_glass { 1 } else { 2 };
+        let (left, top, background) = (m.rect.left, m.rect.top, snapshot.background);
+        let build = move |path: Option<&std::path::Path>| -> Result<MonitorBackdrop> {
+            let image = match path {
+                Some(p) => {
+                    let d = wallpaper::decode_scaled(
+                        p,
+                        (w as u32 / decode_divisor).max(1),
+                        (h as u32 / decode_divisor).max(1),
+                    )?;
+                    Image {
+                        width: d.width,
+                        height: d.height,
+                        bgra: d.bgra,
+                    }
                 }
-            }
-            None => Image::solid(1, 1, snapshot.background),
+                None => Image::solid(1, 1, background),
+            };
+            Ok(MonitorBackdrop::build(
+                &image, position, left, top, w, h, background, tint, downscale,
+            ))
         };
-        out.push(MonitorBackdrop::build(
-            &image,
-            position,
-            m.rect.left,
-            m.rect.top,
-            w,
-            h,
-            snapshot.background,
-            tint,
-            downscale,
-        ));
+        let backdrop = build(m.path.as_deref())?;
+        // Clear glass keeps full-resolution pixels (a solid colour is monitor-sized too) only
+        // until the GPU upload; contrast sampling uses a copy 8x smaller. Uploading again
+        // (device loss) re-decodes the file.
+        out.push(if theme.liquid_glass {
+            let path = m.path.clone();
+            // A rebuild must reproduce these pixels: a file rewritten in place since is a new
+            // wallpaper (the next check replaces the whole set), not this one.
+            let stamp = path.as_deref().map(file_stamp);
+            backdrop.into_gpu_backed(8, move || {
+                if path.as_deref().map(file_stamp) != stamp {
+                    tracing::info!("wallpaper file changed; not rebuilding the old set");
+                    return None;
+                }
+                match build(path.as_deref()) {
+                    Ok(rebuilt) => Some(rebuilt.image),
+                    Err(error) => {
+                        tracing::warn!(%error, "wallpaper rebuild for GPU upload failed");
+                        None
+                    }
+                }
+            })
+        } else {
+            backdrop
+        });
     }
     if out.is_empty() {
         return Err(windows_core::Error::from_hresult(windows_core::HRESULT(
@@ -374,6 +401,13 @@ impl App {
         if self.wallpaper_sig.as_ref() == Some(&signature) {
             return;
         }
+        // The same files with new contents: the old set can never be shown again. Drop it
+        // before inserting the new one so the byte cap does not evict another desktop's set.
+        if let Some(old) = self.wallpaper_sig.as_deref()
+            && supersedes(old, &signature)
+        {
+            self.wallpaper_cache.remove(old);
+        }
         let started = Instant::now();
         let cached = self.wallpaper_cache.get(&signature);
         let cache_hit = cached.is_some();
@@ -514,7 +548,8 @@ impl App {
         // Icon bitmaps are accent-independent: an accent-only change (Settings > Colours)
         // keeps them; a mode change or a forced refresh re-extracts them.
         if theme_changed || force {
-            self.ctx.bitmaps.borrow_mut().clear();
+            // Wallpaper uploads follow their backdrop set: a rebuilt set uploads afresh.
+            self.ctx.bitmaps.borrow_mut().clear_keyed();
         }
         let shadow = shadow_style_for(&theme);
         self.ctx.shadow_style.set(shadow);
@@ -527,6 +562,8 @@ impl App {
         for w in self.fences.values() {
             w.set_theme(theme, backdrops.clone(), shadow);
         }
+        // Leaving Liquid Glass stops the draws that would otherwise release old textures.
+        self.ctx.bitmaps.borrow_mut().prune_wallpapers();
         tracing::info!(?mode, ?style, accent = ?accent.map(|a| a.accent), "theme refreshed");
     }
 
@@ -534,7 +571,7 @@ impl App {
     pub(super) fn apply_icon_variant(&mut self) {
         let variant = icon_variant_for(&self.state.config.settings.icons);
         if self.ctx.icons.borrow_mut().set_variant(variant) {
-            self.ctx.bitmaps.borrow_mut().clear();
+            self.ctx.bitmaps.borrow_mut().clear_keyed();
             for w in self.fences.values() {
                 w.drop_icons();
             }

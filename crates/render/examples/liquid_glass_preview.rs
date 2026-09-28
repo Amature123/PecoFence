@@ -112,6 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             height,
             bgra: pixels.clone(),
         },
+        gpu: None,
     };
     backdrop.image.blur(
         Theme::light()

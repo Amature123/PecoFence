@@ -3,10 +3,9 @@
 use crate::bindings::*;
 use windows_core::{Error, Result};
 
-/// A premultiplied BGRA image resident in a GDI DIB section (selected into its own memory
-/// DC) so it can be presented to a `WS_EX_LAYERED` window any number of times — e.g. once per
-/// frame of a fade with only the constant alpha changing — without allocating a bitmap or
-/// copying the pixels again. The GDI objects are released on drop.
+/// A premultiplied BGRA image in a GDI DIB section (selected into its own memory DC), ready
+/// to present to a `WS_EX_LAYERED` window. After presenting, the window keeps the content:
+/// drop the image and use [`set_alpha`] for fades. The GDI objects are released on drop.
 pub struct LayeredImage {
     mem: HDC,
     dib: HBITMAP,
@@ -106,6 +105,34 @@ impl LayeredImage {
             let _ = ReleaseDC(None, screen);
             ok.ok()
         }
+    }
+}
+
+/// Changes only the constant alpha of a layered window whose content was presented before.
+/// The system keeps that content, so the source bitmap may already be gone
+/// (`UpdateLayeredWindow` with a NULL source DC: "the shape and visual context of the window
+/// will not change").
+pub fn set_alpha(hwnd: HWND, alpha: u8) -> Result<()> {
+    let blend = BLENDFUNCTION {
+        BlendOp: AC_SRC_OVER as u8,
+        BlendFlags: 0,
+        SourceConstantAlpha: alpha,
+        AlphaFormat: AC_SRC_ALPHA as u8,
+    };
+    // SAFETY: plain call; every optional pointer is NULL except the blend on the stack.
+    unsafe {
+        UpdateLayeredWindow(
+            hwnd,
+            None,
+            None,
+            None,
+            None,
+            None,
+            COLORREF(0),
+            Some(&blend),
+            ULW_ALPHA as u32,
+        )
+        .ok()
     }
 }
 

@@ -1,7 +1,10 @@
 //! GPU glass over a shared wallpaper texture. Movement only updates a transform:
 //! the displacement field, glints, source upload and effect graph stay resident.
 use crate::{Image, MonitorBackdrop, gpu_bindings as b};
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::HashMap,
+    rc::{Rc, Weak},
+};
 use windows_canvas::{DrawingSession, Matrix3x2, Rect, Vector2};
 use windows_core::{Interface, Result};
 
@@ -78,18 +81,30 @@ struct Wallpaper {
     image: b::ID2D1Image,
 }
 
+struct Upload {
+    source: Weak<Vec<MonitorBackdrop>>,
+    wallpaper: Rc<Wallpaper>,
+}
+
 /// Shared by every fence on this D2D device. Rc identity tracks wallpaper/theme changes.
+/// An upload lives as long as its backdrop set: the full-resolution pixels are gone after
+/// the upload, so the app's bounded round-trip cache decides how many textures stay.
 #[derive(Default)]
 pub struct WallpaperCache {
-    source: Option<Rc<Vec<MonitorBackdrop>>>,
-    uploaded: Option<Rc<Wallpaper>>,
+    /// Most recent first.
+    entries: Vec<Upload>,
     pub uploads: u64,
 }
 
 impl WallpaperCache {
     pub fn clear(&mut self) {
-        self.source = None;
-        self.uploaded = None;
+        self.entries.clear();
+    }
+
+    /// Releases the textures of sets nobody holds any more (a replaced wallpaper, or every
+    /// set after leaving Liquid Glass, when `get` no longer runs).
+    pub fn prune(&mut self) {
+        self.entries.retain(|e| e.source.strong_count() > 0);
     }
 
     fn get(
@@ -97,8 +112,13 @@ impl WallpaperCache {
         context: &b::ID2D1DeviceContext,
         sources: &Rc<Vec<MonitorBackdrop>>,
     ) -> Result<Rc<Wallpaper>> {
-        if self.source.as_ref().is_some_and(|s| Rc::ptr_eq(s, sources)) {
-            return Ok(self.uploaded.as_ref().unwrap().clone());
+        self.entries.retain(|e| e.source.strong_count() > 0);
+        let key = Rc::downgrade(sources);
+        if let Some(index) = self.entries.iter().position(|e| e.source.ptr_eq(&key)) {
+            let entry = self.entries.remove(index);
+            let uploaded = entry.wallpaper.clone();
+            self.entries.insert(0, entry);
+            return Ok(uploaded);
         }
         let valid: Vec<_> = sources
             .iter()
@@ -109,45 +129,75 @@ impl WallpaperCache {
                 0x80070057u32 as i32,
             )));
         }
-        let composite = unsafe { context.CreateEffect(&b::CLSID_D2D1Composite)? };
-        unsafe { composite.SetInputCount(valid.len() as u32).ok()? };
-        for (index, source) in valid.into_iter().enumerate() {
-            let Image {
-                width,
-                height,
-                bgra,
-            } = &source.image;
-            let image = bitmap(
-                context,
-                *width,
-                *height,
-                bgra.as_ptr().cast(),
-                width * 4,
-                false,
-            )?;
-            let transform = unsafe { context.CreateEffect(&b::CLSID_D2D12DAffineTransform)? };
-            matrix(
-                &transform,
-                [
-                    source.downscale as f32,
-                    0.0,
-                    0.0,
-                    source.downscale as f32,
-                    source.left as f32,
-                    source.top as f32,
-                ],
-            )?;
-            unsafe {
-                transform.SetInput(0, &image.cast::<b::ID2D1Image>()?, true);
-                composite.SetInput(index as u32, &transform.GetOutput()?, true);
+        // Full-resolution pixels leave process memory with this upload. If they cannot be
+        // rebuilt, the small sampling copy gives a softer wallpaper, kept (not retried) until
+        // the set is replaced: retrying would repeat a failed full decode on the UI thread.
+        let full: Vec<Option<Image>> = valid
+            .iter()
+            .map(|s| s.gpu.as_ref().and_then(|g| g.take()))
+            .collect();
+        let built = (|| -> Result<Rc<Wallpaper>> {
+            let composite = unsafe { context.CreateEffect(&b::CLSID_D2D1Composite)? };
+            unsafe { composite.SetInputCount(valid.len() as u32).ok()? };
+            for (index, (source, full)) in valid.iter().zip(&full).enumerate() {
+                let (pixels, downscale) = match (full, &source.gpu) {
+                    (Some(image), Some(gpu)) => (image, gpu.downscale),
+                    _ => (&source.image, source.downscale),
+                };
+                let Image {
+                    width,
+                    height,
+                    bgra,
+                } = pixels;
+                let image = bitmap(
+                    context,
+                    *width,
+                    *height,
+                    bgra.as_ptr().cast(),
+                    width * 4,
+                    false,
+                )?;
+                let transform = unsafe { context.CreateEffect(&b::CLSID_D2D12DAffineTransform)? };
+                matrix(
+                    &transform,
+                    [
+                        downscale as f32,
+                        0.0,
+                        0.0,
+                        downscale as f32,
+                        source.left as f32,
+                        source.top as f32,
+                    ],
+                )?;
+                unsafe {
+                    transform.SetInput(0, &image.cast::<b::ID2D1Image>()?, true);
+                    composite.SetInput(index as u32, &transform.GetOutput()?, true);
+                }
             }
-            self.uploads += 1;
-        }
-        let uploaded = Rc::new(Wallpaper {
-            image: unsafe { composite.GetOutput()? },
-        });
-        self.source = Some(sources.clone());
-        self.uploaded = Some(uploaded.clone());
+            Ok(Rc::new(Wallpaper {
+                image: unsafe { composite.GetOutput()? },
+            }))
+        })();
+        let uploaded = match built {
+            Ok(uploaded) => uploaded,
+            Err(error) => {
+                // Keep the pixels for the retry (typically on a rebuilt device).
+                for (source, full) in valid.iter().zip(full) {
+                    if let (Some(gpu), Some(image)) = (&source.gpu, full) {
+                        gpu.restore(image);
+                    }
+                }
+                return Err(error);
+            }
+        };
+        self.uploads += valid.len() as u64;
+        self.entries.insert(
+            0,
+            Upload {
+                source: key,
+                wallpaper: uploaded.clone(),
+            },
+        );
         Ok(uploaded)
     }
 }

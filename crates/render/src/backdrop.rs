@@ -4,6 +4,8 @@
 //! All image math here is plain Rust on 32-bit BGRA buffers. Everything is opaque (alpha 255),
 //! so premultiplied and straight alpha coincide.
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use windows_canvas::ColorF;
 
 /// Wallpaper fill mode as reported by `IDesktopWallpaper::GetPosition`.
@@ -167,6 +169,43 @@ impl Image {
         Image {
             width: cw,
             height: ch,
+            bgra,
+        }
+    }
+
+    /// Averages each `factor` x `factor` block (edge blocks may be partial).
+    pub fn downscale_box(&self, factor: u32) -> Image {
+        let factor = factor.max(1) as usize;
+        let (sw, sh) = (self.width as usize, self.height as usize);
+        let width = sw.div_ceil(factor);
+        let height = sh.div_ceil(factor);
+        let mut bgra = Vec::with_capacity(width * height * 4);
+        let mut sums = vec![0u32; width * 4];
+        for by in 0..height {
+            sums.fill(0);
+            let rows = by * factor..((by + 1) * factor).min(sh);
+            let row_count = rows.len() as u32;
+            for y in rows {
+                let row = &self.bgra[y * sw * 4..(y + 1) * sw * 4];
+                for (x, px) in row.as_chunks::<4>().0.iter().enumerate() {
+                    let sum = &mut sums[x / factor * 4..x / factor * 4 + 4];
+                    for c in 0..4 {
+                        sum[c] += px[c] as u32;
+                    }
+                }
+            }
+            for bx in 0..width {
+                let n = row_count * ((bx + 1) * factor).min(sw).saturating_sub(bx * factor) as u32;
+                bgra.extend(
+                    sums[bx * 4..bx * 4 + 4]
+                        .iter()
+                        .map(|s| ((s + n / 2) / n) as u8),
+                );
+            }
+        }
+        Image {
+            width: width as u32,
+            height: height as u32,
             bgra,
         }
     }
@@ -536,6 +575,69 @@ pub struct MonitorBackdrop {
     pub downscale: u32,
     /// Blurred + tinted image at monitor_size / downscale.
     pub image: Image,
+    /// Liquid Glass: the full-resolution image for the GPU material. `image` is then only a
+    /// small copy for CPU contrast sampling.
+    pub gpu: Option<GpuPixels>,
+}
+
+/// Full-resolution backdrop pixels that only the GPU upload needs. The upload takes them, so
+/// a 4K wallpaper does not stay resident in process memory next to its texture; `rebuild`
+/// recreates them if the upload has to be redone (device loss, or a failed upload).
+#[derive(Clone)]
+pub struct GpuPixels {
+    /// Screen pixels per image pixel.
+    pub downscale: u32,
+    /// Size of the full image, wherever it lives now (memory before upload, texture after).
+    full_bytes: usize,
+    pixels: Rc<RefCell<Option<Image>>>,
+    rebuild: Rc<dyn Fn() -> Option<Image>>,
+}
+
+impl GpuPixels {
+    pub fn new(
+        downscale: u32,
+        image: Image,
+        rebuild: impl Fn() -> Option<Image> + 'static,
+    ) -> Self {
+        Self {
+            downscale,
+            full_bytes: image.bgra.len(),
+            pixels: Rc::new(RefCell::new(Some(image))),
+            rebuild: Rc::new(rebuild),
+        }
+    }
+
+    /// The pixels for one upload: the retained copy the first time, a rebuild afterwards.
+    pub fn take(&self) -> Option<Image> {
+        let retained = self.pixels.borrow_mut().take();
+        retained.or_else(|| (self.rebuild)())
+    }
+
+    /// Puts back pixels a failed upload took, so its retry does not have to rebuild them.
+    pub fn restore(&self, image: Image) {
+        let mut pixels = self.pixels.borrow_mut();
+        if pixels.is_none() {
+            *pixels = Some(image);
+        }
+    }
+
+    pub fn full_bytes(&self) -> usize {
+        self.full_bytes
+    }
+
+    /// Bytes still held in process memory (0 once uploaded).
+    pub fn retained_bytes(&self) -> usize {
+        self.pixels.borrow().as_ref().map_or(0, |i| i.bgra.len())
+    }
+}
+
+impl std::fmt::Debug for GpuPixels {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GpuPixels")
+            .field("downscale", &self.downscale)
+            .field("retained_bytes", &self.retained_bytes())
+            .finish()
+    }
 }
 
 impl MonitorBackdrop {
@@ -570,7 +672,23 @@ impl MonitorBackdrop {
             height,
             downscale,
             image,
+            gpu: None,
         }
+    }
+
+    /// Moves the full-resolution image into a [`GpuPixels`] slot and keeps a copy
+    /// `sample_factor` times smaller for CPU sampling. `rebuild` must reproduce the same
+    /// full-resolution image.
+    pub fn into_gpu_backed(
+        mut self,
+        sample_factor: u32,
+        rebuild: impl Fn() -> Option<Image> + 'static,
+    ) -> Self {
+        let sample = self.image.downscale_box(sample_factor);
+        let full = std::mem::replace(&mut self.image, sample);
+        self.gpu = Some(GpuPixels::new(self.downscale, full, rebuild));
+        self.downscale *= sample_factor.max(1);
+        self
     }
 
     /// Crops the backdrop under a screen rectangle (virtual-screen pixels).
@@ -615,6 +733,45 @@ pub fn noise_tile() -> &'static Image {
 #[cfg(test)]
 mod pixel_regressions {
     use super::*;
+
+    #[test]
+    fn gpu_backed_backdrop_samples_small_and_hands_out_full_pixels_once() {
+        let mut full = Image::solid(10, 6, [0, 0, 0]);
+        full.bgra[..4].copy_from_slice(&[40, 80, 120, 255]);
+        let backdrop = MonitorBackdrop {
+            left: 0,
+            top: 0,
+            width: 10,
+            height: 6,
+            downscale: 1,
+            image: full.clone(),
+            gpu: None,
+        }
+        .into_gpu_backed(4, || Some(Image::solid(10, 6, [9, 9, 9])));
+        // Partial edge blocks average only their own pixels.
+        assert_eq!((backdrop.image.width, backdrop.image.height), (3, 2));
+        assert_eq!(backdrop.image.px(0, 0), [3, 5, 8, 255]);
+        assert_eq!(backdrop.downscale, 4);
+        let gpu = backdrop.gpu.as_ref().unwrap();
+        assert_eq!(gpu.downscale, 1);
+        assert_eq!(gpu.retained_bytes(), full.bgra.len());
+        assert_eq!(gpu.take().unwrap().bgra, full.bgra);
+        assert_eq!(gpu.retained_bytes(), 0);
+        // A failed upload hands its pixels back for the retry.
+        gpu.restore(full.clone());
+        assert_eq!(gpu.retained_bytes(), full.bgra.len());
+        assert_eq!(gpu.take().unwrap().bgra, full.bgra);
+        // Taken already: later uploads rebuild.
+        assert_eq!(gpu.take().unwrap().px(0, 0), [9, 9, 9, 255]);
+        // Partial right/bottom blocks average only their own pixels.
+        let mut ramp = Image::solid(10, 6, [0, 0, 0]);
+        for (i, p) in ramp.bgra.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            p[0] = (i % 10) as u8 * 10;
+        }
+        let small = ramp.downscale_box(4);
+        assert_eq!(small.px(2, 1)[0], 85); // columns 8 and 9: (80 + 90) / 2, rounded
+        assert_eq!(small.px(0, 1)[0], 15); // columns 0..3
+    }
 
     #[test]
     fn alpha_only_blur_matches_the_original_bgra_blur() {

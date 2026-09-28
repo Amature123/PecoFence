@@ -1,7 +1,11 @@
 --out crates/render/src/gpu_bindings.rs
 --flat --dead-code
 --filter
+    ID2D1Device
     ID2D1DeviceContext
+    IDXGIDevice3
+    ID3D11Device
+    ID3D11DeviceContext
     ID2D1Effect
     ID2D1Properties
     ID2D1Bitmap1
