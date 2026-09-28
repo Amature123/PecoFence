@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Fences no longer grow into each other: expanding a rolled fence, changing the icon size, auto height and the whole-column snap stop a snapping gap short of the next fence (the rest of the items scroll), and a dragged edge stops at a neighbouring fence. Fences you place over each other yourself stay where you put them (#2).
+- Fences no longer grow into each other: expanding a rolled fence, changing the icon size, auto height and the whole-column snap stop a snapping gap short of the next fence (the rest of the items scroll), and a dragged edge stops at a neighbouring fence. A fence dropped onto another one moves the shortest way to a free spot, and overlaps a layout already has are pulled apart at startup (larger fences stay, smaller ones move; with no free spot a fence stays put) (#2).
 - Changing a fixed-height fence's icon size fits its height to the content, so shrinking the icons no longer leaves rows of empty space (#2).
 - New 「排列这一列」 (Arrange this column) in the fence menu: the fences stacked with it line up on one edge (the right one in the right half of the screen), get one width and even gaps, and drop their empty rows (#1).
 - Smoother icon edges: icons from the shell came with straight alpha but were drawn as premultiplied, which made anti-aliased outlines look jagged, most visibly at large sizes on dark wallpapers (#2).

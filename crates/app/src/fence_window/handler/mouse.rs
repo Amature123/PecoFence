@@ -338,6 +338,8 @@ pub(super) fn on_lbuttonup(
                 into,
                 x,
             });
+        } else {
+            queue.push(Command::FenceDropped(drag.fence));
         }
         return Some(0);
     }

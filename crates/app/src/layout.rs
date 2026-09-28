@@ -841,6 +841,49 @@ pub mod clearance {
             .min()
     }
 
+    /// True when `a` and `b` overlap by more than half a gap (fences snapped a gap apart, or
+    /// touching, do not count).
+    pub fn overlaps(a: &RECT, b: &RECT, gap: i32) -> bool {
+        let t = gap / 2;
+        a.left < b.right - t && a.right > b.left + t && a.top < b.bottom - t && a.bottom > b.top + t
+    }
+
+    /// The position nearest to `r` (same size) inside `work` that overlaps none of `others`:
+    /// candidates are `r`'s own row / column and every edge of the other fences and the work
+    /// area with the snapping gap. `None` when there is no such spot.
+    pub fn nearest_free(r: &RECT, others: &[RECT], work: &RECT, gap: i32) -> Option<RECT> {
+        let (w, h) = (r.right - r.left, r.bottom - r.top);
+        if w > work.right - work.left || h > work.bottom - work.top {
+            return None;
+        }
+        let mut xs = vec![r.left, work.left + gap, work.right - gap - w];
+        let mut ys = vec![r.top, work.top + gap, work.bottom - gap - h];
+        for o in others {
+            xs.extend([o.right + gap, o.left - gap - w, o.left, o.right - w]);
+            ys.extend([o.bottom + gap, o.top - gap - h, o.top, o.bottom - h]);
+        }
+        let mut best: Option<(i64, RECT)> = None;
+        for &x in &xs {
+            for &y in &ys {
+                let c = RECT {
+                    left: x.clamp(work.left, work.right - w),
+                    top: y.clamp(work.top, work.bottom - h),
+                    right: x.clamp(work.left, work.right - w) + w,
+                    bottom: y.clamp(work.top, work.bottom - h) + h,
+                };
+                if others.iter().any(|o| overlaps(&c, o, gap)) {
+                    continue;
+                }
+                let (dx, dy) = ((c.left - r.left) as i64, (c.top - r.top) as i64);
+                let d = dx * dx + dy * dy;
+                if best.is_none_or(|(bd, _)| d < bd) {
+                    best = Some((d, c));
+                }
+            }
+        }
+        best.map(|(_, c)| c)
+    }
+
     /// Heights for a stack of `(wanted, minimum)` fences that must fit in `available` px:
     /// the wanted heights when they fit, otherwise each gives up the same share of what it has
     /// above its minimum (never below it, even if the minimums alone do not fit).
@@ -932,6 +975,27 @@ mod tests {
         assert_eq!(limit_below(&others, &me, 8), Some(192));
         assert_eq!(limit_right(&others, &me, 8), Some(392));
         assert_eq!(limit_below(&[beside], &me, 8), None);
+    }
+
+    /// A dropped fence moves the shortest way out of the one it covers, stays inside the work
+    /// area, and has nowhere to go when the screen is full.
+    #[test]
+    fn nearest_free_moves_the_shortest_way_out() {
+        use clearance::{nearest_free, overlaps};
+        let work = rc(0, 0, 1000, 800);
+        let other = rc(100, 100, 400, 400);
+        let dropped = rc(350, 150, 550, 300); // overlaps `other` by 50 px on the right
+        let spot = nearest_free(&dropped, &[other], &work, 8).unwrap();
+        assert_eq!(spot, rc(408, 150, 608, 300));
+        assert!(!overlaps(&spot, &other, 8));
+        // Touching or a gap apart is not an overlap.
+        assert!(!overlaps(&rc(408, 0, 500, 50), &rc(400, 0, 408, 50), 8));
+        // Near the right edge the way out is to the left, never off screen.
+        let wall = rc(700, 0, 1000, 800);
+        let spot = nearest_free(&rc(800, 100, 900, 200), &[wall], &work, 8).unwrap();
+        assert_eq!((spot.left, spot.right), (592, 692));
+        // Nowhere to go.
+        assert_eq!(nearest_free(&rc(10, 10, 110, 110), &[work], &work, 8), None);
     }
 
     /// A stack that fits keeps its heights; one that does not is squeezed toward the

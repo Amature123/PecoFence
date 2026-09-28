@@ -597,6 +597,8 @@ pub(super) fn on_exitsizemove(
             into,
             x: window::cursor_pos().x,
         });
+    } else if same_size && !cancelled {
+        queue.push(Command::FenceDropped(fence_id));
     }
     if peeking {
         // The close timer was cancelled on WM_ENTERSIZEMOVE; its arm

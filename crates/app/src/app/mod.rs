@@ -829,6 +829,8 @@ impl App {
         app.sync_desktop_if_available("startup");
         app.state.refresh_all_portals();
         app.sync_fence_windows();
+        // Fences never stay on top of each other: pull apart any overlap the layout brings.
+        app.resolve_overlaps();
         if let Some(folder) = args.portal.as_deref() {
             let (cx, cy) = app
                 .state
@@ -1029,6 +1031,7 @@ impl App {
                 self.schedule_save();
                 self.apply_auto_height(fence);
             }
+            Command::FenceDropped(fence) => self.move_out_of_overlap(fence),
             Command::ToggleRollUp(fence) => self.toggle_roll(fence),
             Command::CommitExpanded(fence) => {
                 if let Some(w) = self.fences.get(&fence) {
