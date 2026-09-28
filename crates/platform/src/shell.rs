@@ -9,6 +9,10 @@ use windows_core::{GUID, Interface, PCWSTR, PWSTR, Result};
 // FOLDERID_Desktop / FOLDERID_PublicDesktop (KnownFolders.h).
 const FOLDERID_DESKTOP: GUID = GUID::from_u128(0xB4BFCC3A_DB2C_424C_B029_7FE99A87C641);
 const FOLDERID_PUBLIC_DESKTOP: GUID = GUID::from_u128(0xC4AA340D_F20F_4863_AFEF_F87EF2E6BA25);
+// FOLDERID_Documents / FOLDERID_Downloads / FOLDERID_Pictures (KnownFolders.h).
+const FOLDERID_DOCUMENTS: GUID = GUID::from_u128(0xFDD39AD0_238F_46AF_ADB4_6C85480369C7);
+const FOLDERID_DOWNLOADS: GUID = GUID::from_u128(0x374DE290_123F_4565_9164_39C4925E467B);
+const FOLDERID_PICTURES: GUID = GUID::from_u128(0x33E28130_4E1E_4676_835A_98395C3BC3BB);
 
 fn take_string(pwstr: PWSTR) -> String {
     if pwstr.is_null() {
@@ -37,6 +41,21 @@ pub fn user_desktop() -> Option<PathBuf> {
 /// The shared Public Desktop folder.
 pub fn public_desktop() -> Option<PathBuf> {
     known_folder(&FOLDERID_PUBLIC_DESKTOP)
+}
+
+/// The user's Documents folder (may be redirected, e.g. OneDrive).
+pub fn user_documents() -> Option<PathBuf> {
+    known_folder(&FOLDERID_DOCUMENTS)
+}
+
+/// The user's Downloads folder.
+pub fn user_downloads() -> Option<PathBuf> {
+    known_folder(&FOLDERID_DOWNLOADS)
+}
+
+/// The user's Pictures folder (may be redirected, e.g. OneDrive).
+pub fn user_pictures() -> Option<PathBuf> {
+    known_folder(&FOLDERID_PICTURES)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

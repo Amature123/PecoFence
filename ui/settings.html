@@ -373,8 +373,8 @@
       <div class="card"><div class="l"><span class="ic">&#xE890;</span><div><div class="t">快速隐藏时保持可见</div><div class="s">双击桌面隐藏所有栅栏时，这个栅栏留在桌面上</div></div></div><div class="toggle" role="switch" tabindex="0" data-fence="excludeFromQuickHide"></div></div>
       <div class="card"><div class="l"><span class="ic">&#xE74A;</span><div><div class="t">停靠到屏幕顶部</div><div class="s">贴到屏幕顶边并卷起，鼠标悬停时展开，像一个下拉抽屉</div></div></div><button id="fenceDock">停靠</button></div>
       <div id="fencePortalGroup">
-      <h3>文件夹门户</h3>
-      <div class="card"><div class="l"><span class="ic">&#xE8B7;</span><div><div class="t">双击文件夹时在门户内打开</div><div class="s">关闭后双击子文件夹改为在资源管理器中打开</div></div></div><div class="toggle" role="switch" tabindex="0" data-fence="portalNavigate"></div></div>
+      <h3>文件夹</h3>
+      <div class="card"><div class="l"><span class="ic">&#xE8B7;</span><div><div class="t">双击子文件夹时在此栅栏内打开</div><div class="s">关闭后双击子文件夹改为在资源管理器中打开</div></div></div><div class="toggle" role="switch" tabindex="0" data-fence="portalNavigate"></div></div>
       <div class="card"><div class="l"><span class="ic">&#xE8B7;</span><div><div class="t">标题栏显示文件夹图标</div><div class="s">在标题前显示一个小文件夹图标</div></div></div><div class="toggle" role="switch" tabindex="0" data-fence="portalTitleIcon"></div></div>
       </div>
       </div>
@@ -624,7 +624,7 @@
   // answers with a fresh state, so nothing here mutates `state` itself.
   let fenceSel = null;
   const fenceById = (id) => (state.fences || []).find(f => f.id === id);
-  const fenceOption = (f) => f.title + (f.kind === 'portal' ? t("（门户）") : f.kind === 'inbox' ? t("（桌面）") : '') + (f.host ? tf("（{0} 的标签页）", f.host) : '');
+  const fenceOption = (f) => f.title + (f.kind === 'portal' ? t("（文件夹）") : f.kind === 'inbox' ? t("（桌面）") : '') + (f.host ? tf("（{0} 的标签页）", f.host) : '');
   const setFence = (id, prop, value) => send({ type: 'setFence', id, prop, value });
   function ensureOption(sel, value, label) {
     sel.querySelector('[data-custom]')?.remove();

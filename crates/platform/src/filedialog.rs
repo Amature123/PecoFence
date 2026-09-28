@@ -1,9 +1,13 @@
-//! Common file dialogs (`IFileOpenDialog` / `IFileSaveDialog`) for config import / export.
+//! Common file dialogs (`IFileOpenDialog` / `IFileSaveDialog`) for config import / export and
+//! picking a folder to show on the desktop.
 
 use crate::bindings::*;
 use crate::wide::to_wide;
 use std::path::PathBuf;
 use windows_core::{Interface, PCWSTR, Result};
+
+// ShObjIdl_core.h; not in the generated bindings.
+const FOS_PICKFOLDERS: FILEOPENDIALOGOPTIONS = 0x20;
 
 fn result_path(dialog: &IFileDialog) -> Result<PathBuf> {
     // SAFETY: COM calls on a live dialog after a successful Show.
@@ -66,6 +70,24 @@ pub fn open_json(owner: Option<HWND>, title: &str) -> Result<Option<PathBuf>> {
             pszSpec: PCWSTR(filter_spec.as_ptr()),
         };
         base.SetFileTypes(1, &spec).ok()?;
+        base.SetTitle(PCWSTR(title_w.as_ptr())).ok()?;
+        let hr = base.Show(owner);
+        if hr.is_err() {
+            return Ok(None);
+        }
+        result_path(&base).map(Some)
+    }
+}
+
+/// "Select folder" picker. `None` when the user cancelled.
+pub fn pick_folder(owner: Option<HWND>, title: &str) -> Result<Option<PathBuf>> {
+    let title_w = to_wide(title);
+    // SAFETY: COM object created here; all strings outlive the calls.
+    unsafe {
+        let dialog: IFileOpenDialog = CoCreateInstance(&FileOpenDialog, None, CLSCTX_ALL as u32)?;
+        let base: IFileDialog = dialog.cast()?;
+        base.SetOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST)
+            .ok()?;
         base.SetTitle(PCWSTR(title_w.as_ptr())).ok()?;
         let hr = base.Show(owner);
         if hr.is_err() {

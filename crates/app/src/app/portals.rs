@@ -67,7 +67,68 @@ impl App {
         }
     }
 
-    /// Item menu "作为栅栏窗口显示": a new fence that mirrors `folder` (plan §12 文件夹门户).
+    /// 「在桌面显示文件夹」 submenu shared by the tray and fence menus: Documents, Downloads,
+    /// Pictures (named as Explorer names them, so they follow the Windows language), then a
+    /// folder picker, on ids `base..base + 4`. User-facing text never says "portal"; the menu
+    /// names what happens instead.
+    pub(super) fn show_folder_submenu(base: u32) -> PopupMenu {
+        use pecofence_platform::shell;
+        let menu = PopupMenu::new();
+        let known = [
+            shell::user_documents(),
+            shell::user_downloads(),
+            shell::user_pictures(),
+        ];
+        for (i, dir) in known.into_iter().enumerate() {
+            let Some(dir) = dir.filter(|d| d.is_dir()) else {
+                continue;
+            };
+            let name = shell::display_name(&dir).unwrap_or_else(|| {
+                dir.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| dir.display().to_string())
+            });
+            menu.item(base + i as u32, &name, false, false);
+        }
+        menu.separator().item(
+            base + 3,
+            pecofence_core::i18n::text("选择其他文件夹…"),
+            false,
+            false,
+        );
+        menu
+    }
+
+    /// Runs entry `offset` of [`Self::show_folder_submenu`].
+    pub(super) fn show_folder_command(
+        &mut self,
+        offset: u32,
+        x: i32,
+        y: i32,
+        near: Option<FenceId>,
+    ) {
+        use pecofence_platform::shell;
+        let folder = match offset {
+            0 => shell::user_documents(),
+            1 => shell::user_downloads(),
+            2 => shell::user_pictures(),
+            _ => match pecofence_platform::filedialog::pick_folder(
+                None,
+                pecofence_core::i18n::text("选择要在桌面显示的文件夹"),
+            ) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!(error = %e, "folder picker failed");
+                    None
+                }
+            },
+        };
+        if let Some(folder) = folder {
+            self.create_portal(folder, x, y, near);
+        }
+    }
+
+    /// Item menu 「在桌面显示此文件夹」: a new fence that mirrors `folder` (plan §12 文件夹门户).
     pub(super) fn create_portal(&mut self, folder: PathBuf, x: i32, y: i32, near: Option<FenceId>) {
         if !folder.is_dir() {
             tracing::warn!(folder = %folder.display(), "portal: not a directory");
@@ -75,7 +136,7 @@ impl App {
                 t.show_info(
                     "PecoFence",
                     &pecofence_core::i18n::format(
-                        "无法创建文件夹门户：{0} 不是文件夹",
+                        "无法在桌面显示：{0} 不是文件夹",
                         &[format!("{}", folder.display())],
                     ),
                     true,

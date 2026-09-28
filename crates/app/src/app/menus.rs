@@ -11,6 +11,8 @@ const CMD_REPAIR_ICONS: u32 = 5;
 const CMD_HIDE_ICONS_AGAIN: u32 = 6;
 const CMD_EXIT: u32 = 9;
 const CMD_PEEK: u32 = 10;
+/// Tray 「在桌面显示文件夹」 entries: 11..=14 (see `App::show_folder_submenu`).
+const CMD_SHOW_FOLDER: u32 = 11;
 const CMD_ITEM_OPEN: u32 = 100;
 const CMD_ITEM_LOCATION: u32 = 101;
 const CMD_ITEM_PROPERTIES: u32 = 102;
@@ -61,6 +63,8 @@ const CMD_COL_SIZE: u32 = 423;
 const CMD_COL_RESET_WIDTHS: u32 = 424;
 const CMD_PORTAL_UP: u32 = 380;
 const CMD_PORTAL_HOME: u32 = 381;
+/// Fence-menu 「在桌面显示文件夹」 entries: 390..=393.
+const CMD_FENCE_SHOW_FOLDER: u32 = 390;
 /// "合并到 ▸ <host>" entries: base + index into `host_fences()`.
 const CMD_TAB_ATTACH_BASE: u32 = 2000;
 // The open-ended BASE ranges must not swallow neighbouring fixed ids (a 400 base once
@@ -92,6 +96,10 @@ impl App {
             pecofence_core::i18n::text("新建栅栏"),
             false,
             false,
+        )
+        .submenu(
+            pecofence_core::i18n::text("在桌面显示文件夹"),
+            Self::show_folder_submenu(CMD_SHOW_FOLDER),
         )
         .item(
             CMD_PEEK,
@@ -148,6 +156,9 @@ impl App {
             CMD_TOGGLE_FENCES => self.toggle_all_fences(),
             CMD_PEEK => self.queue.push(Command::TogglePeek),
             CMD_NEW_FENCE => self.queue.push(Command::NewFence { x, y: y - 300 }),
+            c if (CMD_SHOW_FOLDER..CMD_SHOW_FOLDER + 4).contains(&c) => {
+                self.show_folder_command(c - CMD_SHOW_FOLDER, x, y - 300, None)
+            }
             CMD_APPLY_RULES => self.queue.push(Command::ApplyRulesNow),
             CMD_REPAIR_ICONS => self.set_desktop_icons_hidden(false),
             CMD_HIDE_ICONS_AGAIN => {
@@ -207,7 +218,7 @@ impl App {
         if single_folder.is_some() {
             menu.item(
                 CMD_ITEM_PORTAL,
-                pecofence_core::i18n::text("作为栅栏窗口显示（文件夹门户）"),
+                pecofence_core::i18n::text("在桌面显示此文件夹"),
                 false,
                 false,
             );
@@ -396,7 +407,7 @@ impl App {
                 )
                 .item(
                     CMD_PORTAL_HOME,
-                    pecofence_core::i18n::text("返回门户根文件夹"),
+                    pecofence_core::i18n::text("返回最初的文件夹"),
                     false,
                     false,
                 );
@@ -596,6 +607,10 @@ impl App {
                 false,
                 false,
             )
+            .submenu(
+                pecofence_core::i18n::text("在桌面显示文件夹"),
+                Self::show_folder_submenu(CMD_FENCE_SHOW_FOLDER),
+            )
             .item(
                 CMD_FENCE_DELETE,
                 pecofence_core::i18n::text("删除栅栏"),
@@ -654,6 +669,9 @@ impl App {
                 }
             }
             CMD_PORTAL_UP => self.portal_up(fence),
+            c if (CMD_FENCE_SHOW_FOLDER..CMD_FENCE_SHOW_FOLDER + 4).contains(&c) => {
+                self.show_folder_command(c - CMD_FENCE_SHOW_FOLDER, x, y, Some(host))
+            }
             CMD_PORTAL_HOME => {
                 if self.state.portal_home(fence) {
                     self.after_portal_navigation(fence);

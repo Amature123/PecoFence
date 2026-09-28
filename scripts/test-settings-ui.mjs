@@ -172,7 +172,7 @@ async function runTests() {
     doc.querySelector('[data-page=fences]').click();
     const sel = doc.getElementById('fenceSel');
     assert(sel.options.length === 4, 'Fence list incomplete');
-    assert([...sel.options].map(o => o.textContent).join('|') === 'Documents|Images（Documents 的标签页）|Desktop（桌面）|Portal（门户）', 'Fence labels wrong: ' + [...sel.options].map(o => o.textContent).join('|'));
+    assert([...sel.options].map(o => o.textContent).join('|') === 'Documents|Images（Documents 的标签页）|Desktop（桌面）|Portal（文件夹）', 'Fence labels wrong: ' + [...sel.options].map(o => o.textContent).join('|'));
     assert(doc.getElementById('fencePortalGroup').style.display === 'none', 'Portal options shown for an ordinary fence');
     assert(doc.querySelector('[data-fence=titleColor] [value=tint]').disabled, 'Follow-tint offered without a tint');
     change(doc, 'fenceSel', 'inbox');
