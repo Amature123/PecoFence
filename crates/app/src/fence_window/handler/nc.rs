@@ -552,6 +552,7 @@ pub(super) fn on_exitsizemove(
     } = h;
     let fence_id = h.fence_id;
     in_size_move.set(false);
+    hide_drop_preview(&h.behavior);
     let rect = window::window_rect(hwnd);
     let at_enter = rect_at_enter.get();
     let same_size = (rect.right - rect.left, rect.bottom - rect.top)
@@ -788,6 +789,7 @@ pub(super) fn on_moving(
             (SNAP_DIST_DIP as f32 * scale) as i32,
         );
     }
+    update_drop_preview(behavior, hwnd, rect, target != 0);
     // Re-sent while the pointer moves along a target's strip so the
     // insertion gap follows it (cheap: the target ignores an unchanged slot).
     let target_changed = merge_target.replace(target) != target;

@@ -36,7 +36,7 @@ pub(super) fn flush_window_drag(
     now: Instant,
     release: Option<(i32, i32)>,
 ) -> bool {
-    let (target_hwnd, point, offset, snapping, gap_dip, override_height) = {
+    let (target_hwnd, point, offset, snapping, gap_dip, override_height, behavior) = {
         let mut guard = view.borrow_mut();
         let Some(v) = guard.as_mut() else {
             return false;
@@ -64,6 +64,7 @@ pub(super) fn flush_window_drag(
             v.behavior.snapping.get(),
             v.behavior.snap_gap_dip.get(),
             (drag.hwnd == controller).then_some(height).flatten(),
+            v.behavior.clone(),
         )
     };
     let began = Instant::now();
@@ -113,6 +114,7 @@ pub(super) fn flush_window_drag(
             rect.bottom - rect.top,
         );
     }
+    update_drop_preview(&behavior, target_hwnd, &rect, target != 0);
     if hint_changed {
         queue.push(Command::MergeHint {
             target: HWND(target as *mut core::ffi::c_void),

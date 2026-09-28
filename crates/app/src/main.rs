@@ -6,6 +6,7 @@
 mod anchor;
 mod app;
 mod commands;
+mod drop_preview;
 mod fence_window;
 mod icons;
 mod ipc_server;

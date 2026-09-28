@@ -121,6 +121,8 @@ pub struct Behavior {
     /// `SPI_GETWHEELSCROLLLINES`: rows per wheel notch; `u32::MAX` (`WHEEL_PAGESCROLL`) = one
     /// viewport, 0 = the wheel does not scroll. Refreshed on WM_SETTINGCHANGE.
     pub wheel_lines: std::cell::Cell<u32>,
+    /// Outline of the spot a fence dragged over another one will move to on release.
+    pub drop_preview: std::cell::RefCell<Option<crate::drop_preview::DropPreview>>,
 }
 
 /// How the shown items fit the window (see [`FenceWindow::fit_report`]).

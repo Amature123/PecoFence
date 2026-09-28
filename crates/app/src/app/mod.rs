@@ -661,6 +661,11 @@ impl App {
                     state.config.settings.roll_up.hide_inactive_scrollbar,
                 ),
                 wheel_lines: std::cell::Cell::new(sysparams::wheel_scroll_lines()),
+                drop_preview: std::cell::RefCell::new(
+                    crate::drop_preview::DropPreview::create()
+                        .map_err(|e| tracing::warn!(error = %e, "drop preview unavailable"))
+                        .ok(),
+                ),
             }),
         });
 
