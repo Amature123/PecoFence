@@ -192,11 +192,6 @@ impl App {
                         }
                     }
                 }
-                ["tidy", title] => {
-                    if let Some(id) = self.test_fence(title) {
-                        self.tidy_align(Some(id), 0, 0);
-                    }
-                }
                 ["detach", title] => {
                     if let Some(id) = self.test_fence(title) {
                         let (x, y) = self.test_free_point();

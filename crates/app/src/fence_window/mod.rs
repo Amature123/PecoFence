@@ -111,6 +111,8 @@ pub struct Behavior {
     /// Gap kept to other fences and the work-area edges while snapping, in DIPs
     /// (`snapping.gapPx`).
     pub snap_gap_dip: std::cell::Cell<i32>,
+    /// Resizing keeps whole icon columns and rows (`snapping.sizeToCells`).
+    pub size_to_cells: std::cell::Cell<bool>,
     pub backdrop: std::cell::Cell<BackdropMode>,
     /// Rolled fences expand on a single title click (hover peek off while set).
     pub click_to_expand: std::cell::Cell<bool>,

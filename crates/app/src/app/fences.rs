@@ -1,4 +1,4 @@
-//! Fence windows and geometry: create / sync / resync windows, bounds, row snap, auto height,
+//! Fence windows and geometry: create / sync / resync windows, bounds, cell snap, auto height,
 //! display changes, monitors, new-fence placement, roll, title rename, hwnd lookup.
 
 use super::*;
@@ -200,7 +200,7 @@ impl App {
         self.apply_fence_appearance(id); // locked + backdrop/opacity + quick-hide exclusion
         self.apply_portal_deco(id);
         if snap_geometry {
-            self.apply_row_snap(id);
+            self.apply_cell_snap(id);
         }
         self.apply_auto_height(id);
     }
@@ -226,10 +226,12 @@ impl App {
         }
     }
 
-    /// Row snapping (Fences): a fixed-height fence shows whole rows. Interactive resizing snaps
-    /// in WM_SIZING; this applies the same rule to loaded fences, icon-size changes and DPI
-    /// drift. The width is free: the icon grid spreads its columns over any width.
-    pub(super) fn apply_row_snap(&mut self, id: FenceId) {
+    /// 「调整大小时保持为整数个图标」 (`snapping.sizeToCells`, Fences' "sized to even
+    /// multiples of icons"): the width is whole icon columns and a fixed height whole rows.
+    /// Interactive resizing snaps in WM_SIZING; this applies the same rule to loaded fences,
+    /// icon-size changes, DPI drift and the setting being switched on. Off, sizes are free and
+    /// the icon grid spreads its columns over the width.
+    pub(super) fn apply_cell_snap(&mut self, id: FenceId) {
         let id = self.state.host_of(id);
         let Some(f) = self.state.fence(id).cloned() else {
             return;
@@ -242,27 +244,71 @@ impl App {
         let Some(steps) = self.grid_steps(id, scale) else {
             return;
         };
-        // Auto-height fences already get an exact row count; rolled fences keep their
-        // title-only height. Snapping never grows a fence into one below it.
-        let rolled = w.is_rolled();
-        if rolled || f.view.auto_height {
+        if !steps.cells {
             return;
         }
-        let h = (r.bottom - r.top) as f32;
-        let rows = ((h - steps.fixed) / steps.row).round().max(1.0);
-        let mut bottom = r.top + (steps.fixed + rows * steps.row).round() as i32;
-        if let Some(limit) = self.growth_limit_below(id, &r) {
-            let limit = limit.max(r.bottom);
-            if bottom > limit {
-                bottom = r.top + steps.floor_height(limit - r.top);
+        let mut width = r.right - r.left;
+        let mut left = r.left;
+        if let Some((cell, pad)) = steps.cols {
+            let cols = ((width as f32 - pad) / cell).round().max(1.0);
+            width = (pad + cols * cell).round() as i32;
+            // Rounding up never pushes a fence past the work-area edge or onto a neighbour:
+            // shift it left, else round down.
+            let (cx, cy) = ((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+            if let Some(wa) = self.work_area_at(cx, cy)
+                && left + width > wa.right
+            {
+                left = (wa.right - width).max(wa.left);
+            }
+            let grown = RECT {
+                left,
+                top: r.top,
+                right: left + width,
+                bottom: r.bottom,
+            };
+            let gap = self.gap_px(w.hwnd());
+            if width > r.right - r.left
+                && self.other_fence_rects(id).iter().any(|o| {
+                    crate::layout::clearance::overlaps(&grown, o, gap)
+                        && !crate::layout::clearance::overlaps(&r, o, gap)
+                })
+            {
+                left = r.left;
+                width = steps.floor_width(r.right - r.left);
             }
         }
-        if bottom == r.bottom {
+        // Rolled fences keep their title-only height; auto-height ones get an exact row count.
+        let rolled = w.is_rolled();
+        let mut bottom = r.bottom;
+        if !rolled && !f.view.auto_height {
+            let h = (r.bottom - r.top) as f32;
+            let rows = ((h - steps.fixed) / steps.row).round().max(1.0);
+            bottom = r.top + (steps.fixed + rows * steps.row).round() as i32;
+            if let Some(limit) = self.growth_limit_below(id, &r) {
+                let limit = limit.max(r.bottom);
+                if bottom > limit {
+                    bottom = r.top + steps.floor_height(limit - r.top);
+                }
+            }
+        }
+        if (left, width, bottom) == (r.left, r.right - r.left, r.bottom) {
             return;
         }
-        let h = bottom - r.top;
-        let rect = w.apply_height(h, false);
-        self.state.set_fence_bounds(id, rect, false, h);
+        let rect = RECT {
+            left,
+            top: r.top,
+            right: left + width,
+            bottom,
+        };
+        w.set_bounds(rect);
+        let expanded = if rolled {
+            w.expanded_height_px()
+        } else {
+            let h = rect.bottom - rect.top;
+            w.apply_height(h, false);
+            h
+        };
+        self.state.set_fence_bounds(id, rect, rolled, expanded);
         self.schedule_save();
     }
 
@@ -399,7 +445,7 @@ impl App {
     }
 
     /// Menu / Ctrl+wheel: one place that changes a fence's icon size and everything derived
-    /// from it (window redraw, row snap, height fit, auto height, save).
+    /// from it (window redraw, cell snap, height fit, auto height, save).
     pub(super) fn apply_icon_size(&mut self, fence: FenceId, size: u32) {
         self.state.set_icon_size(fence, size);
         if let Some(w) = self.window_for(fence)
@@ -407,7 +453,7 @@ impl App {
         {
             w.set_icon_size(size);
         }
-        self.apply_row_snap(fence);
+        self.apply_cell_snap(fence);
         self.fit_height_to_content(fence);
         self.apply_auto_height(fence);
         self.schedule_save();

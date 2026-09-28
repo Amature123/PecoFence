@@ -517,6 +517,10 @@ impl App {
             .set(snap_gap_dip(&new.snapping));
         self.ctx
             .behavior
+            .size_to_cells
+            .set(new.snapping.size_to_cells);
+        self.ctx
+            .behavior
             .click_to_expand
             .set(new.roll_up.click_to_expand);
         self.ctx
@@ -542,7 +546,15 @@ impl App {
             || new.theme_style != old.theme_style
             || new.backdrop != old.backdrop;
         let icons_changed = new.icons != old.icons;
+        let cells_on = new.snapping.size_to_cells && !old.snapping.size_to_cells;
         self.state.config.settings = new;
+        if cells_on {
+            // 「调整大小时保持为整数个图标」 just turned on: every fence takes whole cells now.
+            let ids: Vec<FenceId> = self.fences.keys().copied().collect();
+            for id in ids {
+                self.apply_cell_snap(id);
+            }
+        }
         self.refresh_language();
         self.state.mark_dirty();
         self.schedule_save();

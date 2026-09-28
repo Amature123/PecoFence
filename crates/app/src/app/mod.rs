@@ -652,6 +652,7 @@ impl App {
                 snap_gap_dip: std::cell::Cell::new(settings::snap_gap_dip(
                     &state.config.settings.snapping,
                 )),
+                size_to_cells: std::cell::Cell::new(state.config.settings.snapping.size_to_cells),
                 backdrop: std::cell::Cell::new(backdrop_mode_for(state.config.settings.backdrop)),
                 click_to_expand: std::cell::Cell::new(
                     state.config.settings.roll_up.click_to_expand,
@@ -964,7 +965,7 @@ impl App {
             .collect();
         // Ordinary housekeeping must preserve a tabbed window's shared geometry.
         for id in changed_dpi {
-            self.apply_row_snap(id);
+            self.apply_cell_snap(id);
         }
         // Startup hide that kept failing: converge to the same end state as apply_settings
         // (setting reflects reality, user is told) instead of silently showing the toggle on.

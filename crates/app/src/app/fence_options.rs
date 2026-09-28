@@ -327,7 +327,7 @@ impl App {
         {
             w.set_spacing(spacing);
         }
-        self.apply_row_snap(fence);
+        self.apply_cell_snap(fence);
         self.apply_auto_height(fence);
         self.schedule_save();
     }
@@ -514,7 +514,7 @@ impl App {
                 {
                     w.set_layout(layout);
                 }
-                self.apply_row_snap(fence);
+                self.apply_cell_snap(fence);
                 self.apply_auto_height(fence);
                 self.schedule_save();
             }
@@ -545,7 +545,7 @@ impl App {
                 {
                     w.set_label_lines(lines);
                 }
-                self.apply_row_snap(fence);
+                self.apply_cell_snap(fence);
                 self.apply_auto_height(fence);
                 self.schedule_save();
             }

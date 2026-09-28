@@ -18,7 +18,7 @@ const fixture = {
     showDesktop: 'keepVisible', theme: 'dark', themeStyle: 'fluent', backdrop: 'acrylic', iconSize: 48,
     icons: { tintRgb: null, tintStrength: 0.6, chameleon: false },
     rollUp: { hoverPeek: true, clickToExpand: false, titleOnHover: false, hideInactiveScrollbar: false },
-    snapping: { enabled: true }, peek: { enabled: true, dim: true, hotkey: 'ctrlAltSpace' },
+    snapping: { enabled: true, gapPx: 8, sizeToCells: false, guideLines: false }, peek: { enabled: true, dim: true, hotkey: 'ctrlAltSpace' },
   },
   rules: {
     keepUpdated: true, defaultTarget: 'inbox',

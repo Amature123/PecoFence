@@ -1,23 +1,42 @@
 //! Keeping fences out of each other's way: growth limits for the automatic size changes (expand,
-//! icon size, auto height, row snap), moving a dropped fence off another one, pulling overlaps
-//! apart at startup, and 「整理对齐」.
+//! icon size, auto height, cell snap), moving a dropped fence off another one and pulling
+//! overlaps apart at startup.
 
 use super::*;
 use crate::layout::clearance;
 
-/// Device-px row rhythm of the fence a host window shows: whole rows below the fixed title /
-/// header part (the width is free).
+/// Device-px cell rhythm of the fence a host window shows: icon columns (none for the List /
+/// Details rows) and rows below the fixed title / header part. With `cells` off
+/// (`snapping.sizeToCells`) sizes are free and only the one-row minimum applies.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct GridSteps {
+    /// Column width and total horizontal padding.
+    pub cols: Option<(f32, f32)>,
     pub row: f32,
     pub fixed: f32,
+    pub cells: bool,
 }
 
 impl GridSteps {
-    /// Tallest whole-row height that fits in `h` (one row at least).
+    /// Tallest height that fits in `h`: whole rows with `cells`, else `h`; one row at least.
     pub fn floor_height(&self, h: i32) -> i32 {
+        let one_row = (self.fixed + self.row).round() as i32;
+        if !self.cells {
+            return h.max(one_row);
+        }
         (self.fixed + ((h as f32 - self.fixed) / self.row).floor().max(1.0) * self.row).round()
             as i32
+    }
+
+    /// Widest width that fits in `w`: whole columns with `cells`, else `w`; one column at least.
+    pub fn floor_width(&self, w: i32) -> i32 {
+        let Some((cell, pad)) = self.cols else {
+            return w;
+        };
+        if !self.cells {
+            return w.max((pad + cell).round() as i32);
+        }
+        (pad + ((w as f32 - pad) / cell).floor().max(1.0) * cell).round() as i32
     }
 }
 
@@ -30,6 +49,7 @@ impl App {
                 .with_line_h(self.ctx.chrome.label_line_h())
                 .with_spacing(shown.view.spacing);
         let title_h = (self.ctx.theme.borrow().title_height * scale).round();
+        let cells = self.state.config.settings.snapping.size_to_cells;
         let rows = match shown.view.layout {
             ViewLayout::Icons => None,
             ViewLayout::List => Some(crate::layout::RowMetrics::list()),
@@ -37,10 +57,14 @@ impl App {
         };
         Some(match rows {
             Some(rm) => GridSteps {
+                cols: None,
+                cells,
                 row: rm.row_h * scale,
                 fixed: title_h + (rm.header_h + rm.pad_y * 2.0) * scale + 2.0,
             },
             None => GridSteps {
+                cols: Some((metrics.cell_w * scale, metrics.pad_x * 2.0 * scale)),
+                cells,
                 row: metrics.cell_h * scale,
                 fixed: title_h + metrics.pad_y * 2.0 * scale + 2.0,
             },
@@ -54,7 +78,7 @@ impl App {
     }
 
     /// Screen rectangles of the other fence windows that are showing.
-    fn other_fence_rects(&self, id: FenceId) -> Vec<RECT> {
+    pub(super) fn other_fence_rects(&self, id: FenceId) -> Vec<RECT> {
         self.fences
             .iter()
             .filter(|(fid, w)| **fid != id && pecofence_platform::desktop::is_visible(w.hwnd()))
@@ -220,83 +244,4 @@ impl App {
         self.state.set_fence_bounds(id, rect, false, h);
         self.schedule_save();
     }
-
-    /// 「整理对齐」: [`clearance::tidy`] over the fences showing on the monitor of `fence` (the
-    /// monitor under the cursor from the tray): near-miss edges line up and small gaps even out
-    /// to the snapping gap; locked fences stay and act as anchors.
-    pub(super) fn tidy_align(&mut self, fence: Option<FenceId>, x: i32, y: i32) {
-        let (cx, cy) = fence
-            .map(|f| self.state.host_of(f))
-            .and_then(|h| self.fences.get(&h))
-            .map(|w| {
-                let r = w.rect();
-                ((r.left + r.right) / 2, (r.top + r.bottom) / 2)
-            })
-            .unwrap_or((x, y));
-        let Some(wa) = self.work_area_at(cx, cy) else {
-            return;
-        };
-        let on_monitor = |r: &RECT| {
-            let (x, y) = ((r.left + r.right) / 2, (r.top + r.bottom) / 2);
-            x >= wa.left && x < wa.right && y >= wa.top && y < wa.bottom
-        };
-        let mut ids = Vec::new();
-        let mut input = Vec::new();
-        let mut hwnd = None;
-        for (id, w) in &self.fences {
-            let r = w.rect();
-            if !pecofence_platform::desktop::is_visible(w.hwnd()) || !on_monitor(&r) {
-                continue;
-            }
-            let Some(f) = self.state.fence(*id) else {
-                continue;
-            };
-            let scale = monitors::dpi_for_window(w.hwnd()).max(96) as f32 / 96.0;
-            let shown = self.state.fence(self.state.active_tab_of(*id)).unwrap_or(f);
-            let metrics = crate::layout::GridMetrics::for_icon_size(
-                shown.view.icon_size,
-                shown.view.label_lines,
-            )
-            .with_spacing(shown.view.spacing);
-            ids.push(*id);
-            input.push(clearance::TidyFence {
-                rect: r,
-                fixed: f.locked,
-                min_w: ((metrics.cell_w + metrics.pad_x * 2.0) * scale).round() as i32,
-            });
-            hwnd.get_or_insert(w.hwnd());
-        }
-        let Some(hwnd) = hwnd else {
-            return;
-        };
-        let scale = monitors::dpi_for_window(hwnd).max(96) as f32 / 96.0;
-        let work = RECT {
-            left: wa.left,
-            top: wa.top,
-            right: wa.right,
-            bottom: wa.bottom,
-        };
-        let reach = (TIDY_REACH_DIP * scale).round() as i32;
-        let out = clearance::tidy(&input, &work, self.gap_px(hwnd), reach);
-        let mut moved = 0;
-        for ((id, before), after) in ids.into_iter().zip(input).zip(out) {
-            if after != before.rect {
-                self.relocate(id, after);
-                moved += 1;
-            }
-        }
-        tracing::info!(moved, "tidy align");
-        if moved == 0
-            && let Some(t) = &self.tray
-        {
-            t.show_info(
-                "PecoFence",
-                pecofence_core::i18n::text("已经很整齐了，没有需要对齐的栅栏。"),
-                false,
-            );
-        }
-    }
 }
-
-/// Edges closer than this line up in 「整理对齐」 (DIPs); farther ones are left alone.
-const TIDY_REACH_DIP: f32 = 96.0;
