@@ -192,6 +192,11 @@ impl App {
                         }
                     }
                 }
+                ["arrange", title] => {
+                    if let Some(id) = self.test_fence(title) {
+                        self.arrange_column(id);
+                    }
+                }
                 ["detach", title] => {
                     if let Some(id) = self.test_fence(title) {
                         let (x, y) = self.test_free_point();

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fences no longer grow into each other: expanding a rolled fence, changing the icon size, auto height and the whole-column snap stop a snapping gap short of the next fence (the rest of the items scroll), and a dragged edge stops at a neighbouring fence. Fences you place over each other yourself stay where you put them (#2).
+- Changing a fixed-height fence's icon size fits its height to the content, so shrinking the icons no longer leaves rows of empty space (#2).
+- New 「排列这一列」 (Arrange this column) in the fence menu: the fences stacked with it line up on one edge (the right one in the right half of the screen), get one width and even gaps, and drop their empty rows (#1).
+- Smoother icon edges: icons from the shell came with straight alpha but were drawn as premultiplied, which made anti-aliased outlines look jagged, most visibly at large sizes on dark wallpapers (#2).
+- 「在桌面显示文件夹」 (Show a folder on the desktop) in the tray and fence menus shows Documents, Downloads, Pictures or any chosen folder as a live fence; the UI no longer says "portal".
+
 Found by letting an agent organise a real desktop with the CLI:
 
 - pecofence-cli: `item move --dry-run` (method `items.planMove`) lists per item whether only the icon changes fence (`membership`), a real file moves (`fileMove`, with `destination`), nothing happens, or it is skipped (`exists`, `notAFile`). The real move now skips files whose name already exists at the destination (`skipped` + warning) instead of opening Explorer's replace dialog on the user's screen, and says `fileMove: true` when files are still on their way.

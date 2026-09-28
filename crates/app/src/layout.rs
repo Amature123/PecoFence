@@ -807,9 +807,176 @@ impl ItemLayout {
     }
 }
 
+/// Keeping fences out of each other's way (device px). Only fences lying wholly beyond an edge
+/// count, so a size change never runs into a new neighbour while an overlap the user made
+/// stays as it is.
+pub mod clearance {
+    use pecofence_platform::RECT;
+
+    fn spans_x(a: &RECT, b: &RECT) -> bool {
+        a.left < b.right && a.right > b.left
+    }
+
+    fn spans_y(a: &RECT, b: &RECT) -> bool {
+        a.top < b.bottom && a.bottom > b.top
+    }
+
+    /// Lowest bottom edge `r` may grow to: `gap` above the nearest fence that shares some of its
+    /// width and starts at or below its bottom edge.
+    pub fn limit_below(others: &[RECT], r: &RECT, gap: i32) -> Option<i32> {
+        others
+            .iter()
+            .filter(|o| spans_x(o, r) && o.top >= r.bottom)
+            .map(|o| o.top - gap)
+            .min()
+    }
+
+    /// Rightmost right edge `r` may grow to: `gap` before the nearest fence that shares some of
+    /// its height and starts at or right of its right edge.
+    pub fn limit_right(others: &[RECT], r: &RECT, gap: i32) -> Option<i32> {
+        others
+            .iter()
+            .filter(|o| spans_y(o, r) && o.left >= r.right)
+            .map(|o| o.left - gap)
+            .min()
+    }
+
+    /// Heights for a stack of `(wanted, minimum)` fences that must fit in `available` px:
+    /// the wanted heights when they fit, otherwise each gives up the same share of what it has
+    /// above its minimum (never below it, even if the minimums alone do not fit).
+    pub fn share_heights(slots: &[(i32, i32)], available: i32) -> Vec<i32> {
+        let total: i32 = slots.iter().map(|(want, _)| want).sum();
+        if total <= available {
+            return slots.iter().map(|(want, _)| *want).collect();
+        }
+        let flexible: i64 = slots
+            .iter()
+            .map(|(want, min)| (want - min).max(0) as i64)
+            .sum();
+        let excess = (total - available) as i64;
+        slots
+            .iter()
+            .map(|&(want, min)| {
+                let spare = (want - min).max(0) as i64;
+                if flexible == 0 {
+                    return want.max(min);
+                }
+                let cut = ((spare * excess + flexible - 1) / flexible).min(spare);
+                (want as i64 - cut) as i32
+            })
+            .collect()
+    }
+
+    /// How far each edge of a window being resized from `cur` to `proposed` may go.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub struct EdgeLimits {
+        pub left: Option<i32>,
+        pub top: Option<i32>,
+        pub right: Option<i32>,
+        pub bottom: Option<i32>,
+    }
+
+    pub fn sizing_limits(others: &[RECT], cur: &RECT, proposed: &RECT, gap: i32) -> EdgeLimits {
+        let mut l = EdgeLimits::default();
+        for o in others {
+            if spans_y(o, proposed) {
+                if o.left >= cur.right {
+                    l.right = Some(l.right.map_or(o.left - gap, |v| v.min(o.left - gap)));
+                }
+                if o.right <= cur.left {
+                    l.left = Some(l.left.map_or(o.right + gap, |v| v.max(o.right + gap)));
+                }
+            }
+            if spans_x(o, proposed) {
+                if o.top >= cur.bottom {
+                    l.bottom = Some(l.bottom.map_or(o.top - gap, |v| v.min(o.top - gap)));
+                }
+                if o.bottom <= cur.top {
+                    l.top = Some(l.top.map_or(o.bottom + gap, |v| v.max(o.bottom + gap)));
+                }
+            }
+        }
+        // Never pull an edge back past where it already is (a neighbour inside the gap).
+        EdgeLimits {
+            left: l.left.map(|v| v.min(cur.left)),
+            top: l.top.map(|v| v.min(cur.top)),
+            right: l.right.map(|v| v.max(cur.right)),
+            bottom: l.bottom.map(|v| v.max(cur.bottom)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rc(left: i32, top: i32, right: i32, bottom: i32) -> pecofence_platform::RECT {
+        pecofence_platform::RECT {
+            left,
+            top,
+            right,
+            bottom,
+        }
+    }
+
+    /// Growth stops a gap short of a fence below / to the right; fences beside, above or
+    /// already overlapped do not count.
+    #[test]
+    fn clearance_limits_only_count_fences_beyond_the_edge() {
+        use clearance::{limit_below, limit_right};
+        let me = rc(100, 100, 300, 140); // e.g. a rolled fence: title row only
+        let below = rc(120, 200, 320, 400);
+        let beside = rc(400, 100, 500, 400);
+        let overlapped = rc(150, 120, 250, 160);
+        let others = [below, beside, overlapped];
+        assert_eq!(limit_below(&others, &me, 8), Some(192));
+        assert_eq!(limit_right(&others, &me, 8), Some(392));
+        assert_eq!(limit_below(&[beside], &me, 8), None);
+    }
+
+    /// A stack that fits keeps its heights; one that does not is squeezed toward the
+    /// minimums in proportion to each fence's spare height.
+    #[test]
+    fn share_heights_squeezes_only_when_needed() {
+        use clearance::share_heights;
+        assert_eq!(
+            share_heights(&[(300, 100), (200, 100)], 600),
+            vec![300, 200]
+        );
+        let h = share_heights(&[(1400, 300), (600, 300), (300, 300)], 1500);
+        assert!(h.iter().sum::<i32>() <= 1500, "{h:?}");
+        assert_eq!(h[2], 300, "no spare height, nothing to give");
+        assert!(h[0] > h[1] && h[1] >= 300, "{h:?}");
+        assert_eq!(
+            share_heights(&[(500, 400), (500, 400)], 600),
+            vec![400, 400]
+        );
+    }
+
+    /// Dragged edges stop at neighbours beyond them, and a neighbour already inside the gap
+    /// never pulls an edge back.
+    #[test]
+    fn sizing_limits_stop_edges_at_neighbours() {
+        use clearance::{EdgeLimits, sizing_limits};
+        let cur = rc(100, 100, 300, 300);
+        let proposed = rc(100, 100, 360, 420);
+        let others = [
+            rc(350, 50, 450, 200),
+            rc(80, 400, 280, 500),
+            rc(0, 0, 90, 90),
+        ];
+        assert_eq!(
+            sizing_limits(&others, &cur, &proposed, 8),
+            EdgeLimits {
+                left: None,
+                top: None,
+                right: Some(342),
+                bottom: Some(392),
+            }
+        );
+        let tight = [rc(304, 100, 400, 300)];
+        assert_eq!(sizing_limits(&tight, &cur, &proposed, 8).right, Some(300));
+    }
 
     /// The default icon-title font (12 px, 16 line) reproduces today's cells exactly; a
     /// scaled font grows the cell on the 4 px grid, before spacing is applied.

@@ -42,6 +42,7 @@ const CMD_FENCE_SORT_REVERSE: u32 = 325;
 const CMD_FENCE_SORT_OPENED: u32 = 326;
 const CMD_FENCE_SORT_GROUP: u32 = 327;
 const CMD_FENCE_LOCK: u32 = 333;
+const CMD_FENCE_ARRANGE: u32 = 334;
 const CMD_FENCE_RENAME: u32 = 330;
 /// Opens the settings page on the 「栅栏」 tab for this fence.
 const CMD_FENCE_OPTIONS: u32 = 331;
@@ -589,6 +590,12 @@ impl App {
             menu.submenu(pecofence_core::i18n::text("标签页"), tab_menu);
         }
         menu.item(
+            CMD_FENCE_ARRANGE,
+            pecofence_core::i18n::text("排列这一列"),
+            false,
+            h.locked || self.column_of(host).0.len() < 2,
+        );
+        menu.item(
             CMD_FENCE_LOCK,
             pecofence_core::i18n::text("锁定位置和大小"),
             h.locked,
@@ -735,6 +742,7 @@ impl App {
                 self.schedule_save();
             }
             CMD_FENCE_LOCK => self.set_fence_locked(host, !h.locked),
+            CMD_FENCE_ARRANGE => self.arrange_column(host),
             CMD_FENCE_OPTIONS => self.open_fence_options(fence),
             CMD_FENCE_NEW => {
                 let rect = self.place_new_fence(3, 200.0, x, y, Some(host));

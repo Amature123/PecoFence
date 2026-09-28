@@ -27,6 +27,17 @@ pub(super) fn merge_target_at(me: HWND, also: HWND, point: (i32, i32)) -> Option
     })
 }
 
+/// Screen rectangles of the other fence windows that are showing.
+pub(super) fn other_fence_rects(me: HWND) -> Vec<RECT> {
+    desktop::top_level_windows()
+        .into_iter()
+        .filter(|&w| {
+            w != me && desktop::class_name(w) == anchor::FENCE_CLASS && desktop::is_visible(w)
+        })
+        .map(window::window_rect)
+        .collect()
+}
+
 /// Snaps `rect` (being dragged) to the edges of other fence windows and the monitor work area.
 pub(super) fn snap_rect(rect: &mut RECT, me: HWND, gap: i32, dist: i32) {
     let w = rect.right - rect.left;

@@ -46,6 +46,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use windows_core::Result;
 
+mod arrange;
 mod dnd;
 mod fence_options;
 mod fences;

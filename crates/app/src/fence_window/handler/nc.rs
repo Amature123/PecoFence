@@ -629,13 +629,8 @@ pub(super) fn on_syscommand(
     None
 }
 
-pub(super) fn on_sizing(
-    h: &HandlerCtx,
-    _hwnd: HWND,
-    wparam: usize,
-    lparam: isize,
-) -> Option<isize> {
-    let HandlerCtx { view, .. } = h;
+pub(super) fn on_sizing(h: &HandlerCtx, hwnd: HWND, wparam: usize, lparam: isize) -> Option<isize> {
+    let HandlerCtx { view, behavior, .. } = h;
     // Fences-style: the width snaps to whole icon columns and the height to
     // whole rows, so a fence never shows a partial column or row.
     let guard = view.try_borrow().ok()?;
@@ -668,10 +663,13 @@ pub(super) fn on_sizing(
     // SAFETY: lParam is the RECT* being sized for this message.
     let rect = unsafe { &mut *(lparam as *mut RECT) };
     const WMSZ_LEFT: usize = 1;
+    const WMSZ_RIGHT: usize = 2;
     const WMSZ_TOP: usize = 3;
     const WMSZ_TOPLEFT: usize = 4;
     const WMSZ_TOPRIGHT: usize = 5;
+    const WMSZ_BOTTOM: usize = 6;
     const WMSZ_BOTTOMLEFT: usize = 7;
+    const WMSZ_BOTTOMRIGHT: usize = 8;
     if rows_layout.is_none() {
         let w = (rect.right - rect.left) as f32;
         let cols = ((w - pad_px) / cell_px).round().max(1.0);
@@ -694,6 +692,52 @@ pub(super) fn on_sizing(
             rect.top = rect.bottom - snapped_h;
         } else {
             rect.bottom = rect.top + snapped_h;
+        }
+    }
+    if behavior.snapping.get() {
+        // A dragged edge stops a gap short of a fence lying beyond it, still on whole columns
+        // and rows (fences it already overlaps do not count).
+        let gap = (behavior.snap_gap_dip.get() as f32 * scale) as i32;
+        let cur = window::window_rect(hwnd);
+        let lim =
+            crate::layout::clearance::sizing_limits(&other_fence_rects(hwnd), &cur, rect, gap);
+        let fit_cols = |w: i32| match rows_layout {
+            None => {
+                (pad_px + ((w as f32 - pad_px) / cell_px).floor().max(1.0) * cell_px).round() as i32
+            }
+            Some(_) => w,
+        };
+        let fit_rows = |h: i32| {
+            if rolled || grouped {
+                h
+            } else {
+                (fixed_px + ((h as f32 - fixed_px) / row_px).floor().max(1.0) * row_px).round()
+                    as i32
+            }
+        };
+        if matches!(wparam, WMSZ_RIGHT | WMSZ_TOPRIGHT | WMSZ_BOTTOMRIGHT)
+            && let Some(limit) = lim.right
+            && rect.right > limit
+        {
+            rect.right = rect.left + fit_cols(limit - rect.left);
+        }
+        if matches!(wparam, WMSZ_LEFT | WMSZ_TOPLEFT | WMSZ_BOTTOMLEFT)
+            && let Some(limit) = lim.left
+            && rect.left < limit
+        {
+            rect.left = rect.right - fit_cols(rect.right - limit);
+        }
+        if matches!(wparam, WMSZ_BOTTOM | WMSZ_BOTTOMLEFT | WMSZ_BOTTOMRIGHT)
+            && let Some(limit) = lim.bottom
+            && rect.bottom > limit
+        {
+            rect.bottom = rect.top + fit_rows(limit - rect.top);
+        }
+        if matches!(wparam, WMSZ_TOP | WMSZ_TOPLEFT | WMSZ_TOPRIGHT)
+            && let Some(limit) = lim.top
+            && rect.top < limit
+        {
+            rect.top = rect.bottom - fit_rows(rect.bottom - limit);
         }
     }
     Some(1)

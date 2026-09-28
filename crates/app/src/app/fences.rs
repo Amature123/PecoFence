@@ -235,34 +235,22 @@ impl App {
         let Some(f) = self.state.fence(id).cloned() else {
             return;
         };
-        let shown = self
-            .state
-            .fence(self.state.active_tab_of(id))
-            .cloned()
-            .unwrap_or_else(|| f.clone());
         let Some(w) = self.fences.get(&id) else {
             return;
         };
         let r = w.rect();
         let scale = monitors::dpi_for_window(w.hwnd()).max(96) as f32 / 96.0;
-        let metrics =
-            crate::layout::GridMetrics::for_icon_size(shown.view.icon_size, shown.view.label_lines)
-                .with_line_h(self.ctx.chrome.label_line_h())
-                .with_spacing(shown.view.spacing);
-        let rows_layout = match shown.view.layout {
-            ViewLayout::Icons => None,
-            ViewLayout::List => Some(crate::layout::RowMetrics::list()),
-            ViewLayout::Details => Some(crate::layout::RowMetrics::details()),
+        let Some(steps) = self.grid_steps(id, scale) else {
+            return;
         };
-        let cell = metrics.cell_w * scale;
-        let pad = metrics.pad_x * 2.0 * scale;
         let width = (r.right - r.left) as f32;
-        let cols = ((width - pad) / cell).round().max(1.0);
         // List / Details rows have no column rhythm: the width stays as the user left it.
-        let mut snapped = if rows_layout.is_some() {
-            r.right - r.left
-        } else {
-            (pad + cols * cell).round() as i32
+        let (mut snapped, cols) = match steps.cols {
+            Some((cell, pad)) => {
+                let cols = ((width - pad) / cell).round().max(1.0);
+                ((pad + cols * cell).round() as i32, cols)
+            }
+            None => (r.right - r.left, 1.0),
         };
         // The snap itself must never push a fence past the work-area edge: shift it left, and
         // if it would then leave the left edge instead, round the column count down.
@@ -272,30 +260,35 @@ impl App {
             && left + snapped > wa.right
         {
             left = (wa.right - snapped).max(wa.left);
-            if left + snapped > wa.right && cols >= 2.0 {
+            if left + snapped > wa.right
+                && cols >= 2.0
+                && let Some((cell, pad)) = steps.cols
+            {
                 snapped = (pad + (cols - 1.0) * cell).round() as i32;
                 left = wa.right - snapped;
             }
         }
+        // Nor into a fence to the right: round the column count down instead.
+        if let Some(limit) = self.growth_limit_right(id, &r) {
+            let limit = limit.max(r.right);
+            if left + snapped > limit {
+                snapped = steps.floor_width(limit - left);
+            }
+        }
         // Height: whole rows too (auto-height fences already get an exact row count; rolled
-        // fences keep their title-only height).
+        // fences keep their title-only height), and not into a fence below.
         let rolled = w.is_rolled();
         let mut bottom = r.bottom;
         if !rolled && !f.view.auto_height {
-            let title_h = (self.ctx.theme.borrow().title_height * scale).round();
-            let (row, fixed) = match rows_layout {
-                Some(rm) => (
-                    rm.row_h * scale,
-                    title_h + (rm.header_h + rm.pad_y * 2.0) * scale + 2.0,
-                ),
-                None => (
-                    metrics.cell_h * scale,
-                    title_h + metrics.pad_y * 2.0 * scale + 2.0,
-                ),
-            };
             let h = (r.bottom - r.top) as f32;
-            let rows = ((h - fixed) / row).round().max(1.0);
-            bottom = r.top + (fixed + rows * row).round() as i32;
+            let rows = ((h - steps.fixed) / steps.row).round().max(1.0);
+            bottom = r.top + (steps.fixed + rows * steps.row).round() as i32;
+            if let Some(limit) = self.growth_limit_below(id, &r) {
+                let limit = limit.max(r.bottom);
+                if bottom > limit {
+                    bottom = r.top + steps.floor_height(limit - r.top);
+                }
+            }
         }
         if snapped == r.right - r.left && left == r.left && bottom == r.bottom {
             return;
@@ -323,8 +316,14 @@ impl App {
         let Some(w) = self.fences.get(&id) else {
             return;
         };
-        let Some(h) = w.auto_height_px() else { return };
+        let Some(mut h) = w.auto_height_px() else {
+            return;
+        };
         let r = w.rect();
+        // Growing stops short of a fence below; the rest of the items scroll.
+        if let Some(limit) = self.growth_limit_below(id, &r) {
+            h = h.min(limit.max(r.bottom) - r.top);
+        }
         if r.bottom - r.top == h {
             return;
         }
@@ -454,6 +453,7 @@ impl App {
             w.set_icon_size(size);
         }
         self.apply_column_snap(fence);
+        self.fit_height_to_content(fence);
         self.apply_auto_height(fence);
         self.schedule_save();
     }
@@ -729,6 +729,9 @@ impl App {
     /// undo each other while the 167 ms roll animation is still running.
     pub(super) fn set_roll(&mut self, fence: FenceId, rolled: bool) {
         let fence = self.state.host_of(fence);
+        if !rolled && self.fences.get(&fence).is_some_and(|w| w.is_rolled()) {
+            self.clamp_expand_height(fence);
+        }
         if let Some(w) = self.fences.get(&fence) {
             w.set_rolled(rolled);
             if let Some(f) = self.state.fence_mut(fence) {
