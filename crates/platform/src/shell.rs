@@ -500,12 +500,14 @@ unsafe fn hbitmap_to_bgra(hbitmap: HBITMAP, max_px: u32) -> Result<ShellImage> {
 /// edge pixels draw too bright and the icon outline looks jagged.
 fn premultiply_if_straight(bgra: &mut [u8]) {
     let straight = bgra
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .any(|p| p[0].max(p[1]).max(p[2]) > p[3]);
     if !straight {
         return;
     }
-    for p in bgra.chunks_exact_mut(4) {
+    for p in bgra.as_chunks_mut::<4>().0 {
         let a = p[3] as u32;
         for c in &mut p[..3] {
             *c = ((*c as u32 * a + 127) / 255) as u8;
