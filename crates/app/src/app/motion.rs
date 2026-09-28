@@ -26,6 +26,24 @@ impl App {
         }
     }
 
+    /// Drawing has been quiet for `GPU_TRIM_IDLE_MS`. An animation still running keeps its
+    /// caches and the check is retried: composition-only runs (fades) never draw to re-arm it.
+    /// A run whose last frame is over a second old has stalled and does not block the trim.
+    pub(super) fn trim_gpu_if_idle(&mut self) {
+        if self
+            .frame_prev
+            .is_some_and(|t| t.elapsed() < Duration::from_secs(1))
+        {
+            window::set_timer(self.control.hwnd(), TIMER_GPU_TRIM, GPU_TRIM_IDLE_MS);
+            return;
+        }
+        self.ctx.bitmaps.borrow_mut().prune_wallpapers();
+        // Diagnostic: keep every GPU cache (compare glitches with and without the trim).
+        if pecofence_core::brand::var_os("PECOFENCE_NO_GPU_TRIM").is_none() {
+            self.ctx.stack.trim();
+        }
+    }
+
     pub(super) fn on_icons_ready(&mut self) {
         let (n, next_retry) = {
             let mut icons = self.ctx.icons.borrow_mut();

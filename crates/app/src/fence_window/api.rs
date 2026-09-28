@@ -1215,6 +1215,15 @@ impl FenceWindow {
         });
     }
 
+    /// Renders and presents the shadow again even at an unchanged rect (its layered window
+    /// holds the only copy of the pixels, which a display change may drop).
+    pub fn repaint_shadow(&self) {
+        self.with_view(|v| {
+            v.shadow.invalidate();
+            v.update_shadow();
+        });
+    }
+
     pub fn set_theme(&self, theme: Theme, backdrops: Rc<BackdropSets>, shadow: ShadowStyle) {
         let hwnd = self.hwnd();
         apply_window_shape(hwnd, theme.liquid_glass);

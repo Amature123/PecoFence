@@ -37,6 +37,26 @@ struct Gpu {
     generation: u32,
 }
 
+thread_local! {
+    static DRAW_HOOK: RefCell<Option<Box<dyn Fn()>>> = const { RefCell::new(None) };
+}
+
+/// Called after every panel draw on this thread (the app uses it to schedule [`RenderStack::trim`]
+/// once drawing goes quiet). Must be cheap and must not draw.
+pub fn set_draw_hook(hook: impl Fn() + 'static) {
+    DRAW_HOOK.with(|h| *h.borrow_mut() = Some(Box::new(hook)));
+}
+
+pub(crate) fn note_draw() {
+    DRAW_HOOK.with(|h| {
+        if let Ok(hook) = h.try_borrow()
+            && let Some(hook) = hook.as_ref()
+        {
+            hook();
+        }
+    });
+}
+
 fn create_gpu(compositor: &Compositor, generation: u32) -> Result<(Gpu, bool)> {
     let (device, is_warp) = match GpuDevice::new() {
         Ok(d) => (d, false),
@@ -80,6 +100,31 @@ impl RenderStack {
             is_warp,
             queue_path,
         })
+    }
+
+    /// Idle release of GPU scratch memory: Direct2D's intermediate and effect-output caches,
+    /// then the driver's internal buffers (`IDXGIDevice3::Trim`, after `ClearState` as its
+    /// documentation requires). Uploaded bitmaps and drawing surfaces are kept; the next draw
+    /// rebuilds the caches, so call this only once rendering has gone quiet.
+    pub fn trim(&self) {
+        use crate::gpu_bindings as b;
+        use windows_core::Interface;
+        let gpu = self.gpu.borrow();
+        let result = (|| -> Result<()> {
+            let d2d: b::ID2D1Device = gpu.device.d2d_device().cast()?;
+            let d3d: b::ID3D11Device = gpu.device.d3d_device().cast()?;
+            let dxgi: b::IDXGIDevice3 = d3d.cast()?;
+            unsafe {
+                d2d.ClearResources(0);
+                d3d.GetImmediateContext()?.ClearState();
+                dxgi.Trim();
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => tracing::debug!("GPU caches trimmed"),
+            Err(error) => tracing::debug!(%error, "GPU trim unavailable"),
+        }
     }
 
     /// The current composition graphics device (allocates drawing surfaces).

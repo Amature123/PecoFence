@@ -28,6 +28,7 @@ pub mod fence_chrome;
     clippy::missing_transmute_annotations,
     clippy::useless_transmute,
     clippy::too_many_arguments,
+    clippy::useless_conversion,
     dead_code,
     unused_imports
 )]
@@ -40,7 +41,7 @@ pub mod stack;
 pub mod text;
 pub mod theme;
 
-pub use backdrop::{Image, MicaTint, MonitorBackdrop, WallpaperPosition};
+pub use backdrop::{GpuPixels, Image, MicaTint, MonitorBackdrop, WallpaperPosition};
 pub use bitmaps::BitmapCache;
 pub use panel::{Clip, Panel};
 pub use stack::RenderStack;

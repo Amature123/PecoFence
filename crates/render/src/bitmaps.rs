@@ -44,6 +44,17 @@ impl BitmapCache {
         self.map.remove(key);
     }
 
+    /// Drops the keyed bitmaps (icons, crops) but keeps wallpaper uploads: those are keyed
+    /// by their backdrop set and cost a full decode to redo once their pixels are released.
+    pub fn clear_keyed(&mut self) {
+        self.map.clear();
+    }
+
+    /// Releases wallpaper textures whose backdrop set is gone (see `WallpaperCache::prune`).
+    pub fn prune_wallpapers(&mut self) {
+        self.glass_wallpaper.prune();
+    }
+
     /// Drops everything (e.g. after device loss).
     pub fn clear(&mut self) {
         self.map.clear();

@@ -136,6 +136,7 @@ impl Panel {
         };
         std::mem::forget(guard);
         let end_result = self.surface.end_draw();
+        crate::stack::note_draw();
         if check_device_lost(&draw_result) || check_device_lost(&end_result) {
             return Ok(false);
         }

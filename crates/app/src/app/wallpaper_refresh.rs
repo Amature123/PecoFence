@@ -41,6 +41,35 @@ impl RefreshSchedule {
     }
 }
 
+/// A signature without the per-file `#size#mtime` stamps (see `WallpaperSnapshot::signature`):
+/// equal for two reads of the same files in the same layout.
+fn file_identity(signature: &str) -> String {
+    signature
+        .split('|')
+        .map(|segment| {
+            let mut parts = segment.rsplitn(3, '#');
+            match (parts.next(), parts.next(), parts.next()) {
+                (Some(time), Some(size), Some(rest))
+                    if !time.is_empty()
+                        && !size.is_empty()
+                        && time.bytes().all(|b| b.is_ascii_digit())
+                        && size.bytes().all(|b| b.is_ascii_digit()) =>
+                {
+                    rest
+                }
+                _ => segment,
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("|")
+}
+
+/// `new` shows the same wallpaper files as `old` with different contents (a slideshow or an
+/// app rewriting the picture in place): `old`'s pixels cannot come back.
+pub(super) fn supersedes(old: &str, new: &str) -> bool {
+    old != new && file_identity(old) == file_identity(new)
+}
+
 struct Entry {
     signature: String,
     backdrops: Rc<BackdropSets>,
@@ -83,11 +112,21 @@ impl BackdropCache {
         Some(backdrops)
     }
 
-    pub(super) fn insert(&mut self, signature: String, backdrops: Rc<BackdropSets>) {
+    pub(super) fn remove(&mut self, signature: &str) {
         if let Some(index) = self.entries.iter().position(|e| e.signature == signature) {
             self.bytes -= self.entries.remove(index).unwrap().bytes;
         }
-        let bytes = backdrops.acrylic.iter().map(|b| b.image.bgra.len()).sum();
+    }
+
+    pub(super) fn insert(&mut self, signature: String, backdrops: Rc<BackdropSets>) {
+        self.remove(&signature);
+        // A GPU-backed set keeps its full-resolution image as a texture (or, before the
+        // upload, in memory): count that, not just the small sampling copy.
+        let bytes = backdrops
+            .acrylic
+            .iter()
+            .map(|b| b.image.bgra.len() + b.gpu.as_ref().map_or(0, |g| g.full_bytes()))
+            .sum();
         // Very large monitor sets can still be displayed without retaining another copy.
         if self.max_entries == 0 || bytes > self.max_bytes {
             return;
@@ -163,6 +202,7 @@ mod tests {
                 height: 1,
                 downscale: 1,
                 image: Image::solid(pixels, 1, [1, 2, 3]),
+                gpu: None,
             }]),
         })
     }
@@ -194,5 +234,60 @@ mod tests {
         cache.clear();
         assert!(cache.get("b").is_none());
         assert_eq!(cache.bytes, 0);
+    }
+
+    #[test]
+    fn gpu_backed_sets_count_their_full_resolution_image() {
+        let full = MonitorBackdrop {
+            left: 0,
+            top: 0,
+            width: 16,
+            height: 2,
+            downscale: 1,
+            image: Image::solid(16, 2, [1, 2, 3]),
+            gpu: None,
+        }
+        .into_gpu_backed(8, || None);
+        let set = Rc::new(BackdropSets {
+            acrylic: Rc::new(vec![full]),
+        });
+        let mut cache = BackdropCache::with_limits(4, 1024);
+        cache.insert("a".into(), set.clone());
+        // 2x1 sampling copy + the 16x2 image the GPU upload owns.
+        assert_eq!(cache.bytes, 2 * 4 + 16 * 2 * 4);
+        // Still counted once the upload took the pixels: they now live in the texture.
+        set.acrylic[0].gpu.as_ref().unwrap().take();
+        cache.insert("a".into(), set);
+        assert_eq!(cache.bytes, 2 * 4 + 16 * 2 * 4);
+        cache.remove("a");
+        assert!(cache.get("a").is_none());
+        assert_eq!(cache.bytes, 0);
+        cache.remove("missing");
+        assert_eq!(cache.bytes, 0);
+    }
+
+    #[test]
+    fn only_the_same_files_with_new_contents_supersede_a_set() {
+        let sig = |path: &str, stamp: &str| {
+            format!("Fill|[0, 0, 0]|DISPLAY#GSM5B09#5&1#{{e6f07b5f}}@0,0,3840,2160={path}{stamp}")
+        };
+        let old = sig("C:/wall#1.jpg", "#100#5");
+        // Slideshow rewriting the same file: stale.
+        assert!(supersedes(&old, &sig("C:/wall#1.jpg", "#120#6")));
+        // Another picture (another desktop, or the user picked a new one): kept.
+        assert!(!supersedes(&old, &sig("C:/other.jpg", "#100#5")));
+        // Unchanged, or a file whose metadata could not be read.
+        assert!(!supersedes(&old, &old));
+        assert!(supersedes(&old, &sig("C:/wall#1.jpg", "")));
+        // A new layout of the same files is a different set, not a stale one.
+        assert!(!supersedes(&old, &old.replace("Fill", "Fit")));
+        // Solid colour monitors (no path) and multi-monitor signatures.
+        assert!(!supersedes(
+            "Fill|[1, 2, 3]|m@0,0,1,1",
+            "Fill|[4, 5, 6]|m@0,0,1,1"
+        ));
+        let two =
+            |a: &str, b: &str| format!("Fill|[0, 0, 0]|m1@0,0,1,1=x.jpg{a}|m2@1,0,2,1=y.jpg{b}");
+        assert!(supersedes(&two("#1#1", "#2#2"), &two("#1#1", "#3#3")));
     }
 }
