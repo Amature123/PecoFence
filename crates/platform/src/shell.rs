@@ -488,7 +488,30 @@ unsafe fn hbitmap_to_bgra(hbitmap: HBITMAP, max_px: u32) -> Result<ShellImage> {
             HPALETTE::default(),
             WICBitmapUsePremultipliedAlpha,
         )?;
-        wic_to_bgra(&factory, wic.cast()?, max_px)
+        let mut image = wic_to_bgra(&factory, wic.cast()?, max_px)?;
+        premultiply_if_straight(&mut image.bgra);
+        Ok(image)
+    }
+}
+
+/// `IShellItemImageFactory::GetImage` hands icons back with straight alpha, although the bitmap
+/// is read as premultiplied (thumbnails can be either). Straight data shows itself by a colour
+/// channel above its alpha, which premultiplied data cannot have; left as is, those anti-aliased
+/// edge pixels draw too bright and the icon outline looks jagged.
+fn premultiply_if_straight(bgra: &mut [u8]) {
+    let straight = bgra
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .any(|p| p[0].max(p[1]).max(p[2]) > p[3]);
+    if !straight {
+        return;
+    }
+    for p in bgra.as_chunks_mut::<4>().0 {
+        let a = p[3] as u32;
+        for c in &mut p[..3] {
+            *c = ((*c as u32 * a + 127) / 255) as u8;
+        }
     }
 }
 
@@ -752,6 +775,19 @@ mod scale_tests {
         assert_eq!(fit_within(0, 256, 96), None);
         assert_eq!(fit_within(256, 256, 0), None);
         assert_eq!(fit_within(1000, 1, 96), Some((96, 1)));
+    }
+
+    /// Straight-alpha edge pixels get premultiplied; already premultiplied data is left alone.
+    #[test]
+    fn premultiply_if_straight_fixes_only_straight_data() {
+        use super::premultiply_if_straight;
+        let mut straight = vec![255, 128, 0, 128, 10, 20, 30, 255, 200, 200, 200, 0];
+        premultiply_if_straight(&mut straight);
+        assert_eq!(straight, vec![128, 64, 0, 128, 10, 20, 30, 255, 0, 0, 0, 0]);
+        let mut premultiplied = vec![100, 64, 0, 128, 10, 20, 30, 255, 0, 0, 0, 0];
+        let before = premultiplied.clone();
+        premultiply_if_straight(&mut premultiplied);
+        assert_eq!(premultiplied, before);
     }
 }
 
