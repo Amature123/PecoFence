@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fences no longer grow into each other: expanding a rolled fence, changing the icon size, auto height and the cell snap stop a snapping gap short of the next fence (the rest of the items scroll), and a dragged edge stops at a neighbouring fence. A fence dropped onto another one moves the shortest way to a free spot (an outline shows where while you drag), and overlaps a layout already has are pulled apart at startup (larger fences stay, smaller ones move; with no free spot a fence stays put) (#2).
+- Changing a fixed-height fence's icon size fits its height to the content, so shrinking the icons no longer leaves rows of empty space (#2).
+- Snapping settings now match Stardock Fences: 「移动栅栏时吸附对齐」 (keep fences lined up when moving), 「栅栏间距」 (space between fences, 0–32 px, back on the settings page) and 「调整大小时保持为整数个图标」 (`snapping.sizeToCells`, whole icon columns and rows, which was stored but did nothing). With it off (the default) a fence can be any size: the icon grid spreads its columns over the width, a fence keeps its width when the icon size changes (it used to grow or shift left) and a dragged side edge snaps to neighbouring fences' edges (#1, #2).
+- Smoother icon edges: icons from the shell came with straight alpha but were drawn as premultiplied, which made anti-aliased outlines look jagged, most visibly at large sizes on dark wallpapers (#2).
+- 「在桌面显示文件夹」 (Show a folder on the desktop) in the tray and fence menus shows Documents, Downloads, Pictures or any chosen folder as a live fence; the UI no longer says "portal".
+
 Found by letting an agent organise a real desktop with the CLI:
 
 - pecofence-cli: `item move --dry-run` (method `items.planMove`) lists per item whether only the icon changes fence (`membership`), a real file moves (`fileMove`, with `destination`), nothing happens, or it is skipped (`exists`, `notAFile`). The real move now skips files whose name already exists at the destination (`skipped` + warning) instead of opening Explorer's replace dialog on the user's screen, and says `fileMove: true` when files are still on their way.

@@ -46,6 +46,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use windows_core::Result;
 
+mod arrange;
 mod dnd;
 mod fence_options;
 mod fences;
@@ -677,6 +678,7 @@ impl App {
                 snap_gap_dip: std::cell::Cell::new(settings::snap_gap_dip(
                     &state.config.settings.snapping,
                 )),
+                size_to_cells: std::cell::Cell::new(state.config.settings.snapping.size_to_cells),
                 backdrop: std::cell::Cell::new(backdrop_mode_for(state.config.settings.backdrop)),
                 click_to_expand: std::cell::Cell::new(
                     state.config.settings.roll_up.click_to_expand,
@@ -686,6 +688,11 @@ impl App {
                     state.config.settings.roll_up.hide_inactive_scrollbar,
                 ),
                 wheel_lines: std::cell::Cell::new(sysparams::wheel_scroll_lines()),
+                drop_preview: std::cell::RefCell::new(
+                    crate::drop_preview::DropPreview::create()
+                        .map_err(|e| tracing::warn!(error = %e, "drop preview unavailable"))
+                        .ok(),
+                ),
             }),
         });
 
@@ -855,6 +862,8 @@ impl App {
         app.sync_desktop_if_available("startup");
         app.state.refresh_all_portals();
         app.sync_fence_windows();
+        // Fences never stay on top of each other: pull apart any overlap the layout brings.
+        app.resolve_overlaps();
         if let Some(folder) = args.portal.as_deref() {
             let (cx, cy) = app
                 .state
@@ -983,7 +992,7 @@ impl App {
             .collect();
         // Ordinary housekeeping must preserve a tabbed window's shared geometry.
         for id in changed_dpi {
-            self.apply_column_snap(id);
+            self.apply_cell_snap(id);
         }
         // Startup hide that kept failing: converge to the same end state as apply_settings
         // (setting reflects reality, user is told) instead of silently showing the toggle on.
@@ -1055,6 +1064,7 @@ impl App {
                 self.schedule_save();
                 self.apply_auto_height(fence);
             }
+            Command::FenceDropped(fence) => self.move_out_of_overlap(fence),
             Command::ToggleRollUp(fence) => self.toggle_roll(fence),
             Command::CommitExpanded(fence) => {
                 if let Some(w) = self.fences.get(&fence) {

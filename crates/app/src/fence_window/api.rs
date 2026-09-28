@@ -1044,6 +1044,11 @@ impl FenceWindow {
             .unwrap_or(0)
     }
 
+    /// Height the next expand targets, for a rolled window (leaves the window as it is).
+    pub fn set_expanded_height_px(&self, height_px: i32) {
+        self.with_view(|v| v.expanded_h_px = height_px);
+    }
+
     pub fn set_auto_height(&self, on: bool) {
         self.with_view(|v| v.auto_height = on);
     }

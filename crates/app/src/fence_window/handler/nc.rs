@@ -552,6 +552,7 @@ pub(super) fn on_exitsizemove(
     } = h;
     let fence_id = h.fence_id;
     in_size_move.set(false);
+    hide_drop_preview(&h.behavior);
     let rect = window::window_rect(hwnd);
     let at_enter = rect_at_enter.get();
     let same_size = (rect.right - rect.left, rect.bottom - rect.top)
@@ -597,6 +598,8 @@ pub(super) fn on_exitsizemove(
             into,
             x: window::cursor_pos().x,
         });
+    } else if same_size && !cancelled {
+        queue.push(Command::FenceDropped(fence_id));
     }
     if peeking {
         // The close timer was cancelled on WM_ENTERSIZEMOVE; its arm
@@ -629,23 +632,20 @@ pub(super) fn on_syscommand(
     None
 }
 
-pub(super) fn on_sizing(
-    h: &HandlerCtx,
-    _hwnd: HWND,
-    wparam: usize,
-    lparam: isize,
-) -> Option<isize> {
-    let HandlerCtx { view, .. } = h;
-    // Fences-style: the width snaps to whole icon columns and the height to
-    // whole rows, so a fence never shows a partial column or row.
+pub(super) fn on_sizing(h: &HandlerCtx, hwnd: HWND, wparam: usize, lparam: isize) -> Option<isize> {
+    let HandlerCtx { view, behavior, .. } = h;
+    // 「调整大小时保持为整数个图标」 (snapping.sizeToCells, Fences' "sized to even multiples of
+    // icons"): the width snaps to whole icon columns and the height to whole rows. Off, both
+    // are free (one column / one row at least) and the icon grid spreads over the width.
+    let cells = behavior.size_to_cells.get();
     let guard = view.try_borrow().ok()?;
     let v = guard.as_ref()?;
     let scale = v.scale();
     let metrics = v.grid_metrics();
     let cell_px = (metrics.cell_w * scale).max(1.0);
     let pad_px = metrics.pad_x * 2.0 * scale;
-    // Rows (List / Details) have no column rhythm: free width, row-snapped
-    // height below the title (+ fixed header).
+    let min_w = (pad_px + cell_px).round() as i32;
+    // Rows (List / Details): rows below the title (+ fixed header), free width.
     let rows_layout = v.row_metrics();
     let (row_px, fixed_px) = match rows_layout {
         Some(rm) => (
@@ -657,6 +657,7 @@ pub(super) fn on_sizing(
             v.title_h_px() as f32 + metrics.pad_y * 2.0 * scale + 2.0,
         ),
     };
+    let min_h = (fixed_px + row_px).round() as i32;
     let rolled = v.rolled_up;
     // "按时间分组" interleaves header bands with the rows: no whole-row rhythm to snap to.
     let grouped = v.group_by_date && {
@@ -668,32 +669,107 @@ pub(super) fn on_sizing(
     // SAFETY: lParam is the RECT* being sized for this message.
     let rect = unsafe { &mut *(lparam as *mut RECT) };
     const WMSZ_LEFT: usize = 1;
+    const WMSZ_RIGHT: usize = 2;
     const WMSZ_TOP: usize = 3;
     const WMSZ_TOPLEFT: usize = 4;
     const WMSZ_TOPRIGHT: usize = 5;
+    const WMSZ_BOTTOM: usize = 6;
     const WMSZ_BOTTOMLEFT: usize = 7;
-    if rows_layout.is_none() {
-        let w = (rect.right - rect.left) as f32;
-        let cols = ((w - pad_px) / cell_px).round().max(1.0);
-        let snapped = (pad_px + cols * cell_px).round() as i32;
-        if matches!(wparam, WMSZ_LEFT | WMSZ_TOPLEFT | WMSZ_BOTTOMLEFT) {
-            rect.left = rect.right - snapped;
-        } else {
-            rect.right = rect.left + snapped;
+    const WMSZ_BOTTOMRIGHT: usize = 8;
+    let left_edge = matches!(wparam, WMSZ_LEFT | WMSZ_TOPLEFT | WMSZ_BOTTOMLEFT);
+    let right_edge = matches!(wparam, WMSZ_RIGHT | WMSZ_TOPRIGHT | WMSZ_BOTTOMRIGHT);
+    let top_edge = matches!(wparam, WMSZ_TOP | WMSZ_TOPLEFT | WMSZ_TOPRIGHT);
+    let bottom_edge = matches!(wparam, WMSZ_BOTTOM | WMSZ_BOTTOMLEFT | WMSZ_BOTTOMRIGHT);
+    // Width / height for the dragged size `w` / `h`: rounded to cells, or free.
+    let snap_w = |w: i32, floor: bool| -> i32 {
+        if rows_layout.is_some() {
+            return w.max(1);
+        }
+        if !cells {
+            return w.max(min_w);
+        }
+        let n = (w as f32 - pad_px) / cell_px;
+        let n = if floor { n.floor() } else { n.round() };
+        (pad_px + n.max(1.0) * cell_px).round() as i32
+    };
+    let snap_h = |h: i32, floor: bool| -> i32 {
+        if rolled {
+            return title_h;
+        }
+        if !cells || grouped {
+            return h.max(min_h);
+        }
+        let n = (h as f32 - fixed_px) / row_px;
+        let n = if floor { n.floor() } else { n.round() };
+        (fixed_px + n.max(1.0) * row_px).round() as i32
+    };
+    if behavior.snapping.get() && !cells {
+        // Free sizes: a dragged side edge snaps to the other fences' side edges (aligned, or
+        // a gap apart), so fences can be sized to line up exactly.
+        let gap = (behavior.snap_gap_dip.get() as f32 * scale).round() as i32;
+        let dist = (SNAP_DIST_DIP as f32 * scale) as i32;
+        let edges: Vec<i32> = other_fence_rects(hwnd)
+            .iter()
+            .flat_map(|o| [o.left, o.right, o.left - gap, o.right + gap])
+            .collect();
+        let snap = |x: i32| {
+            edges
+                .iter()
+                .copied()
+                .filter(|e| (e - x).abs() <= dist)
+                .min_by_key(|e| (e - x).abs())
+                .unwrap_or(x)
+        };
+        if right_edge {
+            rect.right = snap(rect.right);
+        } else if left_edge {
+            rect.left = snap(rect.left);
         }
     }
-    if rolled {
-        // A rolled fence is exactly one title bar tall whatever edge is
-        // dragged (keyboard SC_SIZE can still send top / bottom codes).
-        rect.bottom = rect.top + title_h;
-    } else if !grouped {
-        let h = (rect.bottom - rect.top) as f32;
-        let rows = ((h - fixed_px) / row_px).round().max(1.0);
-        let snapped_h = (fixed_px + rows * row_px).round() as i32;
-        if matches!(wparam, WMSZ_TOP | WMSZ_TOPLEFT | WMSZ_TOPRIGHT) {
-            rect.top = rect.bottom - snapped_h;
-        } else {
-            rect.bottom = rect.top + snapped_h;
+    let w = snap_w(rect.right - rect.left, false);
+    if left_edge {
+        rect.left = rect.right - w;
+    } else {
+        rect.right = rect.left + w;
+    }
+    // A rolled fence is exactly one title bar tall whatever edge is dragged (keyboard SC_SIZE
+    // can still send top / bottom codes).
+    let hh = snap_h(rect.bottom - rect.top, false);
+    if top_edge {
+        rect.top = rect.bottom - hh;
+    } else {
+        rect.bottom = rect.top + hh;
+    }
+    if behavior.snapping.get() {
+        // A dragged edge stops a gap short of a fence lying beyond it, still on whole cells
+        // when those are on (fences it already overlaps do not count).
+        let gap = (behavior.snap_gap_dip.get() as f32 * scale).round() as i32;
+        let cur = window::window_rect(hwnd);
+        let lim =
+            crate::layout::clearance::sizing_limits(&other_fence_rects(hwnd), &cur, rect, gap);
+        if right_edge
+            && let Some(limit) = lim.right
+            && rect.right > limit
+        {
+            rect.right = rect.left + snap_w(limit - rect.left, true);
+        }
+        if left_edge
+            && let Some(limit) = lim.left
+            && rect.left < limit
+        {
+            rect.left = rect.right - snap_w(rect.right - limit, true);
+        }
+        if bottom_edge
+            && let Some(limit) = lim.bottom
+            && rect.bottom > limit
+        {
+            rect.bottom = rect.top + snap_h(limit - rect.top, true);
+        }
+        if top_edge
+            && let Some(limit) = lim.top
+            && rect.top < limit
+        {
+            rect.top = rect.bottom - snap_h(rect.bottom - limit, true);
         }
     }
     Some(1)
@@ -742,6 +818,7 @@ pub(super) fn on_moving(
             (SNAP_DIST_DIP as f32 * scale) as i32,
         );
     }
+    update_drop_preview(behavior, hwnd, rect, target != 0);
     // Re-sent while the pointer moves along a target's strip so the
     // insertion gap follows it (cheap: the target ignores an unchanged slot).
     let target_changed = merge_target.replace(target) != target;

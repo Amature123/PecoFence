@@ -700,7 +700,7 @@ impl App {
                 {
                     w.set_layout(layout);
                 }
-                self.apply_column_snap(fence);
+                self.apply_cell_snap(fence);
                 self.apply_auto_height(fence);
                 self.schedule_save();
             }

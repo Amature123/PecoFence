@@ -27,6 +27,58 @@ pub(super) fn merge_target_at(me: HWND, also: HWND, point: (i32, i32)) -> Option
     })
 }
 
+/// While `hwnd` is dragged to `rect`: outline the spot it will move to on release when it
+/// covers another fence (`FenceDropped`), hidden otherwise or while a tab merge is offered.
+pub(super) fn update_drop_preview(behavior: &Behavior, hwnd: HWND, rect: &RECT, merging: bool) {
+    let Ok(mut preview) = behavior.drop_preview.try_borrow_mut() else {
+        return;
+    };
+    let Some(preview) = preview.as_mut() else {
+        return;
+    };
+    let dpi = monitors::dpi_for_window(hwnd).max(96);
+    let gap = (behavior.snap_gap_dip.get() as f32 * dpi as f32 / 96.0).round() as i32;
+    let others = other_fence_rects(hwnd);
+    let spot = if merging
+        || !others
+            .iter()
+            .any(|o| crate::layout::clearance::overlaps(rect, o, gap))
+    {
+        None
+    } else {
+        let mon = monitors::monitor_from_point(
+            (rect.left + rect.right) / 2,
+            (rect.top + rect.bottom) / 2,
+        );
+        monitors::query(mon).and_then(|info| {
+            crate::layout::clearance::nearest_free(rect, &others, &info.work_area, gap)
+        })
+    };
+    match spot {
+        Some(spot) => preview.show_at(spot, dpi, hwnd),
+        None => preview.hide(),
+    }
+}
+
+pub(super) fn hide_drop_preview(behavior: &Behavior) {
+    if let Ok(mut preview) = behavior.drop_preview.try_borrow_mut()
+        && let Some(preview) = preview.as_mut()
+    {
+        preview.hide();
+    }
+}
+
+/// Screen rectangles of the other fence windows that are showing.
+pub(super) fn other_fence_rects(me: HWND) -> Vec<RECT> {
+    desktop::top_level_windows()
+        .into_iter()
+        .filter(|&w| {
+            w != me && desktop::class_name(w) == anchor::FENCE_CLASS && desktop::is_visible(w)
+        })
+        .map(window::window_rect)
+        .collect()
+}
+
 /// Snaps `rect` (being dragged) to the edges of other fence windows and the monitor work area.
 pub(super) fn snap_rect(rect: &mut RECT, me: HWND, gap: i32, dist: i32) {
     let w = rect.right - rect.left;

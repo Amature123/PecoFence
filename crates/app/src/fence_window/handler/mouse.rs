@@ -305,6 +305,7 @@ pub(super) fn on_lbuttonup(
     });
     if let Some(drag) = remote {
         window::release_capture();
+        hide_drop_preview(&h.behavior);
         if !drag.started {
             if matches!(
                 drag.origin,
@@ -338,6 +339,8 @@ pub(super) fn on_lbuttonup(
                 into,
                 x,
             });
+        } else {
+            queue.push(Command::FenceDropped(drag.fence));
         }
         return Some(0);
     }
@@ -479,6 +482,7 @@ pub(super) fn on_capturechanged(
         }
         v.detach_pending = false;
         if let Some(rd) = v.remote_drag.take() {
+            hide_drop_preview(&v.behavior);
             let rect = window::window_rect(rd.hwnd);
             queue.push(Command::FenceBoundsChanged {
                 fence: rd.fence,

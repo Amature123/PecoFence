@@ -371,6 +371,10 @@ impl Bands {
 pub struct Grid {
     pub metrics: GridMetrics,
     pub columns: usize,
+    /// Column pitch: the cell width plus an equal share of the width left over after the
+    /// whole columns, so the grid fills any fence width (Explorer's auto-arrange). Cells keep
+    /// `metrics.cell_w` and sit centred in their pitch.
+    pub pitch: f32,
     /// Rows over all groups.
     #[allow(dead_code)]
     pub rows: usize,
@@ -391,6 +395,7 @@ impl Grid {
         Self {
             metrics,
             columns,
+            pitch: usable / columns as f32,
             rows: bands.total_rows(),
             content_height: bands.content_height,
             bands,
@@ -401,7 +406,9 @@ impl Grid {
     pub fn cell(&self, index: usize) -> CellRect {
         let (gi, row, col) = self.bands.place(index);
         CellRect {
-            x: self.metrics.pad_x + col as f32 * self.metrics.cell_w,
+            x: self.metrics.pad_x
+                + col as f32 * self.pitch
+                + (self.pitch - self.metrics.cell_w) / 2.0,
             y: self.bands.groups[gi].rows_y + row as f32 * self.metrics.cell_h,
             w: self.metrics.cell_w,
             h: self.metrics.cell_h,
@@ -413,7 +420,7 @@ impl Grid {
         if x < self.metrics.pad_x || y < self.metrics.pad_y {
             return None;
         }
-        let col = ((x - self.metrics.pad_x) / self.metrics.cell_w).floor() as usize;
+        let col = ((x - self.metrics.pad_x) / self.pitch).floor() as usize;
         if col >= self.columns {
             return None;
         }
@@ -431,7 +438,7 @@ impl Grid {
         if count == 0 {
             return 0;
         }
-        let colf = ((x - self.metrics.pad_x) / self.metrics.cell_w).max(0.0);
+        let colf = ((x - self.metrics.pad_x) / self.pitch).max(0.0);
         self.bands.insertion(y, colf.round() as usize).min(count)
     }
 
@@ -637,7 +644,7 @@ impl ItemLayout {
     /// its left pad to the right edge of the last column).
     fn header_width(&self) -> f32 {
         match self {
-            Self::Grid(g) => g.metrics.pad_x * 2.0 + g.columns as f32 * g.metrics.cell_w,
+            Self::Grid(g) => g.metrics.pad_x * 2.0 + g.columns as f32 * g.pitch,
             Self::Rows { width, .. } => *width,
         }
     }
@@ -807,9 +814,184 @@ impl ItemLayout {
     }
 }
 
+/// Keeping fences out of each other's way (device px). Only fences lying wholly beyond an edge
+/// count, so a size change never runs into a new neighbour while an overlap the user made
+/// stays as it is.
+pub mod clearance {
+    use pecofence_platform::RECT;
+
+    fn spans_x(a: &RECT, b: &RECT) -> bool {
+        a.left < b.right && a.right > b.left
+    }
+
+    fn spans_y(a: &RECT, b: &RECT) -> bool {
+        a.top < b.bottom && a.bottom > b.top
+    }
+
+    /// Lowest bottom edge `r` may grow to: `gap` above the nearest fence that shares some of its
+    /// width and starts at or below its bottom edge.
+    pub fn limit_below(others: &[RECT], r: &RECT, gap: i32) -> Option<i32> {
+        others
+            .iter()
+            .filter(|o| spans_x(o, r) && o.top >= r.bottom)
+            .map(|o| o.top - gap)
+            .min()
+    }
+
+    /// True when `a` and `b` overlap by more than half a gap (fences snapped a gap apart, or
+    /// touching, do not count).
+    pub fn overlaps(a: &RECT, b: &RECT, gap: i32) -> bool {
+        let t = gap / 2;
+        a.left < b.right - t && a.right > b.left + t && a.top < b.bottom - t && a.bottom > b.top + t
+    }
+
+    /// The position nearest to `r` (same size) inside `work` that overlaps none of `others`:
+    /// candidates are `r`'s own row / column and every edge of the other fences and the work
+    /// area with the snapping gap. `None` when there is no such spot.
+    pub fn nearest_free(r: &RECT, others: &[RECT], work: &RECT, gap: i32) -> Option<RECT> {
+        let (w, h) = (r.right - r.left, r.bottom - r.top);
+        if w > work.right - work.left || h > work.bottom - work.top {
+            return None;
+        }
+        let mut xs = vec![r.left, work.left + gap, work.right - gap - w];
+        let mut ys = vec![r.top, work.top + gap, work.bottom - gap - h];
+        for o in others {
+            xs.extend([o.right + gap, o.left - gap - w, o.left, o.right - w]);
+            ys.extend([o.bottom + gap, o.top - gap - h, o.top, o.bottom - h]);
+        }
+        let mut best: Option<(i64, RECT)> = None;
+        for &x in &xs {
+            for &y in &ys {
+                let c = RECT {
+                    left: x.clamp(work.left, work.right - w),
+                    top: y.clamp(work.top, work.bottom - h),
+                    right: x.clamp(work.left, work.right - w) + w,
+                    bottom: y.clamp(work.top, work.bottom - h) + h,
+                };
+                if others.iter().any(|o| overlaps(&c, o, gap)) {
+                    continue;
+                }
+                let (dx, dy) = ((c.left - r.left) as i64, (c.top - r.top) as i64);
+                let d = dx * dx + dy * dy;
+                if best.is_none_or(|(bd, _)| d < bd) {
+                    best = Some((d, c));
+                }
+            }
+        }
+        best.map(|(_, c)| c)
+    }
+
+    /// How far each edge of a window being resized from `cur` to `proposed` may go.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub struct EdgeLimits {
+        pub left: Option<i32>,
+        pub top: Option<i32>,
+        pub right: Option<i32>,
+        pub bottom: Option<i32>,
+    }
+
+    pub fn sizing_limits(others: &[RECT], cur: &RECT, proposed: &RECT, gap: i32) -> EdgeLimits {
+        let mut l = EdgeLimits::default();
+        for o in others {
+            if spans_y(o, proposed) {
+                if o.left >= cur.right {
+                    l.right = Some(l.right.map_or(o.left - gap, |v| v.min(o.left - gap)));
+                }
+                if o.right <= cur.left {
+                    l.left = Some(l.left.map_or(o.right + gap, |v| v.max(o.right + gap)));
+                }
+            }
+            if spans_x(o, proposed) {
+                if o.top >= cur.bottom {
+                    l.bottom = Some(l.bottom.map_or(o.top - gap, |v| v.min(o.top - gap)));
+                }
+                if o.bottom <= cur.top {
+                    l.top = Some(l.top.map_or(o.bottom + gap, |v| v.max(o.bottom + gap)));
+                }
+            }
+        }
+        // Never pull an edge back past where it already is (a neighbour inside the gap).
+        EdgeLimits {
+            left: l.left.map(|v| v.min(cur.left)),
+            top: l.top.map(|v| v.min(cur.top)),
+            right: l.right.map(|v| v.max(cur.right)),
+            bottom: l.bottom.map(|v| v.max(cur.bottom)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rc(left: i32, top: i32, right: i32, bottom: i32) -> pecofence_platform::RECT {
+        pecofence_platform::RECT {
+            left,
+            top,
+            right,
+            bottom,
+        }
+    }
+
+    /// Growth stops a gap short of a fence below; fences beside, above or
+    /// already overlapped do not count.
+    #[test]
+    fn clearance_limits_only_count_fences_beyond_the_edge() {
+        use clearance::limit_below;
+        let me = rc(100, 100, 300, 140); // e.g. a rolled fence: title row only
+        let below = rc(120, 200, 320, 400);
+        let beside = rc(400, 100, 500, 400);
+        let overlapped = rc(150, 120, 250, 160);
+        let others = [below, beside, overlapped];
+        assert_eq!(limit_below(&others, &me, 8), Some(192));
+        assert_eq!(limit_below(&[beside], &me, 8), None);
+    }
+
+    /// A dropped fence moves the shortest way out of the one it covers, stays inside the work
+    /// area, and has nowhere to go when the screen is full.
+    #[test]
+    fn nearest_free_moves_the_shortest_way_out() {
+        use clearance::{nearest_free, overlaps};
+        let work = rc(0, 0, 1000, 800);
+        let other = rc(100, 100, 400, 400);
+        let dropped = rc(350, 150, 550, 300); // overlaps `other` by 50 px on the right
+        let spot = nearest_free(&dropped, &[other], &work, 8).unwrap();
+        assert_eq!(spot, rc(408, 150, 608, 300));
+        assert!(!overlaps(&spot, &other, 8));
+        // Touching or a gap apart is not an overlap.
+        assert!(!overlaps(&rc(408, 0, 500, 50), &rc(400, 0, 408, 50), 8));
+        // Near the right edge the way out is to the left, never off screen.
+        let wall = rc(700, 0, 1000, 800);
+        let spot = nearest_free(&rc(800, 100, 900, 200), &[wall], &work, 8).unwrap();
+        assert_eq!((spot.left, spot.right), (592, 692));
+        // Nowhere to go.
+        assert_eq!(nearest_free(&rc(10, 10, 110, 110), &[work], &work, 8), None);
+    }
+
+    /// Dragged edges stop at neighbours beyond them, and a neighbour already inside the gap
+    /// never pulls an edge back.
+    #[test]
+    fn sizing_limits_stop_edges_at_neighbours() {
+        use clearance::{EdgeLimits, sizing_limits};
+        let cur = rc(100, 100, 300, 300);
+        let proposed = rc(100, 100, 360, 420);
+        let others = [
+            rc(350, 50, 450, 200),
+            rc(80, 400, 280, 500),
+            rc(0, 0, 90, 90),
+        ];
+        assert_eq!(
+            sizing_limits(&others, &cur, &proposed, 8),
+            EdgeLimits {
+                left: None,
+                top: None,
+                right: Some(342),
+                bottom: Some(392),
+            }
+        );
+        let tight = [rc(304, 100, 400, 300)];
+        assert_eq!(sizing_limits(&tight, &cur, &proposed, 8).right, Some(300));
+    }
 
     /// The default icon-title font (12 px, 16 line) reproduces today's cells exactly; a
     /// scaled font grows the cell on the 4 px grid, before spacing is applied.
@@ -829,6 +1011,26 @@ mod tests {
             .with_line_h(20.0)
             .with_spacing(pecofence_core::Spacing::Compact);
         assert_eq!(compact.cell_h, big.cell_h - 8.0);
+    }
+
+    /// Any width fills: the space past the whole columns widens every column's pitch equally,
+    /// cells keep their size centred in it, and the gaps between them are not hit.
+    #[test]
+    fn grid_spreads_the_leftover_width_over_the_columns() {
+        let m = GridMetrics::for_icon_size(48, 2); // 80 DIP cells, no side padding
+        let g = Grid::new(m, 300.0, 7);
+        assert_eq!(g.columns, 3);
+        assert_eq!(g.pitch, 100.0);
+        let c = g.cell(1);
+        assert_eq!((c.x, c.w), (110.0, 80.0));
+        assert_eq!(
+            g.cell(2).x + g.cell(2).w + 10.0,
+            300.0,
+            "last column ends at the edge"
+        );
+        assert_eq!(g.hit_test(105.0, c.y + 1.0, 7), None, "gap between cells");
+        assert_eq!(g.hit_test(150.0, c.y + 1.0, 7), Some(1));
+        assert_eq!(g.insertion_index(200.0, c.y + 1.0, 7), 2);
     }
 
     #[test]
