@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
+- Switching virtual desktops no longer blanks the fences: they slide out and in with the desktop, content and glass together, instead of disappearing for the whole animation and popping back afterwards. The other desktops' wallpapers are prepared in the background, so a fence already shows the new desktop's picture as it slides in (about 33 MB more per extra 4K wallpaper). During taskbar-thumbnail Aero Peek fences now fade like other windows.
+- Less memory with Liquid Glass: on a 4K monitor with 7 fences the idle private working set drops from about 97 to 40 MB and GPU memory from about 200 to 80 MB. GPU caches are released once drawing goes quiet, the full-resolution wallpaper is kept only on the GPU, and fence shadows no longer hold their bitmap after it is shown.
 - Fences no longer grow into each other: expanding a rolled fence, changing the icon size, auto height and the cell snap stop a snapping gap short of the next fence (the rest of the items scroll), and a dragged edge stops at a neighbouring fence. A fence dropped onto another one moves the shortest way to a free spot (an outline shows where while you drag), and overlaps a layout already has are pulled apart at startup (larger fences stay, smaller ones move; with no free spot a fence stays put) (#2).
 - Changing a fixed-height fence's icon size fits its height to the content, so shrinking the icons no longer leaves rows of empty space (#2).
 - Snapping settings now match Stardock Fences: 「移动栅栏时吸附对齐」 (keep fences lined up when moving), 「栅栏间距」 (space between fences, 0–32 px, back on the settings page) and 「调整大小时保持为整数个图标」 (`snapping.sizeToCells`, whole icon columns and rows, which was stored but did nothing). With it off (the default) a fence can be any size: the icon grid spreads its columns over the width, a fence keeps its width when the icon size changes (it used to grow or shift left) and a dragged side edge snaps to neighbouring fences' edges (#1, #2).
