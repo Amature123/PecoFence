@@ -413,6 +413,16 @@ pub fn tab_text_padding(theme: &Theme) -> f32 {
     if theme.liquid_glass { 24.0 } else { 16.0 }
 }
 
+/// Least caption inset once a crowded strip squeezes the pills.
+const TAB_TEXT_MIN_PADDING: f32 = 8.0;
+
+/// Caption inset inside a pill `w` DIPs wide for a caption `text_w` wide: the theme's
+/// padding while it fits, then shrinking to `TAB_TEXT_MIN_PADDING` before the caption is
+/// elided, so a narrow fence keeps short tab names readable.
+pub fn tab_text_inset(theme: &Theme, w: f32, text_w: f32) -> f32 {
+    (w - text_w).clamp(TAB_TEXT_MIN_PADDING, tab_text_padding(theme))
+}
+
 /// Counts are secondary: a short collapsed fence must retain space for its title/tabs.
 pub fn header_count_width(width: f32, tabs: usize, title_x: f32) -> f32 {
     let (left, captions) = if tabs > 1 {
@@ -1086,8 +1096,8 @@ impl FenceChrome {
 
     /// Does a tab caption fit its pill of width `w` without ellipsis (tooltip decision)?
     pub fn tab_title_fits(&self, title: &str, w: f32, size: u8, theme: &Theme) -> bool {
-        crate::text::measure_width(title, self.tab_format(size))
-            <= (w - tab_text_padding(theme)).max(0.0)
+        let text_w = crate::text::measure_width(title, self.tab_format(size));
+        text_w <= (w - tab_text_inset(theme, w, text_w)).max(0.0)
     }
 
     /// Draws the chrome into a `width` x `height` DIP area whose origin is (0, 0). `scale` is
@@ -1279,9 +1289,12 @@ impl FenceChrome {
         // A single 1 px rim, lit from the upper left and snapped to device pixels at every DPI.
         let rim_rect = px.ring(outer, radius);
         if sampled_material && theme.liquid_glass {
-            crate::liquid_glass::draw_reflection(
-                session, theme, scale, width, height, pill_a, opacity,
-            )?;
+            // The GPU material lights its own rim (kube's specular ring).
+            if !matches!(backdrop, Backdrop::GpuGlass { .. }) {
+                crate::liquid_glass::draw_reflection(
+                    session, theme, scale, width, height, pill_a, opacity,
+                )?;
+            }
         } else if sampled_material {
             let rim = session.create_linear_gradient(
                 Vector2::new(0.0, 0.0),
@@ -1472,7 +1485,8 @@ impl FenceChrome {
                     marker(tab.x, tab.w, color, ta * 0.7)?;
                 }
                 let fmt = self.tab_format(tab.title_size);
-                let padding = tab_text_padding(theme);
+                let padding =
+                    tab_text_inset(theme, tab.w, crate::text::measure_width(tab.title, fmt));
                 let fitted = crate::text::fit_width(tab.title, fmt, (tab.w - padding).max(0.0));
                 let foreground =
                     header_foreground(&backdrop, theme, tab.key, rect, scale, opacity, style.tint);
@@ -2294,14 +2308,15 @@ mod tests {
     #[test]
     fn glass_header_controls_follow_the_plate_and_leave_room_for_captions() {
         let theme = Theme::light().with_liquid_glass();
-        // 8 DIP plate minus the 4 DIP inset; a 2 DIP row would clamp to its own half height.
+        // 16 DIP plate minus the 4 DIP inset; a 2 DIP row would clamp to its own half height.
         for width in [40.0, 80.0, 160.0] {
             let rect = Rect::from_xywh(8.0, 4.0, width, 28.0);
-            assert_eq!(header_control_radius(&theme, rect), 4.0);
+            assert_eq!(header_control_radius(&theme, rect), 12.0);
         }
+        let chevron = TitleDeco::chevron_box(320.0, 36.0);
         assert_eq!(
-            header_control_radius(&theme, TitleDeco::chevron_box(320.0, 36.0)),
-            4.0
+            header_control_radius(&theme, chevron),
+            12.0f32.min(chevron.width().min(chevron.height()) * 0.5)
         );
         assert_eq!(
             header_control_radius(&theme, Rect::from_xywh(0.0, 0.0, 40.0, 2.0)),
@@ -2310,6 +2325,28 @@ mod tests {
         assert_eq!(header_count_width(136.0, 1, 16.0), 0.0);
         assert_eq!(header_count_width(136.0, 2, 16.0), 0.0);
         assert_eq!(header_count_width(400.0, 2, 16.0), ROLLED_COUNT_W);
+    }
+
+    #[test]
+    fn squeezed_tabs_trade_padding_for_their_captions() {
+        let chrome = FenceChrome::new().unwrap();
+        for theme in [Theme::dark().with_liquid_glass(), Theme::dark()] {
+            let full = tab_text_padding(&theme);
+            let caption = crate::text::measure_width("游戏", chrome.tab_format(1));
+            // Room to spare: the theme's padding.
+            assert_eq!(tab_text_inset(&theme, caption + full + 10.0, caption), full);
+            // A crowded strip (a 172 DIP fence with three tabs gives ~37 DIP pills): the
+            // padding shrinks so the two characters still fit.
+            let squeezed = caption + TAB_TEXT_MIN_PADDING + 1.0;
+            assert!(tab_text_inset(&theme, squeezed, caption) < full);
+            assert!(chrome.tab_title_fits("游戏", squeezed, 1, &theme));
+            // Below the minimum padding the caption is elided, never drawn over the edge.
+            assert_eq!(
+                tab_text_inset(&theme, caption, caption),
+                TAB_TEXT_MIN_PADDING
+            );
+            assert!(!chrome.tab_title_fits("游戏", caption, 1, &theme));
+        }
     }
 
     #[test]

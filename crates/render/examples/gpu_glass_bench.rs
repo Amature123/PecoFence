@@ -99,9 +99,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
         })?;
         let pixels = target.read_pixels()?;
-        assert!(
-            (100..=155).contains(&pixels[centre]),
-            "the centre must receive the material's blur"
+        // kube's clear glass: the flat face shows the wallpaper pixel for pixel.
+        assert_eq!(
+            [pixels[centre], pixels[centre + 4]],
+            [0, 255],
+            "the clear centre must not be blurred or moved"
         );
         assert_eq!(
             pixels[centre + 3],
@@ -145,7 +147,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cache.uploads, 2,
             "wallpaper refresh must upload only the changed source"
         );
-        println!("centre blur, source refresh and negative desktop coordinates passed");
+        println!("clear centre, source refresh and negative desktop coordinates passed");
     }
 
     {
@@ -363,6 +365,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             complete[28],
             renderer.stats().map_builds,
             cache.uploads,
+        );
+    }
+    // A roll animation changes the height every frame, so each frame rebuilds the geometry.
+    for (w, from) in [(800, 298), (1152, 1066)] {
+        let target = gpu.create_render_target(w, from)?;
+        let mut renderer = GpuGlass::default();
+        let mut complete = Vec::new();
+        for h in (64..=from).rev().step_by(16) {
+            let started = Instant::now();
+            target.draw(|s| {
+                s.clear(ColorF::TRANSPARENT);
+                renderer.draw(
+                    s,
+                    &mut cache,
+                    &background,
+                    [-250, 40, w as i32, h as i32],
+                    2.0,
+                    16.0,
+                    1.0,
+                    0.0,
+                )
+            })?;
+            target.read_pixels()?;
+            complete.push(started.elapsed().as_secs_f64() * 1000.0);
+        }
+        let builds = renderer.stats().map_builds;
+        assert_eq!(builds as usize, complete.len());
+        complete.sort_by(f64::total_cmp);
+        println!(
+            "{w}x{from} resize: frames={builds}, completed+readback median={:.2}ms max={:.2}ms",
+            complete[complete.len() / 2],
+            complete[complete.len() - 1],
         );
     }
     println!("GPU material, opacity and movement cache checks passed");

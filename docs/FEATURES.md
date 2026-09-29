@@ -49,7 +49,7 @@ JSON 输出报告实际改动，命令目录与 JSON Schema 帮助助手发现�
 | 布局动效 | 自动 | 新增 / 删除 / 重排 / 改排序时图标从旧格滑到新格（250 ms 点到点曲线），新项 167 ms 淡入，移除项原地 83 ms 淡出；切换标签、门户导航等大半内容更换时直接切换；跟随系统「动画效果」开关 |
 | 图标载入 | 自动 | 异步取到的图标在灰色占位块上 167 ms 交叉淡入；缓存命中直接显示 |
 | 选中项全名 | 单击 / 键盘选中某项 | 被选中（焦点）项的名称展开显示完整（最多 6 行，压在下一行之上，同 Windows 桌面）；重命名编辑框打开时不展开 |
-| 主题风格 | 设置 → 常规 → 主题风格：Fluent / Liquid Glass | Fluent 为壁纸毛玻璃；Liquid Glass 保留清晰中心，在 8 DIP 圆角边缘向外折射壁纸，带轻微 RGB 色散、弧形高光和柔和阴影；文字依据壁纸亮度适配，图标标签有局部衬光；不采样其他窗口或视频壁纸 |
+| 主题风格 | 设置 → 常规 → 主题风格：Fluent / Liquid Glass | Fluent 为壁纸毛玻璃；Liquid Glass 中心完全清透，16 DIP 圆角的边缘按 kube.io 的 Snell 折射模型向内弯折壁纸（边缘带倒影，放大在 40 DIP 内渐消，没有内框），边缘有高饱和的细高光环和柔和阴影；文字依据壁纸亮度适配，图标标签有局部衬光；不采样其他窗口或视频壁纸 |
 | 背景材质 | 所有栅栏跟随主题风格；栅栏选项可调整透明度与色调 | 壁纸变化自动跟随；旧配置保持 Fluent，云母和纯色旧值自动兼容；Liquid Glass 折叠时按当前高度重建边缘，Fluent 复用完整裁图 |
 | 不透明度 | 栅栏选项 → 不透明度 更透明 / 默认 / 更厚实 | Fluent 默认以 55 % 不透明度绘制；Liquid Glass 默认显示完整的壁纸折射，避免原壁纸重影；更透明 = 更薄，更厚实 = 加一层实色 |
 | 栅栏色调 | 栅栏选项 → 色调（9 色 / 无） | 标签页色条随之变色 |
@@ -59,7 +59,7 @@ JSON 输出报告实际改动，命令目录与 JSON Schema 帮助助手发现�
 | 状态过渡 | 自动 | 悬停 / 选中底色 83 ms 线性淡入淡出（悬停 SubtleFillColorSecondary、按下即时换成更浅的 SubtleFillColorTertiary，已选中项按下只显示选中底色，选中 + 悬停选中底色加深）；选中 / 悬停 / 焦点按项目身份跨排序、重排、重命名、文件夹刷新保留并随 250 ms 布局滑动；点击激活立即显示强调色；跟随系统「动画效果」开关，关闭即瞬切；每次只重绘变化的那一层 |
 | 图标着色 | 设置 → 图标着色（颜色 + 强度） | 所有图标染色 |
 | Chameleon | 设置 → 图标融入背景 | 图标降饱和、降不透明度 |
-| 玻璃调参 | 环境变量 `PECOFENCE_ACRYLIC="不透明度,亮度锁定,模糊半径[,饱和度]"` | 仅影响 Fluent；Liquid Glass 原生材质验证可运行 `cargo run -p pecofence-render --example liquid_glass_preview -- .cache/glass.bmp` |
+| 玻璃调参 | 环境变量 `PECOFENCE_ACRYLIC="不透明度,亮度锁定,模糊半径[,饱和度]"` | 仅影响 Fluent；Liquid Glass 原生材质验证可运行 `cargo run -p pecofence-render --example liquid_glass_preview -- .cache/glass.bmp`，或用 `liquid_glass_wallpaper … gpu --background 图片` 在指定图片上渲染 |
 
 ## 3. 标签页栅栏
 

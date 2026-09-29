@@ -1,5 +1,7 @@
 //! Material regression render over the real wallpaper, without capturing desktop windows.
-//! Args: output.bmp left top width height dpi-scale [gpu]
+//! Args: output.bmp left top width height dpi-scale [gpu] [tab-mode] [title-size]
+//! `--background image` renders over that image instead, as one monitor at its own size
+//! placed at the desktop origin (for comparisons over detailed backgrounds).
 use pecofence_platform::{com::OleGuard, wallpaper, window};
 use pecofence_render::{
     BitmapCache, Image, Matrix3x2, MonitorBackdrop, Theme, WallpaperPosition,
@@ -30,7 +32,12 @@ fn save_bmp(path: &Path, image: &Image) -> std::io::Result<()> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     window::set_process_dpi_awareness_v2();
     let _ole = OleGuard::init()?;
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+    let background_image = args.iter().position(|a| a == "--background").map(|i| {
+        let path = args.get(i + 1).cloned().unwrap_or_default();
+        args.drain(i..(i + 2).min(args.len()));
+        std::path::PathBuf::from(path)
+    });
     let output = args
         .get(1)
         .map(String::as_str)
@@ -39,43 +46,56 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         |i: usize, fallback: i32| args.get(i).and_then(|v| v.parse().ok()).unwrap_or(fallback);
     let (left, top, w, h) = (arg(2, 734), arg(3, 1652), arg(4, 800), arg(5, 298));
     let scale: f32 = args.get(6).and_then(|v| v.parse().ok()).unwrap_or(2.0);
-    let snapshot = wallpaper::query()?;
-    let monitor = snapshot
-        .monitors
-        .iter()
-        .find(|m| {
-            left >= m.rect.left
-                && top >= m.rect.top
-                && left + w <= m.rect.right
-                && top + h <= m.rect.bottom
-        })
-        .ok_or("Requested plate must fit one monitor")?;
-    let path = monitor.path.as_ref().ok_or("Picture wallpaper required")?;
-    let mw = monitor.rect.right - monitor.rect.left;
-    let mh = monitor.rect.bottom - monitor.rect.top;
-    let decoded = wallpaper::decode_scaled(path, mw as u32, mh as u32)?;
-    let image = Image {
-        width: decoded.width,
-        height: decoded.height,
-        bgra: decoded.bgra,
-    };
-    let position = match snapshot.position {
-        wallpaper::Position::Center => WallpaperPosition::Center,
-        wallpaper::Position::Tile => WallpaperPosition::Tile,
-        wallpaper::Position::Stretch => WallpaperPosition::Stretch,
-        wallpaper::Position::Fit => WallpaperPosition::Fit,
-        wallpaper::Position::Fill => WallpaperPosition::Fill,
-        wallpaper::Position::Span => WallpaperPosition::Span,
+    let (image, position, origin, mw, mh, fill) = if let Some(path) = &background_image {
+        let decoded = wallpaper::decode_scaled(path, 16384, 16384)?;
+        let (mw, mh) = (decoded.width as i32, decoded.height as i32);
+        let image = Image {
+            width: decoded.width,
+            height: decoded.height,
+            bgra: decoded.bgra,
+        };
+        (image, WallpaperPosition::Fill, (0, 0), mw, mh, [0, 0, 0])
+    } else {
+        let snapshot = wallpaper::query()?;
+        let monitor = snapshot
+            .monitors
+            .iter()
+            .find(|m| {
+                left >= m.rect.left
+                    && top >= m.rect.top
+                    && left + w <= m.rect.right
+                    && top + h <= m.rect.bottom
+            })
+            .ok_or("Requested plate must fit one monitor")?;
+        let path = monitor.path.as_ref().ok_or("Picture wallpaper required")?;
+        let mw = monitor.rect.right - monitor.rect.left;
+        let mh = monitor.rect.bottom - monitor.rect.top;
+        let decoded = wallpaper::decode_scaled(path, mw as u32, mh as u32)?;
+        let image = Image {
+            width: decoded.width,
+            height: decoded.height,
+            bgra: decoded.bgra,
+        };
+        let position = match snapshot.position {
+            wallpaper::Position::Center => WallpaperPosition::Center,
+            wallpaper::Position::Tile => WallpaperPosition::Tile,
+            wallpaper::Position::Stretch => WallpaperPosition::Stretch,
+            wallpaper::Position::Fit => WallpaperPosition::Fit,
+            wallpaper::Position::Fill => WallpaperPosition::Fill,
+            wallpaper::Position::Span => WallpaperPosition::Span,
+        };
+        let origin = (monitor.rect.left, monitor.rect.top);
+        (image, position, origin, mw, mh, snapshot.background)
     };
     let theme = Theme::dark().with_liquid_glass();
     let background = MonitorBackdrop::build(
         &image,
         position,
-        monitor.rect.left,
-        monitor.rect.top,
+        origin.0,
+        origin.1,
         mw,
         mh,
-        snapshot.background,
+        fill,
         theme.acrylic_tint(),
         1,
     );
@@ -98,12 +118,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Vec::new()
     } else {
         let mut x = 8.0;
-        ["文件与文档", "图片"]
-            .into_iter()
+        // "narrow": a crowded strip squeezes three pills to 37 DIP (a 172 DIP fence).
+        let titles: &[&str] = if tab_mode == "narrow" {
+            &["游戏", "程序", "图片"]
+        } else {
+            &["文件与文档", "图片"]
+        };
+        titles
+            .iter()
+            .copied()
             .enumerate()
             .map(|(i, title)| {
-                let w = pecofence_render::text::measure_width(title, chrome.tab_format(title_size))
-                    + 24.0;
+                let w = if tab_mode == "narrow" {
+                    37.0
+                } else {
+                    pecofence_render::text::measure_width(title, chrome.tab_format(title_size))
+                        + 24.0
+                };
                 let tab = TabDraw {
                     key: 100 + i as u128,
                     x,
