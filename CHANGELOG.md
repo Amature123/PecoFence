@@ -10,6 +10,7 @@
 - When a dragged fence's title is over another fence's title, that fence gets the white outline: releasing there adds the dragged fence to it as a tab. The outline used to disappear in that spot, which looked like a glitch.
 - The drop outline no longer stays on screen after a Liquid Glass drag is cancelled with Esc or a right-click, and no longer flashes on top of the dragged fence every two seconds (the desktop-layer check took it for a foreign window).
 - The 「在此新建栅栏」 menu that appears after drawing a rectangle on the empty desktop closes again when you click elsewhere or press Esc. It used to stay open until its item was chosen, and rectangles drawn meanwhile queued up more of them.
+- The settings window follows Windows 11 Settings: neutral colours, plain 20 DIP icons, 14 / 12 px text and On / Off captions beside every switch; the slogans, the banner picture and the tinted sidebar are gone. Fluent and Liquid Glass are picked from two preview tiles that show the icon size, tint and Chameleon settings live. Icon tint and fence tint are colour swatches; alignment guides and the Peek hotkey sit under the switch they depend on and turn grey while it is off. Rules are one compact row each, the quick-add templates are chips inside their card, and the new-rule form opens on demand. The fence picker heads the 「栅栏」 page, and restoring the desktop icons moved to 「故障排除」 on the About page. Chinese, Japanese and Korean text in the window uses the font of the interface language, and 「显示语言」 is listed under 「外观」 again.
 
 ## 0.1.1
 

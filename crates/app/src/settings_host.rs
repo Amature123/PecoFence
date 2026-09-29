@@ -87,7 +87,7 @@ impl SettingsHost {
         class: &WindowClass,
         env: &WebEnvironment,
         mode: ThemeMode,
-        liquid_glass: bool,
+        _liquid_glass: bool,
         queue: CommandQueue,
     ) -> Result<Self> {
         let state = Rc::new(RefCell::new(HostState {
@@ -169,13 +169,13 @@ impl SettingsHost {
         let hwnd = window.hwnd();
         tracing::debug!(?hwnd, "settings: host window created");
         let _ = dwm::set_immersive_dark_mode(hwnd, matches!(mode, ThemeMode::Dark));
-        apply_caption(hwnd, mode, false, liquid_glass);
+        apply_caption(hwnd, mode, false);
         // A transparent page needs the WebView2 *composition* controller (HWND children cannot be
         // per-pixel transparent); windows-webview 0.100 only wraps the HWND controller, so the
         // Mica sheet stays behind an experiment flag and the page paints the theme's base colour.
         let mica = pecofence_core::brand::var_os("PECOFENCE_SETTINGS_MICA").is_some()
             && dwm::set_system_backdrop(hwnd, dwm::SystemBackdrop::MainWindow).is_ok();
-        apply_caption(hwnd, mode, mica, liquid_glass);
+        apply_caption(hwnd, mode, mica);
 
         // SAFETY: `hwnd` is a live window owned by this thread and outlives the controller
         // (the controller is closed in WM_DESTROY).
@@ -188,7 +188,7 @@ impl SettingsHost {
         let (cw, ch) = window.client_size();
         controller.set_bounds(0, 0, cw, ch)?;
         // Transparent page over DWM Mica; opaque theme colour when Mica is unavailable.
-        controller.set_default_background_color(page_background(mode, mica, liquid_glass))?;
+        controller.set_default_background_color(page_background(mode, mica))?;
         if let Ok(settings) = webview.settings() {
             let _ = settings.set_default_context_menus_enabled(false);
             let _ = settings.set_status_bar_enabled(false);
@@ -258,7 +258,6 @@ impl SettingsHost {
         );
     }
 
-    /// Re-themes the caption and the page background after a light/dark switch.
     /// Sets the window's caption icons (`WM_SETICON` small + big) from premultiplied BGRA.
     pub fn set_icons(&mut self, small: (i32, Vec<u8>), big: (i32, Vec<u8>)) {
         const WM_SETICON: u32 = 0x0080;
@@ -272,11 +271,13 @@ impl SettingsHost {
         self.icons = icons;
     }
 
-    pub fn set_theme(&self, mode: ThemeMode, liquid_glass: bool) {
+    /// Re-themes the caption and the page background after a light/dark switch. The sheet is
+    /// the same for both materials: an opaque window has nothing for Liquid Glass to refract.
+    pub fn set_theme(&self, mode: ThemeMode, _liquid_glass: bool) {
         let _ = dwm::set_immersive_dark_mode(self.window.hwnd(), matches!(mode, ThemeMode::Dark));
-        apply_caption(self.window.hwnd(), mode, self.mica, liquid_glass);
+        apply_caption(self.window.hwnd(), mode, self.mica);
         if let Some(c) = self.state.borrow().controller.as_ref() {
-            let _ = c.set_default_background_color(page_background(mode, self.mica, liquid_glass));
+            let _ = c.set_default_background_color(page_background(mode, self.mica));
         }
     }
 
@@ -301,7 +302,7 @@ impl SettingsHost {
 }
 
 /// Page background: fully transparent over Mica, else the theme's solid base colour.
-fn page_background(mode: ThemeMode, mica: bool, liquid_glass: bool) -> windows_webview::Color {
+fn page_background(mode: ThemeMode, mica: bool) -> windows_webview::Color {
     if mica {
         return windows_webview::Color {
             a: 0,
@@ -311,21 +312,19 @@ fn page_background(mode: ThemeMode, mica: bool, liquid_glass: bool) -> windows_w
         };
     }
     // Keep these RGB values in sync with --sheet in the embedded settings document.
-    let (r, g, b) = match (mode, liquid_glass) {
-        (ThemeMode::Dark, true) => (0x24, 0x25, 0x28),
-        (ThemeMode::Light, true) => (0xE2, 0xE3, 0xE7),
-        (ThemeMode::Dark, false) => (0x15, 0x1D, 0x23),
-        (ThemeMode::Light, false) => (0xF4, 0xF7, 0xF8),
+    let (r, g, b) = match mode {
+        ThemeMode::Dark => (0x20, 0x20, 0x20),
+        ThemeMode::Light => (0xF3, 0xF3, 0xF3),
     };
     windows_webview::Color { a: 255, r, g, b }
 }
 
 /// Match the page sheet so the native caption belongs to the same surface.
-fn apply_caption(hwnd: HWND, mode: ThemeMode, mica: bool, liquid_glass: bool) {
+fn apply_caption(hwnd: HWND, mode: ThemeMode, mica: bool) {
     if mica {
         return;
     }
-    let bg = page_background(mode, false, liquid_glass);
+    let bg = page_background(mode, false);
     // DWM takes COLORREF (0x00BBGGRR).
     let c = u32::from(bg.r) | (u32::from(bg.g) << 8) | (u32::from(bg.b) << 16);
     let _ = dwm::set_caption_color(hwnd, c);
