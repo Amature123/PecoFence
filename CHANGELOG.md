@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Alignment guides while dragging (「显示对齐参考线」, `snapping.guideLines`, on for new configurations): thin white lines along the edges a moved or resized fence lines up with, and along the screen's centre line when it snapped there.
+- Dragged fences also snap to the screen's centre lines (centred horizontally / vertically on the work area). Holding Alt while dragging or resizing moves freely, without snapping.
+- When a dragged fence's title is over another fence's title, that fence gets the white outline: releasing there adds the dragged fence to it as a tab. The outline used to disappear in that spot, which looked like a glitch.
+- The drop outline no longer stays on screen after a Liquid Glass drag is cancelled with Esc or a right-click, and no longer flashes on top of the dragged fence every two seconds (the desktop-layer check took it for a foreign window).
+
 ## 0.1.1
 
 - Switching virtual desktops no longer blanks the fences: they slide out and in with the desktop, content and glass together, instead of disappearing for the whole animation and popping back afterwards. The other desktops' wallpapers are prepared in the background, so a fence already shows the new desktop's picture as it slides in (about 33 MB more per extra 4K wallpaper). During taskbar-thumbnail Aero Peek fences now fade like other windows.

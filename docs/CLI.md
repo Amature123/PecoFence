@@ -210,8 +210,8 @@ is rejected with `invalid_value` and the hint to re-save it (`| Set-Content -Enc
 `themeStyle`, `hideRealIcons`, `autostart`, `peek.enabled`, `quickHide.enabled`, `quickHide.delayMs`,
 `rollUp.hoverPeek`, `rollUp.clickToExpand`, `snapping.enabled`, `snapping.gapPx` (the gap, in DIPs,
 fences keep to each other and the screen edges while snapping; 0 to 64, default 8),
-`icons.chameleon`. `snapping.sizeToCells` and `snapping.guideLines` are stored but not used yet;
-setting them returns a `warning` saying so.
+`snapping.sizeToCells` (resizing keeps whole icon columns and rows), `snapping.guideLines`
+(alignment guides while dragging, default on), `icons.chameleon`.
 `describe --schema Settings` lists them all with their allowed values (the name is matched
 case-insensitively; an unknown name is a `usage` error listing `details.allowed`).
 

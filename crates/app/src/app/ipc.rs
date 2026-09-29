@@ -402,11 +402,6 @@ pub(super) fn snapshot_dto(s: &Snapshot, device_paths: &[String]) -> SnapshotDto
     }
 }
 
-/// Settings that are stored but not acted on yet; patching them gets a warning instead of a
-/// silent `changed: true`.
-const INERT_SETTINGS: &[(&str, fn(&Settings) -> bool)] =
-    &[("snapping.guideLines", |s| s.snapping.guide_lines)];
-
 /// `AdjustedDto` when the app's final rect differs from `requested` by more than the 1 px the
 /// DIP round trip of the saved geometry can introduce at fractional scale factors.
 pub(super) fn adjusted(requested: Rect, applied: Rect, reason: &str) -> Option<AdjustedDto> {
@@ -681,17 +676,6 @@ impl App {
                     self.ipc_warnings.push(format!(
                         "PecoFence rolled back {}: the change could not be applied (see the log)",
                         rolled_back.join(", ")
-                    ));
-                }
-                let inert: Vec<&str> = INERT_SETTINGS
-                    .iter()
-                    .filter(|(_, get)| get(&before) != get(after))
-                    .map(|(name, _)| *name)
-                    .collect();
-                if !inert.is_empty() {
-                    self.ipc_warnings.push(format!(
-                        "{} is stored but has no effect in this version",
-                        inert.join(", ")
                     ));
                 }
                 Ok(mutation(

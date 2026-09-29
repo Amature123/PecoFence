@@ -519,6 +519,7 @@ impl App {
             .behavior
             .size_to_cells
             .set(new.snapping.size_to_cells);
+        self.ctx.behavior.guide_lines.set(new.snapping.guide_lines);
         self.ctx
             .behavior
             .click_to_expand

@@ -552,7 +552,7 @@ pub(super) fn on_exitsizemove(
     } = h;
     let fence_id = h.fence_id;
     in_size_move.set(false);
-    hide_drop_preview(&h.behavior);
+    hide_drag_feedback(&h.behavior);
     let rect = window::window_rect(hwnd);
     let at_enter = rect_at_enter.get();
     let same_size = (rect.right - rect.left, rect.bottom - rect.top)
@@ -703,9 +703,10 @@ pub(super) fn on_sizing(h: &HandlerCtx, hwnd: HWND, wparam: usize, lparam: isize
         let n = if floor { n.floor() } else { n.round() };
         (fixed_px + n.max(1.0) * row_px).round() as i32
     };
-    if behavior.snapping.get() && !cells {
+    let paused = behavior.snapping.get() && snap_paused();
+    if behavior.snapping.get() && !cells && !paused {
         // Free sizes: a dragged side edge snaps to the other fences' side edges (aligned, or
-        // a gap apart), so fences can be sized to line up exactly.
+        // a gap apart), so fences can be sized to line up exactly. Alt held: free.
         let gap = (behavior.snap_gap_dip.get() as f32 * scale).round() as i32;
         let dist = (SNAP_DIST_DIP as f32 * scale) as i32;
         let edges: Vec<i32> = other_fence_rects(hwnd)
@@ -772,6 +773,19 @@ pub(super) fn on_sizing(h: &HandlerCtx, hwnd: HWND, wparam: usize, lparam: isize
             rect.top = rect.bottom - snap_h(rect.bottom - limit, true);
         }
     }
+    // Guides along a dragged side edge that ends up level with another fence's side edge.
+    let guides: Vec<_> = if behavior.snapping.get() && !paused && (left_edge || right_edge) {
+        alignment_guides(rect, &other_fence_rects(hwnd), None, i32::MAX / 4)
+            .into_iter()
+            .filter(|g| {
+                g.vertical
+                    && ((right_edge && g.at == rect.right) || (left_edge && g.at == rect.left))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    show_guides(behavior, hwnd, &guides);
     Some(1)
 }
 
@@ -782,6 +796,7 @@ pub(super) fn on_moving(
     lparam: isize,
 ) -> Option<isize> {
     let HandlerCtx {
+        view,
         queue,
         behavior,
         grab_offset,
@@ -790,9 +805,8 @@ pub(super) fn on_moving(
         ..
     } = h;
     // Drag-to-merge: light up the title of the fence under the cursor.
-    let target = merge_target_under_cursor(hwnd)
-        .map(|h| h.0 as isize)
-        .unwrap_or(0);
+    let merge = merge_target_under_cursor(hwnd);
+    let target = merge.map_or(0, |h| h.0 as isize);
     // SAFETY: lParam is the RECT* of the window being dragged for this
     // message.
     let rect = unsafe { &mut *(lparam as *mut RECT) };
@@ -807,18 +821,24 @@ pub(super) fn on_moving(
     rect.bottom = rect.top + h;
     // Snapping and merging fight: the 8 px snap would hold the dragged fence
     // at the target's outer edge while the cursor is already on its title.
-    // Follow the cursor freely over a target.
-    if behavior.snapping.get() && target == 0 {
+    // Follow the cursor freely over a target, and while Alt is held.
+    let mut guides = Vec::new();
+    if behavior.snapping.get() && target == 0 && !snap_paused() {
         // Snap to other fences and the work area (snapping.gapPx gap, 10 px capture).
         let scale = monitors::dpi_for_window(hwnd).max(96) as f32 / 96.0;
-        snap_rect(
+        guides = snap_rect(
             rect,
             hwnd,
             (behavior.snap_gap_dip.get() as f32 * scale) as i32,
             (SNAP_DIST_DIP as f32 * scale) as i32,
         );
     }
-    update_drop_preview(behavior, hwnd, rect, target != 0);
+    let radius = view
+        .try_borrow()
+        .ok()
+        .and_then(|g| g.as_ref().map(|v| v.theme.corner_radius))
+        .unwrap_or(8.0);
+    update_drag_feedback(behavior, hwnd, rect, merge, &guides, radius);
     // Re-sent while the pointer moves along a target's strip so the
     // insertion gap follows it (cheap: the target ignores an unchanged slot).
     let target_changed = merge_target.replace(target) != target;

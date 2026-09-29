@@ -275,9 +275,15 @@ impl Default for RollUpSettings {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SnappingSettings {
+    /// Dragged fences snap to other fences, the screen edges and the screen's centre lines
+    /// (Alt held: free).
     pub enabled: bool,
+    /// Gap, in DIPs, fences keep to each other and the screen edges while snapping.
     pub gap_px: i32,
+    /// Resizing keeps whole icon columns and rows.
     pub size_to_cells: bool,
+    /// While snapping, guide lines along the edges a dragged or resized fence lines up with
+    /// and the screen centre lines it snapped to.
     pub guide_lines: bool,
 }
 
@@ -287,7 +293,7 @@ impl Default for SnappingSettings {
             enabled: true,
             gap_px: 8,
             size_to_cells: false,
-            guide_lines: false,
+            guide_lines: true,
         }
     }
 }

@@ -113,6 +113,8 @@ pub struct Behavior {
     pub snap_gap_dip: std::cell::Cell<i32>,
     /// Resizing keeps whole icon columns and rows (`snapping.sizeToCells`).
     pub size_to_cells: std::cell::Cell<bool>,
+    /// Alignment guides while dragging / resizing with snapping on (`snapping.guideLines`).
+    pub guide_lines: std::cell::Cell<bool>,
     pub backdrop: std::cell::Cell<BackdropMode>,
     /// Rolled fences expand on a single title click (hover peek off while set).
     pub click_to_expand: std::cell::Cell<bool>,
@@ -123,8 +125,10 @@ pub struct Behavior {
     /// `SPI_GETWHEELSCROLLLINES`: rows per wheel notch; `u32::MAX` (`WHEEL_PAGESCROLL`) = one
     /// viewport, 0 = the wheel does not scroll. Refreshed on WM_SETTINGCHANGE.
     pub wheel_lines: std::cell::Cell<u32>,
-    /// Outline of the spot a fence dragged over another one will move to on release.
+    /// Outline of the spot a fence dragged over another one will move to on release, or of
+    /// the fence it would join as a tab.
     pub drop_preview: std::cell::RefCell<Option<crate::drop_preview::DropPreview>>,
+    pub drag_guides: std::cell::RefCell<Option<crate::drag_guides::DragGuides>>,
 }
 
 /// How the shown items fit the window (see [`FenceWindow::fit_report`]).

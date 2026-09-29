@@ -28,9 +28,11 @@ pub(super) fn focus_session(view: &RefCell<Option<FenceViewState>>, hwnd: HWND) 
 }
 
 /// Second half of a cancelled tab / tear-off drag, with no borrow held: releases the capture
-/// (WM_CAPTURECHANGED then finds no drag to commit) and hands a torn-off fence back to its host.
-pub(super) fn finish_drag_cancel(cancel: DragCancel, queue: &CommandQueue) {
+/// (WM_CAPTURECHANGED then finds no drag to commit), takes the drop outline and guides down and
+/// hands a torn-off fence back to its host.
+pub(super) fn finish_drag_cancel(cancel: DragCancel, queue: &CommandQueue, behavior: &Behavior) {
     window::release_capture();
+    hide_drag_feedback(behavior);
     let clear_hint = |hinted| {
         if hinted {
             queue.push(Command::MergeHint {

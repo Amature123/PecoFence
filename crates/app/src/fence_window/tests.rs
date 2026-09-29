@@ -1,4 +1,5 @@
 use super::*;
+use crate::drag_guides::GuideLine;
 
 #[test]
 fn window_drag_keeps_the_latest_sample_and_release_before_first_frame() {
@@ -693,4 +694,113 @@ fn scrollbar_drag_inverse_reaches_max_scroll() {
     let dy = thumb_y(max_scroll) - thumb_y(0.0);
     let scrolled = dy * (content_h - view_h) / (track_h - thumb_h);
     assert!((scrolled - max_scroll).abs() < 1e-3);
+}
+
+fn rc(left: i32, top: i32, right: i32, bottom: i32) -> RECT {
+    RECT {
+        left,
+        top,
+        right,
+        bottom,
+    }
+}
+
+/// A fence dragged near the middle of the work area snaps to be centred on it, and the centre
+/// guides span the work area; far from the middle it stays where the pointer put it.
+#[test]
+fn drag_snaps_to_the_work_area_centre_lines() {
+    let work = rc(0, 0, 3840, 2064);
+    let mut r = rc(1600, 900, 2241, 1161); // 641 x 261: centred across, 2 px above the middle
+    snap_among(&mut r, &[], Some(&work), 16, 20);
+    assert_eq!((r.left, r.top), (1920 - 641 / 2, 1032 - 261 / 2));
+    let guides = alignment_guides(&r, &[], Some(&work), 20);
+    assert_eq!(
+        guides,
+        vec![
+            GuideLine {
+                vertical: true,
+                at: 1920,
+                from: 0,
+                to: 2064,
+            },
+            GuideLine {
+                vertical: false,
+                at: 1032,
+                from: 0,
+                to: 3840,
+            },
+        ]
+    );
+    let mut far = rc(1000, 300, 1641, 561);
+    snap_among(&mut far, &[], Some(&work), 16, 20);
+    assert_eq!((far.left, far.top), (1000, 300));
+    assert!(alignment_guides(&far, &[], Some(&work), 20).is_empty());
+}
+
+/// Edges level with a nearby fence get one guide spanning both fences (a second fence on the
+/// same line extends it); a gap-apart neighbour or a far fence gets none.
+#[test]
+fn guides_join_level_edges_of_nearby_fences() {
+    let above = rc(100, 100, 500, 400);
+    let below_far = rc(100, 1500, 300, 1600);
+    let beside = rc(708, 416, 900, 700);
+    // Stacked a gap below `above`, same left edge; `beside` is a gap to the right, same top.
+    let me = rc(100, 416, 692, 700);
+    let guides = alignment_guides(&me, &[above, below_far, beside], None, 20);
+    assert!(guides.contains(&GuideLine {
+        vertical: true,
+        at: 100,
+        from: 100,
+        to: 700,
+    }));
+    assert!(guides.contains(&GuideLine {
+        vertical: false,
+        at: 416,
+        from: 100,
+        to: 900,
+    }));
+    assert!(guides.contains(&GuideLine {
+        vertical: false,
+        at: 700,
+        from: 100,
+        to: 900,
+    }));
+    assert_eq!(guides.len(), 3, "{guides:?}");
+    // A second stacked fence on the same left edge lengthens the same guide.
+    let under = rc(100, 716, 400, 900);
+    let guides = alignment_guides(&me, &[above, under], None, 20);
+    assert_eq!(
+        guides
+            .iter()
+            .filter(|g| g.vertical && g.at == 100)
+            .collect::<Vec<_>>(),
+        vec![&GuideLine {
+            vertical: true,
+            at: 100,
+            from: 100,
+            to: 900,
+        }]
+    );
+}
+
+/// Of two pulls within reach the nearer wins: a neighbour's edge or the work-area centre line.
+#[test]
+fn nearest_pull_wins_between_fences_and_centre_lines() {
+    let work = rc(0, 0, 2000, 1400);
+    let other = rc(100, 100, 1153, 400);
+    // Stacked just below `other`, 301 wide: same right is at 852, centred at 850.
+    let mut r = rc(853, 405, 1154, 600);
+    snap_among(&mut r, &[other], Some(&work), 8, 20);
+    assert_eq!(
+        (r.left, r.right, r.top),
+        (852, 1153, 408),
+        "same right beats the centre line; the gap below wins vertically"
+    );
+    let mut r = rc(849, 405, 1150, 600);
+    snap_among(&mut r, &[other], Some(&work), 8, 20);
+    assert_eq!(
+        (r.left, r.top),
+        (850, 408),
+        "the centre line beats same right"
+    );
 }
