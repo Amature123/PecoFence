@@ -532,8 +532,10 @@ impl App {
             .behavior
             .hide_inactive_scrollbar
             .set(new.roll_up.hide_inactive_scrollbar);
+        // The rows fill the height only with 「调整大小时保持为整数个图标」 on: relay them out.
         let chrome_changed = new.roll_up.title_on_hover != old.roll_up.title_on_hover
-            || new.roll_up.hide_inactive_scrollbar != old.roll_up.hide_inactive_scrollbar;
+            || new.roll_up.hide_inactive_scrollbar != old.roll_up.hide_inactive_scrollbar
+            || new.snapping.size_to_cells != old.snapping.size_to_cells;
         if chrome_changed {
             for w in self.fences.values() {
                 w.redraw();
@@ -547,15 +549,9 @@ impl App {
             || new.theme_style != old.theme_style
             || new.backdrop != old.backdrop;
         let icons_changed = new.icons != old.icons;
-        let cells_on = new.snapping.size_to_cells && !old.snapping.size_to_cells;
+        // 「调整大小时保持为整数个图标」 switched on keeps every rectangle: the rows fill any
+        // height with whole icons (redrawn above), and rounding would undo fences lined up.
         self.state.config.settings = new;
-        if cells_on {
-            // 「调整大小时保持为整数个图标」 just turned on: every fence takes whole cells now.
-            let ids: Vec<FenceId> = self.fences.keys().copied().collect();
-            for id in ids {
-                self.apply_cell_snap(id);
-            }
-        }
         self.refresh_language();
         self.state.mark_dirty();
         self.schedule_save();

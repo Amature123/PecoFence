@@ -991,14 +991,10 @@ impl App {
                 self.schedule_save();
             }
         }
-        let changed_dpi: Vec<FenceId> = self
-            .fences
-            .iter()
-            .filter_map(|(&id, window)| window.check_dpi().then_some(id))
-            .collect();
-        // Ordinary housekeeping must preserve a tabbed window's shared geometry.
-        for id in changed_dpi {
-            self.apply_cell_snap(id);
+        // A DPI that settled late re-lays the window out; its rectangle stays (the rows and
+        // columns share the rest, so it still shows whole icons).
+        for window in self.fences.values() {
+            window.check_dpi();
         }
         // Startup hide that kept failing: converge to the same end state as apply_settings
         // (setting reflects reality, user is told) instead of silently showing the toggle on.
@@ -1145,7 +1141,7 @@ impl App {
                         self.state.reorder_tab(host, fence, index);
                     }
                     self.resync_windows();
-                    self.apply_fence_view_with_snap(host, false);
+                    self.apply_fence_view(host);
                     if let Some(w) = self.fences.get(&host) {
                         self.queue.push(Command::RaiseFence(w.hwnd()));
                     }

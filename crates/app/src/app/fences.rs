@@ -54,7 +54,7 @@ impl App {
                 w.set_items(items);
                 // The window may have been kept across a layout switch (same FenceId, other
                 // per-fence view flags): push every persisted flag, not just items/title.
-                self.apply_fence_view_with_snap(fence.id, false);
+                self.apply_fence_view(fence.id);
                 continue;
             }
             let px = self.state.fence_px_rect(&fence);
@@ -80,9 +80,7 @@ impl App {
                 Ok(w) => {
                     w.set_tabs(tabs, active);
                     self.fences.insert(fence.id, w);
-                    // Loading/synchronizing a saved fence must preserve its rectangle.
-                    // User resizing and explicit icon/spacing changes still snap normally.
-                    self.apply_fence_view_with_snap(fence.id, false);
+                    self.apply_fence_view(fence.id);
                 }
                 Err(e) => tracing::error!(title = %fence.title, error = %e, "fence window failed"),
             }
@@ -152,14 +150,12 @@ impl App {
     }
 
     /// Pushes every persisted per-fence view flag (icon size, auto height, lock/appearance,
-    /// rolled state) into an existing window and re-applies the derived geometry rules. This is
-    /// the one place that makes a window agree with its `Fence`, whatever path changed the
-    /// state (startup, layout switch, display change).
+    /// rolled state) into an existing window and re-applies auto height. This is the one place
+    /// that makes a window agree with its `Fence`, whatever path changed the state (startup,
+    /// layout switch, display change, tabs, restore). The saved rectangle is kept: whole cells
+    /// are only re-taken by the explicit changes (`apply_cell_snap`), so fences the user lined
+    /// up stay lined up.
     pub(super) fn apply_fence_view(&mut self, id: FenceId) {
-        self.apply_fence_view_with_snap(id, true);
-    }
-
-    pub(super) fn apply_fence_view_with_snap(&mut self, id: FenceId, snap_geometry: bool) {
         // Geometry-ish flags (rolled, auto height, lock, appearance) belong to the host window;
         // content flags (icon size, layout, sort) to the tab being shown.
         let id = self.state.host_of(id);
@@ -199,9 +195,6 @@ impl App {
         }
         self.apply_fence_appearance(id); // locked + backdrop/opacity + quick-hide exclusion
         self.apply_portal_deco(id);
-        if snap_geometry {
-            self.apply_cell_snap(id);
-        }
         self.apply_auto_height(id);
     }
 
@@ -227,10 +220,11 @@ impl App {
     }
 
     /// 「调整大小时保持为整数个图标」 (`snapping.sizeToCells`, Fences' "sized to even
-    /// multiples of icons"): the width is whole icon columns and a fixed height whole rows.
-    /// Interactive resizing snaps in WM_SIZING; this applies the same rule to loaded fences,
-    /// icon-size changes, DPI drift and the setting being switched on. Off, sizes are free and
-    /// the icon grid spreads its columns over the width.
+    /// multiples of icons"): the width becomes whole icon columns and a fixed height whole rows.
+    /// Interactive resizing snaps in WM_SIZING; this applies the same rule to the explicit
+    /// changes of the cell size (icon size, spacing, layout, label lines). Other sizes still
+    /// show whole icons (the rows and columns share the rest), so loading, DPI changes, tabs
+    /// and switching the setting on keep the saved rectangle. Off, sizes are free.
     pub(super) fn apply_cell_snap(&mut self, id: FenceId) {
         let id = self.state.host_of(id);
         let Some(f) = self.state.fence(id).cloned() else {
@@ -287,7 +281,7 @@ impl App {
             if let Some(limit) = self.growth_limit_below(id, &r) {
                 let limit = limit.max(r.bottom);
                 if bottom > limit {
-                    bottom = r.top + steps.floor_height(limit - r.top);
+                    bottom = r.top + steps.height_within(limit - r.top);
                 }
             }
         }

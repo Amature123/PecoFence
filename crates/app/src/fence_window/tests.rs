@@ -804,3 +804,228 @@ fn nearest_pull_wins_between_fences_and_centre_lines() {
         "the centre line beats same right"
     );
 }
+
+/// 48 px icons (80 x 96 DIP cells) at 100 %: 36 DIP title, 8 DIP pads, whole columns and rows.
+fn cell_rules() -> SizeRules {
+    SizeRules {
+        cols: Some(Cells {
+            fixed: 0.0,
+            step: 80.0,
+        }),
+        rows: Some(Cells {
+            fixed: 54.0,
+            step: 96.0,
+        }),
+        min_w: 80,
+        min_h: 150,
+        rolled_h: None,
+    }
+}
+
+fn neighbours<'a>(others: &'a [RECT], work: Option<&'a RECT>, align: bool) -> Neighbours<'a> {
+    Neighbours {
+        others,
+        work,
+        gap: 8,
+        dist: 10,
+        align,
+    }
+}
+
+const BOTTOM: SizingEdges = SizingEdges {
+    left: false,
+    right: false,
+    top: false,
+    bottom: true,
+};
+
+/// Resizing with whole cells: a bottom edge near another fence's bottom lines up with it even
+/// though that fence's rows are another height (its guide shows); away from every fence, or
+/// with Alt held, the height takes whole rows.
+#[test]
+fn resized_bottom_lines_up_with_fences_of_other_icon_sizes() {
+    let cur = rc(100, 100, 420, 442); // 3 rows: 54 + 3 * 96
+    let beside = rc(428, 100, 700, 531); // a fence with other rows: 531 is not on our ladder
+    let rules = cell_rules();
+    let mut r = rc(100, 100, 420, 526);
+    let guides = size_among(
+        &mut r,
+        &cur,
+        BOTTOM,
+        &rules,
+        Some(&neighbours(&[beside], None, true)),
+    );
+    assert_eq!(r.bottom, 531);
+    assert_eq!(
+        guides,
+        vec![GuideLine {
+            vertical: false,
+            at: 531,
+            from: 100,
+            to: 700,
+        }]
+    );
+    // Alt held: whole rows (4 rows end at 538), no guide.
+    let mut r = rc(100, 100, 420, 526);
+    let guides = size_among(
+        &mut r,
+        &cur,
+        BOTTOM,
+        &rules,
+        Some(&neighbours(&[beside], None, false)),
+    );
+    assert_eq!(r.bottom, 538);
+    assert!(guides.is_empty());
+    // Out of reach: whole rows too.
+    let mut r = rc(100, 100, 420, 515);
+    size_among(
+        &mut r,
+        &cur,
+        BOTTOM,
+        &rules,
+        Some(&neighbours(&[beside], None, true)),
+    );
+    assert_eq!(r.bottom, 538);
+}
+
+/// Towards a fence below, the edge stops exactly a gap above it (a target within reach, the
+/// limit beyond), not a whole row short; the work area's edge a gap inside is a target too.
+/// Snapping off, only whole rows apply.
+#[test]
+fn resized_bottom_stops_a_gap_above_the_fence_below() {
+    let cur = rc(100, 100, 420, 442);
+    let below = rc(100, 700, 420, 900);
+    let work = rc(0, 0, 1920, 1040);
+    let rules = cell_rules();
+    for pointer in [686, 850] {
+        let mut r = rc(100, 100, 420, pointer);
+        size_among(
+            &mut r,
+            &cur,
+            BOTTOM,
+            &rules,
+            Some(&neighbours(&[below], Some(&work), true)),
+        );
+        assert_eq!(r.bottom, 692, "pointer at {pointer}");
+    }
+    let mut r = rc(100, 100, 420, 1025);
+    size_among(
+        &mut r,
+        &cur,
+        BOTTOM,
+        &rules,
+        Some(&neighbours(&[], Some(&work), true)),
+    );
+    assert_eq!(r.bottom, 1032);
+    let mut r = rc(100, 100, 420, 850);
+    assert!(size_among(&mut r, &cur, BOTTOM, &rules, None).is_empty());
+    assert_eq!(r.bottom, 826, "7 whole rows, no neighbour stop");
+}
+
+/// A side edge lines up with a stacked fence's side edge (guide along it) and otherwise takes
+/// whole columns; the height it does not touch stays as it is, whole rows or not.
+#[test]
+fn resized_side_edges_line_up_and_leave_the_height() {
+    let cur = rc(100, 100, 420, 431); // not whole rows: kept
+    let stacked = rc(150, 600, 437, 680);
+    let under_left = rc(40, 500, 300, 560);
+    let right = SizingEdges {
+        right: true,
+        ..SizingEdges::default()
+    };
+    let rules = cell_rules();
+    let mut r = rc(100, 100, 433, 431);
+    let guides = size_among(
+        &mut r,
+        &cur,
+        right,
+        &rules,
+        Some(&neighbours(&[stacked], None, true)),
+    );
+    assert_eq!((r.right, r.bottom), (437, 431));
+    assert_eq!(
+        guides,
+        vec![GuideLine {
+            vertical: true,
+            at: 437,
+            from: 100,
+            to: 680,
+        }]
+    );
+    let mut r = rc(100, 100, 470, 431);
+    size_among(
+        &mut r,
+        &cur,
+        right,
+        &rules,
+        Some(&neighbours(&[stacked], None, true)),
+    );
+    assert_eq!(r.right, 500, "5 whole columns");
+    let left = SizingEdges {
+        left: true,
+        ..SizingEdges::default()
+    };
+    let mut r = rc(45, 100, 420, 431);
+    size_among(
+        &mut r,
+        &cur,
+        left,
+        &rules,
+        Some(&neighbours(&[under_left], None, true)),
+    );
+    assert_eq!(r.left, 40);
+}
+
+/// The top edge lines up a gap below a fence above; a target leaving less than one row is
+/// ignored; a rolled fence stays one title bar tall whatever edge moves.
+#[test]
+fn resized_top_edge_minimum_and_rolled_fences() {
+    let cur = rc(100, 100, 420, 442);
+    let above = rc(100, 0, 420, 60);
+    let top = SizingEdges {
+        top: true,
+        ..SizingEdges::default()
+    };
+    let rules = cell_rules();
+    let mut r = rc(100, 72, 420, 442);
+    size_among(
+        &mut r,
+        &cur,
+        top,
+        &rules,
+        Some(&neighbours(&[above], None, true)),
+    );
+    assert_eq!(r.top, 68);
+    let short = rc(500, 150, 700, 245);
+    let mut r = rc(100, 100, 420, 248);
+    size_among(
+        &mut r,
+        &cur,
+        BOTTOM,
+        &rules,
+        Some(&neighbours(&[short], None, true)),
+    );
+    assert_eq!(r.bottom, 250, "245 would leave less than one row");
+    let rolled = SizeRules {
+        rolled_h: Some(36),
+        ..cell_rules()
+    };
+    let corner = SizingEdges {
+        right: true,
+        bottom: true,
+        ..SizingEdges::default()
+    };
+    let mut r = rc(100, 100, 470, 500);
+    size_among(&mut r, &rc(100, 100, 420, 136), corner, &rolled, None);
+    assert_eq!((r.right, r.bottom), (500, 136));
+    assert_eq!(SizingEdges::from_wmsz(8), corner);
+    assert_eq!(
+        SizingEdges::from_wmsz(4),
+        SizingEdges {
+            left: true,
+            top: true,
+            ..SizingEdges::default()
+        }
+    );
+    assert_eq!(SizingEdges::from_wmsz(3), top);
+}

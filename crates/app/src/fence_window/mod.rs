@@ -9,8 +9,8 @@ use crate::commands::{
 };
 use crate::icons::{IconCache, Lookup};
 use crate::layout::{
-    CellRect, DetailColumn, DetailColumns, Grid, GridMetrics, GroupSpan, ItemLayout, RowMetrics,
-    group_spans,
+    CellRect, DetailColumn, DetailColumns, FIT_SLACK_PX, Grid, GridMetrics, GroupSpan, ItemLayout,
+    RowMetrics, group_spans,
 };
 use crate::shadow::{ShadowStyle, ShadowWindow};
 use pecofence_core::{

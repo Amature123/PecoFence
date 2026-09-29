@@ -116,8 +116,8 @@ impl App {
         let started = Instant::now();
         self.resync_windows();
         let resynced_ms = started.elapsed().as_millis();
-        self.apply_fence_view_with_snap(host, false);
-        self.apply_fence_view_with_snap(tab, false);
+        self.apply_fence_view(host);
+        self.apply_fence_view(tab);
         if let Some(w) = self.fences.get(&tab) {
             // A departing host already owns this HWND; it must move too, even when
             // the mouse was released before the queued detach command ran.
@@ -194,7 +194,7 @@ impl App {
             return;
         }
         self.resync_windows();
-        self.apply_fence_view_with_snap(change.source_host, false);
+        self.apply_fence_view(change.source_host);
         if let (Some(fence), Some(window)) = (
             self.state.fence(change.source_host),
             self.fences.get(&change.source_host),
@@ -225,7 +225,7 @@ impl App {
         self.refresh_fence(tab);
         // The host's frame belongs to all tabs. Snapping it to each tab's different row
         // height made repeated Icons/Details switches grow the window and lose scroll.
-        self.apply_fence_view_with_snap(host, false);
+        self.apply_fence_view(host);
         self.schedule_save();
     }
 }

@@ -156,16 +156,21 @@ impl FenceViewState {
     /// exactly where it was (a collapsed container has no viewport of its own).
     pub(super) fn scroll_extent(&self) -> (ItemLayout, f32) {
         let scale = self.scale();
-        let (cw, ch) = self.content_size_px();
+        let (cw, _) = self.content_size_px();
         let layout = self.layout(cw as f32 / scale);
-        let ch = if self.rolled_up && self.roll_anim.is_none() {
+        let view_h = (self.viewport_h_px() as f32 / scale - layout.fixed_top()).max(1.0);
+        (layout, view_h)
+    }
+
+    /// Height (device px) of the content viewport, header included: the content panel, or
+    /// while rolled up the remembered expanded height below the title (see `scroll_extent`).
+    pub(super) fn viewport_h_px(&self) -> i32 {
+        if self.rolled_up && self.roll_anim.is_none() {
             let title_h = self.title_h_px();
             self.expanded_h_px.max(title_h + 40) - title_h
         } else {
-            ch
-        };
-        let view_h = (ch as f32 / scale - layout.fixed_top()).max(1.0);
-        (layout, view_h)
+            self.content_size_px().1
+        }
     }
 
     pub(super) fn scroll_max(&self) -> f32 {
