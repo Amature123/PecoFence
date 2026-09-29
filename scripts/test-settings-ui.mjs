@@ -117,7 +117,11 @@ async function runTests() {
     el.value = value;
     el.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
   };
-  const rulesPage = doc => doc.querySelector('[data-page=rules]').click();
+  // The new-rule form is a collapsed disclosure while rules exist; form tests open it first.
+  const rulesPage = doc => { doc.querySelector('[data-page=rules]').click(); doc.getElementById('nrPanel').open = true; };
+  const styleRadio = (doc, value) => doc.querySelector(`input[name=themeStyle][value=${value}]`);
+  const visible = el => frame.contentWindow.getComputedStyle(el).visibility === 'visible';
+  const rgbHex = rgb => rgb ? rgb.map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase() : '';
   const ruleCount = doc => doc.querySelectorAll('#ruleList [data-row-id]').length;
   const add = async doc => { doc.getElementById('nrAdd').click(); await settle(); };
   const errorShown = doc => doc.getElementById('toast').classList.contains('error');
@@ -379,27 +383,87 @@ async function runTests() {
     assert(doc.getElementById('workspaceSummary').textContent === '4 个栅栏 · 12 个项目', 'Workspace summary does not reflect host state');
   });
   await test('Liquid Glass persists independently of the colour mode and can switch back', async () => {
-    const select = doc.getElementById('themeStyle');
     const theme = doc.querySelector('[data-bind=theme]');
+    const glass = styleRadio(doc, 'liquidGlass'), fluent = styleRadio(doc, 'fluent');
     for (const mode of ['dark', 'light', 'followWindowsMode', 'followAppMode']) {
       theme.value = mode; theme.dispatchEvent(new frame.contentWindow.Event('change'));
-      select.focus();
-      change(doc, 'themeStyle', 'liquidGlass'); await settle();
+      glass.focus(); glass.click(); await settle();
       assert(current().settings.themeStyle === 'liquidGlass', 'Host did not receive the material');
       assert(current().settings.theme === mode && theme.value === mode, 'Style overwrote the colour preference');
       assert(doc.documentElement.classList.contains('liquid-glass'), 'Material not applied after host refresh');
-      assert(doc.activeElement === select, 'Material change lost keyboard focus');
-      assert(frame.contentWindow.getComputedStyle(doc.querySelector('.preview-title')).filter === 'none', 'Preview distorts foreground labels');
-      change(doc, 'themeStyle', 'fluent'); await settle();
+      assert(glass.checked && !fluent.checked, 'Selected tile not shown after host refresh');
+      assert(doc.activeElement === glass, 'Material change lost keyboard focus');
+      assert(frame.contentWindow.getComputedStyle(doc.querySelector('.tile-glass .preview-title')).filter === 'none', 'Preview distorts foreground labels');
+      fluent.click(); await settle();
       assert(!doc.documentElement.classList.contains('liquid-glass'), 'Material remained after switching back');
-      assert(frame.contentWindow.getComputedStyle(doc.querySelector('.preview-glass')).display === 'none', 'Optical layer remained visible');
     }
+    assert(doc.querySelector('.tile-glass .preview-glass') && !doc.querySelector('.tile-fluent .preview-glass'), 'Optical layer belongs to the Liquid Glass tile only');
   });
   await test('Older settings without a material field retain Fluent', async () => {
     delete current().settings.themeStyle;
     frame.contentWindow.testRefresh();
-    assert(doc.getElementById('themeStyle').value === 'fluent', 'Missing material has no valid selection');
+    assert(styleRadio(doc, 'fluent').checked, 'Missing material has no valid selection');
     assert(!doc.documentElement.classList.contains('liquid-glass'), 'Old settings changed the appearance');
+  });
+  await test('Switches show an On/Off caption that follows their state', async () => {
+    doc.querySelector('[data-page=general]').click();
+    const toggle = doc.querySelector('[data-bind=autostart]');
+    const label = toggle.parentElement.querySelector('.switch-label');
+    const shown = () => [...label.children].filter(visible).map(s => s.textContent);
+    assert(shown().join() === (toggle.classList.contains('on') ? '开' : '关'), 'Caption does not match the switch: ' + shown());
+    label.click(); await settle();
+    assert(toggle.classList.contains('on') && shown().join() === '开', 'Clicking the caption did not toggle the switch');
+    toggle.click(); await settle();
+    assert(!current().settings.autostart && shown().join() === '关', 'Caption did not follow the switch');
+  });
+  await test('Dependent rows are disabled while their master switch is off', async () => {
+    const guides = doc.querySelector('[data-bind="snapping.guideLines"]'), hotkey = doc.querySelector('[data-bind="peek.hotkey"]');
+    doc.querySelector('[data-bind="snapping.enabled"]').click(); await settle();
+    assert(!current().settings.snapping.enabled && guides.closest('.card').classList.contains('disabled'), 'Guide lines stay active without snapping');
+    const before = current().settings.snapping.guideLines;
+    guides.click(); await settle();
+    assert(current().settings.snapping.guideLines === before, 'A disabled switch still changed its setting');
+    assert(guides.getAttribute('aria-disabled') === 'true' && guides.tabIndex === -1, 'Disabled switch is still announced as enabled');
+    assert(!doc.querySelector('[data-bind="snapping.gapPx"]').disabled && !doc.querySelector('[data-bind="snapping.sizeToCells"]').closest('.card').classList.contains('disabled'), 'Independent snapping options were disabled');
+    doc.querySelector('[data-bind="snapping.enabled"]').click(); await settle();
+    assert(!guides.closest('.card').classList.contains('disabled') && guides.tabIndex === 0, 'Guide lines did not return');
+    doc.querySelector('[data-bind="peek.enabled"]').click(); await settle();
+    assert(hotkey.disabled && !doc.querySelector('[data-bind="peek.dim"]').closest('.card').classList.contains('disabled'), 'Peek hotkey/dim dependency wrong');
+    doc.querySelector('[data-bind="peek.enabled"]').click(); await settle();
+    assert(!hotkey.disabled, 'Hotkey stayed disabled');
+  });
+  await test('Colour swatches drive the hidden selects and keep keyboard focus', async () => {
+    const swatches = doc.getElementById('iconTintSwatches');
+    const red = swatches.querySelector('[data-value=E74856]');
+    red.focus(); red.click(); await settle();
+    assert(rgbHex(current().settings.icons.tintRgb) === 'E74856', 'Swatch did not post the tint');
+    assert(doc.getElementById('iconTint').value === 'E74856' && red.getAttribute('aria-checked') === 'true', 'Swatch state not reflected');
+    assert(doc.activeElement === red && red.tabIndex === 0, 'Swatch lost focus after the host refresh');
+    assert(!doc.getElementById('iconTintStrength').disabled, 'Strength unavailable with a tint');
+    red.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await settle();
+    assert(doc.activeElement.dataset.value === '8764B8' && doc.getElementById('iconTint').value === '8764B8', 'Arrow key did not move the selection');
+    swatches.querySelector('[data-value=""]').click(); await settle();
+    assert(current().settings.icons.tintRgb === null && doc.getElementById('iconTintStrength').disabled, 'No-tint swatch did not clear the tint');
+    doc.querySelector('[data-page=fences]').click();
+    change(doc, 'fenceSel', 'fence-a');
+    const blue = doc.querySelector('#fenceTintSwatches [data-value="0078D4"]');
+    blue.click(); await settle();
+    const sent = frame.contentWindow.testMessages.filter(m => m.type === 'setFence').at(-1);
+    assert(sent.prop === 'tint' && sent.value === '0078D4', 'Fence tint swatch did not post setFence');
+    assert(doc.querySelector('#fenceTintSwatches [data-value="0078D4"]').getAttribute('aria-checked') === 'true', 'Fence tint swatch not selected after refresh');
+    doc.querySelector('#fenceTintSwatches [data-value=""]').click(); await settle();
+  });
+  await test('Rule rows are compact and the new-rule form opens when needed', async () => {
+    doc = await reset();
+    doc.querySelector('[data-page=rules]').click();
+    const panel = doc.getElementById('nrPanel');
+    assert(!panel.open, 'New-rule form open although rules exist');
+    for (const row of doc.querySelectorAll('#ruleList .rule')) {
+      assert(row.getBoundingClientRect().height <= 64, 'Rule row keeps dead space: ' + row.getBoundingClientRect().height);
+    }
+    change(doc, 'nrKind', 'ext'); change(doc, 'nrValue', ' ');
+    await add(doc);
+    assert(panel.open && doc.activeElement.id === 'nrValue', 'Validation error did not reveal the field');
   });
   await test('Every page fits compact windows in both materials and colour modes', async () => {
     for (const width of [704, 480]) {
@@ -578,8 +642,7 @@ const server = http.createServer(async (request, response) => {
       initial.locale = language;
       initial.translations = catalogs[language] || {};
       if (url.pathname === '/preview') {
-        html = html.replace('<title>PecoFence 设置</title>', '<title>PecoFence · 设计预览</title>')
-          .replace('更改即时生效', '交互预览 · 不修改桌面');
+        html = html.replace('<title>PecoFence 设置</title>', '<title>PecoFence · 设计预览</title>');
         if (url.searchParams.get('style') === 'liquidGlass') initial.settings.themeStyle = 'liquidGlass';
         if (url.searchParams.get('mode') === 'light') {
           initial.settings.theme = 'light';
