@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Liquid Glass reworked after kube.io's refraction model: the face of a fence stays perfectly clear and all the bending sits in the rim, where a convex squircle bezel refracts the wallpaper with Snell's law (index 1.5). The very edge mirrors the backdrop like thick glass, and the magnification eases out over 40 DIP so no inner frame shows between the rim and the clear face. A thin specular ring is filled with the refracted wallpaper's colour, strongly saturated. The old material's whole-panel warp, blur and colour fringes are gone, and Liquid Glass corners are now 16 DIP. Moving a fence draws faster (one displacement pass instead of three), and GPU memory peaks lower while arranging fences (about 160 instead of 450 MB with 7 fences on a 4K monitor).
+- Tab names no longer vanish on a narrow fence: squeezed tab pills give up their padding (down to 8 DIP) before a caption is shortened with an ellipsis.
 - Alignment guides while dragging (「显示对齐参考线」, `snapping.guideLines`, on for new configurations): thin white lines along the edges a moved or resized fence lines up with, and along the screen's centre line when it snapped there.
 - Dragged fences also snap to the screen's centre lines (centred horizontally / vertically on the work area). Holding Alt while dragging or resizing moves freely, without snapping.
 - When a dragged fence's title is over another fence's title, that fence gets the white outline: releasing there adds the dragged fence to it as a tab. The outline used to disappear in that spot, which looked like a glitch.

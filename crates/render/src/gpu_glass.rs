@@ -1,5 +1,5 @@
 //! GPU glass over a shared wallpaper texture. Movement only updates a transform:
-//! the displacement field, glints, source upload and effect graph stay resident.
+//! the displacement field, specular ring, source upload and effect graph stay resident.
 use crate::{Image, MonitorBackdrop, gpu_bindings as b};
 use std::{
     collections::HashMap,
@@ -51,15 +51,11 @@ fn bitmap(
     height: u32,
     data: *const std::ffi::c_void,
     pitch: u32,
-    float: bool,
+    format: b::DXGI_FORMAT,
 ) -> Result<b::ID2D1Bitmap1> {
     let properties = b::D2D1_BITMAP_PROPERTIES1 {
         pixelFormat: b::D2D1_PIXEL_FORMAT {
-            format: if float {
-                b::DXGI_FORMAT_R32G32B32A32_FLOAT
-            } else {
-                b::DXGI_FORMAT_B8G8R8A8_UNORM
-            },
+            format,
             alphaMode: b::D2D1_ALPHA_MODE_PREMULTIPLIED,
         },
         dpiX: 96.0,
@@ -164,7 +160,7 @@ impl WallpaperCache {
                     *height,
                     bgra.as_ptr().cast(),
                     width * 4,
-                    false,
+                    b::DXGI_FORMAT_B8G8R8A8_UNORM,
                 )?;
                 let transform = unsafe { context.CreateEffect(&b::CLSID_D2D12DAffineTransform)? };
                 matrix(
@@ -219,33 +215,50 @@ pub struct Stats {
     pub control_map_builds: u64,
 }
 
+/// kube.io's SVG chain: displace the backdrop once, let a strongly saturated copy of the
+/// refracted backdrop show through the specular ring, then light the ring itself.
+const RIM_SATURATION: f32 = 6.0;
+const RIM_LIGHT: f32 = 0.4;
+
+/// feColorMatrix `saturate` (Rec. 709 luma weights) in D2D's input-row layout.
+fn saturation_matrix(s: f32) -> [f32; 20] {
+    let luma = [0.213, 0.715, 0.072];
+    let mut values = [0.0; 20];
+    for input in 0..3 {
+        for output in 0..3 {
+            values[input * 4 + output] =
+                luma[input] * (1.0 - s) + if input == output { s } else { 0.0 };
+        }
+    }
+    values[15] = 1.0;
+    values
+}
+
+/// Premultiplied white from the ring's alpha, scaled by `level`. `color_matrix` applies
+/// the matrix to premultiplied values, so colour must come from alpha, not an offset.
+fn light_matrix(level: f32) -> [f32; 20] {
+    let mut values = [0.0; 20];
+    values[12..16].fill(level);
+    values
+}
+
 struct Effects {
     source: Option<Rc<Wallpaper>>,
-    blur: b::ID2D1Effect,
+    border: b::ID2D1Effect,
     position: b::ID2D1Effect,
-    displace: [b::ID2D1Effect; 3],
+    displace: b::ID2D1Effect,
+    rim: b::ID2D1Effect,
+    light: b::ID2D1Effect,
     output: b::ID2D1Effect,
     surface: Rc<Wallpaper>,
-    glints: Option<b::ID2D1Bitmap1>,
     geometry: Option<(u32, u32, u32, u32)>,
     opacity: Option<u32>,
+    light_level: Option<u32>,
 }
 
 impl Effects {
     fn new(context: &b::ID2D1DeviceContext) -> Result<Self> {
         let effect = |id| unsafe { context.CreateEffect(id) };
-        let blur = effect(&b::CLSID_D2D1GaussianBlur)?;
-        enumeration(
-            &blur,
-            b::D2D1_GAUSSIANBLUR_PROP_BORDER_MODE,
-            b::D2D1_BORDER_MODE_HARD,
-        )?;
-        property(
-            &blur,
-            b::D2D1_PROPERTY_CACHED,
-            b::D2D1_PROPERTY_TYPE_BOOL,
-            &1u32,
-        )?;
         let border = effect(&b::CLSID_D2D1Border)?;
         enumeration(
             &border,
@@ -258,77 +271,56 @@ impl Effects {
             b::D2D1_BORDER_EDGE_MODE_CLAMP,
         )?;
         let position = effect(&b::CLSID_D2D12DAffineTransform)?;
-        unsafe {
-            border.SetInput(0, &blur.GetOutput()?, true);
-            position.SetInput(0, &border.GetOutput()?, true);
-        }
-        let displace = [
-            effect(&b::CLSID_D2D1DisplacementMap)?,
-            effect(&b::CLSID_D2D1DisplacementMap)?,
-            effect(&b::CLSID_D2D1DisplacementMap)?,
-        ];
-        let mut channels = Vec::new();
-        for (i, displacement) in displace.iter().enumerate() {
-            enumeration(
-                displacement,
-                b::D2D1_DISPLACEMENTMAP_PROP_X_CHANNEL_SELECT,
-                b::D2D1_CHANNEL_SELECTOR_R,
-            )?;
-            enumeration(
-                displacement,
-                b::D2D1_DISPLACEMENTMAP_PROP_Y_CHANNEL_SELECT,
-                b::D2D1_CHANNEL_SELECTOR_G,
-            )?;
-            unsafe { displacement.SetInput(0, &position.GetOutput()?, true) };
-            let channel = effect(&b::CLSID_D2D1ColorMatrix)?;
-            let mut values = [0.0; 20];
-            values[i * 5] = 1.0;
-            values[15] = 1.0;
-            color_matrix(&channel, values)?;
-            unsafe { channel.SetInput(0, &displacement.GetOutput()?, true) };
-            channels.push(channel);
-        }
-        let add = |a: &b::ID2D1Effect, c: &b::ID2D1Effect| -> Result<b::ID2D1Effect> {
-            let sum = effect(&b::CLSID_D2D1ArithmeticComposite)?;
-            property(
-                &sum,
-                b::D2D1_ARITHMETICCOMPOSITE_PROP_COEFFICIENTS,
-                b::D2D1_PROPERTY_TYPE_VECTOR4,
-                &[0.0f32, 1.0, 1.0, 0.0],
-            )?;
-            property(
-                &sum,
-                b::D2D1_ARITHMETICCOMPOSITE_PROP_CLAMP_OUTPUT,
-                b::D2D1_PROPERTY_TYPE_BOOL,
-                &1u32,
-            )?;
-            unsafe {
-                sum.SetInput(0, &a.GetOutput()?, true);
-                sum.SetInput(1, &c.GetOutput()?, true);
-            }
-            Ok(sum)
-        };
-        let red_green = add(&channels[0], &channels[1])?;
-        let rgb = add(&red_green, &channels[2])?;
-        let saturation = effect(&b::CLSID_D2D1Saturation)?;
-        scalar(&saturation, b::D2D1_SATURATION_PROP_SATURATION, 1.08)?;
+        let displace = effect(&b::CLSID_D2D1DisplacementMap)?;
+        enumeration(
+            &displace,
+            b::D2D1_DISPLACEMENTMAP_PROP_X_CHANNEL_SELECT,
+            b::D2D1_CHANNEL_SELECTOR_R,
+        )?;
+        enumeration(
+            &displace,
+            b::D2D1_DISPLACEMENTMAP_PROP_Y_CHANNEL_SELECT,
+            b::D2D1_CHANNEL_SELECTOR_G,
+        )?;
+        let saturate = effect(&b::CLSID_D2D1ColorMatrix)?;
+        color_matrix(&saturate, saturation_matrix(RIM_SATURATION))?;
+        property(
+            &saturate,
+            b::D2D1_COLORMATRIX_PROP_CLAMP_OUTPUT,
+            b::D2D1_PROPERTY_TYPE_BOOL,
+            &1u32,
+        )?;
+        // Input 1 (the ring) arrives with the geometry.
+        let rim = effect(&b::CLSID_D2D1AlphaMask)?;
+        let light = effect(&b::CLSID_D2D1ColorMatrix)?;
+        color_matrix(&light, light_matrix(RIM_LIGHT))?;
+        let composite = effect(&b::CLSID_D2D1Composite)?;
         let output = effect(&b::CLSID_D2D1ColorMatrix)?;
         unsafe {
-            saturation.SetInput(0, &rgb.GetOutput()?, true);
-            output.SetInput(0, &saturation.GetOutput()?, true);
+            position.SetInput(0, &border.GetOutput()?, true);
+            displace.SetInput(0, &position.GetOutput()?, true);
+            saturate.SetInput(0, &displace.GetOutput()?, true);
+            rim.SetInput(0, &saturate.GetOutput()?, true);
+            composite.SetInputCount(3).ok()?;
+            composite.SetInput(0, &displace.GetOutput()?, true);
+            composite.SetInput(1, &rim.GetOutput()?, true);
+            composite.SetInput(2, &light.GetOutput()?, true);
+            output.SetInput(0, &composite.GetOutput()?, true);
         }
         Ok(Self {
             source: None,
-            blur,
+            border,
             position,
             displace,
+            rim,
+            light,
             output,
             surface: Rc::new(Wallpaper {
-                image: unsafe { saturation.GetOutput()? },
+                image: unsafe { composite.GetOutput()? },
             }),
-            glints: None,
             geometry: None,
             opacity: None,
+            light_level: Some(RIM_LIGHT.to_bits()),
         })
     }
 
@@ -350,8 +342,8 @@ impl Effects {
             field.width,
             field.height,
             field.rgba.as_ptr().cast(),
-            field.width * 16,
-            true,
+            field.width * 8,
+            b::DXGI_FORMAT_R16G16B16A16_FLOAT,
         )?;
         // Effects use pixel coordinates; bitmap DPI alone does not resize input 1.
         // Explicitly resample the cached field to the window, clamping its outer texels.
@@ -378,36 +370,37 @@ impl Effects {
                 0.0,
             ],
         )?;
+        let ring = bitmap(
+            context,
+            field.rim_width,
+            field.rim_height,
+            field.rim.as_ptr().cast(),
+            field.rim_width,
+            b::DXGI_FORMAT_A8_UNORM,
+        )?
+        .cast::<b::ID2D1Image>()?;
+        scalar(
+            &self.displace,
+            b::D2D1_DISPLACEMENTMAP_PROP_SCALE,
+            field.scale_px,
+        )?;
         unsafe {
             map_border.SetInput(0, &map.cast::<b::ID2D1Image>()?, true);
             map_scale.SetInput(0, &map_border.GetOutput()?, true);
-        }
-        for (index, displacement) in self.displace.iter().enumerate() {
-            let factor = [1.0 - 0.045, 1.0, 1.0 + 0.045][index];
-            scalar(
-                displacement,
-                b::D2D1_DISPLACEMENTMAP_PROP_SCALE,
-                field.scale_px * factor,
-            )?;
-            unsafe { displacement.SetInput(1, &map_scale.GetOutput()?, true) };
-        }
-        self.glints = Some(bitmap(
-            context,
-            field.width,
-            field.height,
-            field.glints.as_ptr().cast(),
-            field.width * 4,
-            false,
-        )?);
-        if self.geometry.is_none_or(|old| old.2 != scale.to_bits()) {
-            scalar(
-                &self.blur,
-                b::D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION,
-                1.25 * scale,
-            )?;
+            self.displace.SetInput(1, &map_scale.GetOutput()?, true);
+            self.rim.SetInput(1, &ring, true);
+            self.light.SetInput(0, &ring, true);
         }
         self.geometry = Some(key);
         Ok(true)
+    }
+
+    fn set_light(&mut self, level: f32) -> Result<()> {
+        if self.light_level != Some(level.to_bits()) {
+            color_matrix(&self.light, light_matrix(level))?;
+            self.light_level = Some(level.to_bits());
+        }
+        Ok(())
     }
 }
 
@@ -542,7 +535,7 @@ impl GpuGlass {
             .as_ref()
             .is_none_or(|old| !Rc::ptr_eq(old, &source))
         {
-            unsafe { effects.blur.SetInput(0, &source.image, true) };
+            unsafe { effects.border.SetInput(0, &source.image, true) };
             effects.source = Some(source);
         }
         let (w, h) = (
@@ -607,7 +600,7 @@ impl GpuGlass {
             .as_ref()
             .is_none_or(|old| !Rc::ptr_eq(old, &source))
         {
-            unsafe { effects.blur.SetInput(0, &source.image, true) };
+            unsafe { effects.border.SetInput(0, &source.image, true) };
             effects.source = Some(source);
         }
         let w = rect[2].max(1) as u32;
@@ -628,6 +621,8 @@ impl GpuGlass {
             color_matrix(&effects.output, values)?;
             effects.opacity = Some(opacity.to_bits());
         }
+        // Hover lifts the rim light with the application's existing animation clock.
+        effects.set_light(RIM_LIGHT * (1.0 + 0.35 * hover.clamp(0.0, 1.0)))?;
         let area = b::D2D_RECT_F {
             left: 0.0,
             top: 0.0,
@@ -641,15 +636,6 @@ impl GpuGlass {
                 Some(&area),
                 b::D2D1_INTERPOLATION_MODE_LINEAR,
                 b::D2D1_COMPOSITE_MODE_SOURCE_OVER,
-            );
-            let light = (0.85 + 0.15 * opacity + 0.18 * hover.clamp(0.0, 1.0)) / 1.18;
-            context.DrawBitmap(
-                effects.glints.as_ref().unwrap(),
-                Some(&area),
-                opacity * light,
-                b::D2D1_INTERPOLATION_MODE_LINEAR,
-                None,
-                None,
             );
         }
         self.stats.frames += 1;

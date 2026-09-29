@@ -1,7 +1,7 @@
 pub const CLSID_D2D12DAffineTransform: windows_core::GUID =
     windows_core::GUID::from_u128(0x6aa97485_6354_4cfc_908c_e4a74f62c96c);
-pub const CLSID_D2D1ArithmeticComposite: windows_core::GUID =
-    windows_core::GUID::from_u128(0xfc151437_049a_4784_a24a_f1c4daf20987);
+pub const CLSID_D2D1AlphaMask: windows_core::GUID =
+    windows_core::GUID::from_u128(0xc80ecff0_3fd5_4f05_8328_c5d1724b4f0a);
 pub const CLSID_D2D1Border: windows_core::GUID =
     windows_core::GUID::from_u128(0x2a2d49c0_4acf_43c7_8c6a_7c4a27874d27);
 pub const CLSID_D2D1ColorMatrix: windows_core::GUID =
@@ -10,19 +10,12 @@ pub const CLSID_D2D1Composite: windows_core::GUID =
     windows_core::GUID::from_u128(0x48fc9f51_f6ac_48f1_8b58_3b28ac46f76d);
 pub const CLSID_D2D1DisplacementMap: windows_core::GUID =
     windows_core::GUID::from_u128(0xedc48364_0417_4111_9450_43845fa9f890);
-pub const CLSID_D2D1GaussianBlur: windows_core::GUID =
-    windows_core::GUID::from_u128(0x1feb6d69_2fe6_4ac9_8c58_1d7f93e7a6a5);
-pub const CLSID_D2D1Saturation: windows_core::GUID =
-    windows_core::GUID::from_u128(0x5cb2d9cf_327d_459f_a0ce_40c0b2086bf7);
 pub type D2D1_2DAFFINETRANSFORM_PROP = i32;
 pub const D2D1_2DAFFINETRANSFORM_PROP_TRANSFORM_MATRIX: D2D1_2DAFFINETRANSFORM_PROP = 2;
 pub type D2D1_ALPHA_MODE = i32;
 pub const D2D1_ALPHA_MODE_IGNORE: D2D1_ALPHA_MODE = 3;
 pub const D2D1_ALPHA_MODE_PREMULTIPLIED: D2D1_ALPHA_MODE = 1;
 pub type D2D1_ANTIALIAS_MODE = i32;
-pub type D2D1_ARITHMETICCOMPOSITE_PROP = i32;
-pub const D2D1_ARITHMETICCOMPOSITE_PROP_CLAMP_OUTPUT: D2D1_ARITHMETICCOMPOSITE_PROP = 1;
-pub const D2D1_ARITHMETICCOMPOSITE_PROP_COEFFICIENTS: D2D1_ARITHMETICCOMPOSITE_PROP = 0;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct D2D1_BITMAP_BRUSH_PROPERTIES {
@@ -38,7 +31,6 @@ pub struct D2D1_BITMAP_BRUSH_PROPERTIES1 {
     pub interpolationMode: D2D1_INTERPOLATION_MODE,
 }
 pub type D2D1_BITMAP_INTERPOLATION_MODE = i32;
-pub const D2D1_BITMAP_INTERPOLATION_MODE_LINEAR: D2D1_BITMAP_INTERPOLATION_MODE = 1;
 pub type D2D1_BITMAP_OPTIONS = u32;
 pub const D2D1_BITMAP_OPTIONS_NONE: D2D1_BITMAP_OPTIONS = 0;
 #[repr(C)]
@@ -59,8 +51,6 @@ pub struct D2D1_BITMAP_PROPERTIES1 {
 }
 pub type D2D1_BORDER_EDGE_MODE = i32;
 pub const D2D1_BORDER_EDGE_MODE_CLAMP: D2D1_BORDER_EDGE_MODE = 0;
-pub type D2D1_BORDER_MODE = i32;
-pub const D2D1_BORDER_MODE_HARD: D2D1_BORDER_MODE = 1;
 pub type D2D1_BORDER_PROP = i32;
 pub const D2D1_BORDER_PROP_EDGE_MODE_X: D2D1_BORDER_PROP = 0;
 pub const D2D1_BORDER_PROP_EDGE_MODE_Y: D2D1_BORDER_PROP = 1;
@@ -78,6 +68,7 @@ pub type D2D1_COLORMATRIX_ALPHA_MODE = i32;
 pub const D2D1_COLORMATRIX_ALPHA_MODE_STRAIGHT: D2D1_COLORMATRIX_ALPHA_MODE = 2;
 pub type D2D1_COLORMATRIX_PROP = i32;
 pub const D2D1_COLORMATRIX_PROP_ALPHA_MODE: D2D1_COLORMATRIX_PROP = 1;
+pub const D2D1_COLORMATRIX_PROP_CLAMP_OUTPUT: D2D1_COLORMATRIX_PROP = 2;
 pub const D2D1_COLORMATRIX_PROP_COLOR_MATRIX: D2D1_COLORMATRIX_PROP = 0;
 pub type D2D1_COLOR_INTERPOLATION_MODE = i32;
 pub type D2D1_COLOR_SPACE = i32;
@@ -108,9 +99,6 @@ pub type D2D1_EXTEND_MODE = i32;
 pub const D2D1_EXTEND_MODE_CLAMP: D2D1_EXTEND_MODE = 0;
 pub type D2D1_FEATURE_LEVEL = i32;
 pub type D2D1_GAMMA = i32;
-pub type D2D1_GAUSSIANBLUR_PROP = i32;
-pub const D2D1_GAUSSIANBLUR_PROP_BORDER_MODE: D2D1_GAUSSIANBLUR_PROP = 2;
-pub const D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION: D2D1_GAUSSIANBLUR_PROP = 0;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct D2D1_GRADIENT_STOP {
@@ -180,15 +168,12 @@ pub struct D2D1_PRINT_CONTROL_PROPERTIES {
     pub colorSpace: D2D1_COLOR_SPACE,
 }
 pub type D2D1_PRINT_FONT_SUBSET_MODE = i32;
-pub type D2D1_PROPERTY = i32;
-pub const D2D1_PROPERTY_CACHED: D2D1_PROPERTY = -2147483642;
 pub type D2D1_PROPERTY_TYPE = i32;
 pub const D2D1_PROPERTY_TYPE_BOOL: D2D1_PROPERTY_TYPE = 2;
 pub const D2D1_PROPERTY_TYPE_ENUM: D2D1_PROPERTY_TYPE = 11;
 pub const D2D1_PROPERTY_TYPE_FLOAT: D2D1_PROPERTY_TYPE = 5;
 pub const D2D1_PROPERTY_TYPE_MATRIX_3X2: D2D1_PROPERTY_TYPE = 14;
 pub const D2D1_PROPERTY_TYPE_MATRIX_5X4: D2D1_PROPERTY_TYPE = 17;
-pub const D2D1_PROPERTY_TYPE_VECTOR4: D2D1_PROPERTY_TYPE = 8;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES {
@@ -222,8 +207,6 @@ pub struct D2D1_ROUNDED_RECT {
     pub radiusX: f32,
     pub radiusY: f32,
 }
-pub type D2D1_SATURATION_PROP = i32;
-pub const D2D1_SATURATION_PROP_SATURATION: D2D1_SATURATION_PROP = 0;
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct D2D1_TAG(pub u64);
@@ -880,8 +863,9 @@ pub struct DWRITE_GLYPH_RUN_DESCRIPTION {
 }
 pub type DWRITE_MEASURING_MODE = i32;
 pub type DXGI_FORMAT = i32;
+pub const DXGI_FORMAT_A8_UNORM: DXGI_FORMAT = 65;
 pub const DXGI_FORMAT_B8G8R8A8_UNORM: DXGI_FORMAT = 87;
-pub const DXGI_FORMAT_R32G32B32A32_FLOAT: DXGI_FORMAT = 2;
+pub const DXGI_FORMAT_R16G16B16A16_FLOAT: DXGI_FORMAT = 10;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct DXGI_SAMPLE_DESC {
