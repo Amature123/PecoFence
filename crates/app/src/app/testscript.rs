@@ -15,6 +15,8 @@
 //! activate <title>           switch to a tab through the native command path
 //! housekeeping               run the same periodic maintenance as the one-minute timer
 //! bounds <title> <x> <y> <w> <h>  set a test window's physical rectangle
+//! size <title> <edge> <x> <y>     drag an edge (left, top-right, bottom …) to x / y through
+//!                            WM_SIZING, as the size loop does; `size-end <title>` releases it
 //! input <title> <action> <x> <y>  debug-only native mouse/cancel regression input
 //! pace <ms>                  debug-only script timer interval (default 50 ms)
 //! reorder <title> <index>    same command as the tab menu
@@ -148,6 +150,42 @@ impl App {
                             right: x + width,
                             bottom: y + height,
                         });
+                    }
+                }
+                ["size", title, edge, x, y] => {
+                    const EDGES: [&str; 8] = [
+                        "left",
+                        "right",
+                        "top",
+                        "top-left",
+                        "top-right",
+                        "bottom",
+                        "bottom-left",
+                        "bottom-right",
+                    ];
+                    if let (Some(wmsz), Some(id), Ok(x), Ok(y)) = (
+                        EDGES.iter().position(|e| e == edge),
+                        self.test_fence(title),
+                        x.parse::<i32>(),
+                        y.parse::<i32>(),
+                    ) && let Some(window) = self.fences.get(&self.state.host_of(id))
+                    {
+                        let r = window.test_size(wmsz + 1, x, y);
+                        tracing::info!(
+                            target: "pecofence::test",
+                            "sized {title:?} {edge} to ({x},{y}): rect=({},{},{},{})",
+                            r.left,
+                            r.top,
+                            r.right,
+                            r.bottom
+                        );
+                    }
+                }
+                ["size-end", title] => {
+                    if let Some(id) = self.test_fence(title)
+                        && let Some(window) = self.fences.get(&self.state.host_of(id))
+                    {
+                        window.test_size_end();
                     }
                 }
                 ["message", ..] => {

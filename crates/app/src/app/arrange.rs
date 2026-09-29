@@ -3,11 +3,13 @@
 //! overlaps apart at startup.
 
 use super::*;
-use crate::layout::clearance;
+use crate::layout::{FIT_SLACK_PX, clearance};
 
 /// Device-px cell rhythm of the fence a host window shows: icon columns (none for the List /
 /// Details rows) and rows below the fixed title / header part. With `cells` off
-/// (`snapping.sizeToCells`) sizes are free and only the one-row minimum applies.
+/// (`snapping.sizeToCells`) sizes are free and only the one-row minimum applies; on, the
+/// automatic size changes take whole cells, but a height held short by a fence below is kept
+/// exactly (the rows share the rest, see `ItemLayout::fill_rows`).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct GridSteps {
     /// Column width and total horizontal padding.
@@ -18,14 +20,10 @@ pub(super) struct GridSteps {
 }
 
 impl GridSteps {
-    /// Tallest height that fits in `h`: whole rows with `cells`, else `h`; one row at least.
-    pub fn floor_height(&self, h: i32) -> i32 {
-        let one_row = (self.fixed + self.row).round() as i32;
-        if !self.cells {
-            return h.max(one_row);
-        }
-        (self.fixed + ((h as f32 - self.fixed) / self.row).floor().max(1.0) * self.row).round()
-            as i32
+    /// Height for a fence that may grow to `h`: `h` itself, one row at least. Whole-cell
+    /// fences stop there too, exactly a gap above the fence below.
+    pub fn height_within(&self, h: i32) -> i32 {
+        h.max((self.fixed + self.row).round() as i32)
     }
 
     /// Widest width that fits in `w`: whole columns with `cells`, else `w`; one column at least.
@@ -60,13 +58,13 @@ impl App {
                 cols: None,
                 cells,
                 row: rm.row_h * scale,
-                fixed: title_h + (rm.header_h + rm.pad_y * 2.0) * scale + 2.0,
+                fixed: title_h + (rm.header_h + rm.pad_y * 2.0) * scale + FIT_SLACK_PX as f32,
             },
             None => GridSteps {
                 cols: Some((metrics.cell_w * scale, metrics.pad_x * 2.0 * scale)),
                 cells,
                 row: metrics.cell_h * scale,
-                fixed: title_h + metrics.pad_y * 2.0 * scale + 2.0,
+                fixed: title_h + metrics.pad_y * 2.0 * scale + FIT_SLACK_PX as f32,
             },
         })
     }
@@ -202,7 +200,7 @@ impl App {
         if r.top + expanded <= limit {
             return;
         }
-        let h = steps.floor_height(limit - r.top);
+        let h = steps.height_within(limit - r.top);
         if h >= expanded {
             return;
         }
@@ -234,7 +232,7 @@ impl App {
         {
             let limit = limit.max(r.bottom);
             if r.top + h > limit {
-                h = steps.floor_height(limit - r.top);
+                h = steps.height_within(limit - r.top);
             }
         }
         if h == r.bottom - r.top {

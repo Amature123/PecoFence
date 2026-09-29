@@ -442,6 +442,36 @@ impl FenceWindow {
         }
     }
 
+    /// Test script: one pointer step of an edge drag as the system size loop runs it. The
+    /// dragged edge(s) of `wmsz` (WMSZ_*) go to `x` / `y`, WM_SIZING places them and the window
+    /// takes the result; [`Self::test_size_end`] then releases the drag.
+    pub fn test_size(&self, wmsz: usize, x: i32, y: i32) -> RECT {
+        let hwnd = self.hwnd();
+        let edges = SizingEdges::from_wmsz(wmsz);
+        let mut r = self.window.window_rect();
+        if edges.left {
+            r.left = x;
+        } else if edges.right {
+            r.right = x;
+        }
+        if edges.top {
+            r.top = y;
+        } else if edges.bottom {
+            r.bottom = y;
+        }
+        window::send_message(hwnd, msg::WM_ENTERSIZEMOVE, 0, 0);
+        window::send_message(hwnd, msg::WM_SIZING, wmsz, &mut r as *mut RECT as isize);
+        let _ = self
+            .window
+            .set_bounds(r.left, r.top, r.right - r.left, r.bottom - r.top);
+        r
+    }
+
+    /// Test script: releases the edge drag [`Self::test_size`] started (records the rect).
+    pub fn test_size_end(&self) {
+        window::send_message(self.hwnd(), msg::WM_EXITSIZEMOVE, 0, 0);
+    }
+
     /// Explicit geometry from the app (layout, snapping, monitor changes) takes precedence over
     /// a running auto-height settle.
     pub fn set_bounds(&self, r: RECT) {

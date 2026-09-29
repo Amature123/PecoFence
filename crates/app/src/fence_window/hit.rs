@@ -143,7 +143,20 @@ impl FenceViewState {
         )
     }
 
+    /// The item layout at `width_dip`. With 「调整大小时保持为整数个图标」 its rows fill the
+    /// viewport's height, so any fence height shows whole icons.
     pub(super) fn layout(&self, width_dip: f32) -> ItemLayout {
+        let layout = self.natural_layout(width_dip);
+        if !self.behavior.size_to_cells.get() {
+            return layout;
+        }
+        let view_h =
+            (self.viewport_h_px() - FIT_SLACK_PX) as f32 / self.scale() - layout.fixed_top();
+        layout.fill_rows(view_h)
+    }
+
+    /// The item layout at `width_dip` with rows at their own height (fitting heights).
+    fn natural_layout(&self, width_dip: f32) -> ItemLayout {
         let spans = self.group_spans();
         let n = self.items.len();
         match self.layout {
@@ -246,7 +259,11 @@ impl FenceViewState {
             ItemLayout::Rows { metrics, .. } => {
                 let cols = self.columns_for(width_dip);
                 let text_x = cols.name_x + metrics.icon + 8.0;
-                let top = cell.y - self.scroll_y + metrics.header_h + 2.0;
+                // Centred in a row grown to the pitch.
+                let top = cell.y - self.scroll_y
+                    + metrics.header_h
+                    + (cell.h - metrics.row_h) / 2.0
+                    + 2.0;
                 (
                     text_x - 4.0,
                     top,
@@ -279,10 +296,10 @@ impl FenceViewState {
         self.bounded_height_px(desired)
     }
 
-    /// The item layout at the content surface's current width.
+    /// The item layout at the content surface's current width, rows at their own height.
     fn current_layout(&self) -> ItemLayout {
         let (cw, _) = self.content_size_px();
-        self.layout(cw as f32 / self.scale())
+        self.natural_layout(cw as f32 / self.scale())
     }
 
     /// Window height (device px) that shows every row of `layout`, ignoring the work area.
@@ -292,7 +309,7 @@ impl FenceViewState {
             + layout
                 .content_height()
                 .max(layout.top_pad() * 2.0 + layout.row_step());
-        self.title_h_px() + (content * self.scale()).ceil() as i32 + 2
+        self.title_h_px() + (content * self.scale()).ceil() as i32 + FIT_SLACK_PX
     }
 
     /// Columns, rows and the fitting height of the shown items at the current width, and
