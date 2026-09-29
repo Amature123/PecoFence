@@ -528,6 +528,22 @@ pub fn bring_to_front(hwnd: HWND) {
     }
 }
 
+/// Like [`bring_to_front`], for when the triggering input went to another process (a drag on
+/// Explorer's desktop), so the foreground lock refuses the switch. An empty injected mouse
+/// event (no movement, no buttons) makes this process the source of the last input, after
+/// which the retry is allowed; PowerToys' WindowHelpers do the same. Returns whether `hwnd`
+/// is now in the foreground.
+pub fn claim_foreground(hwnd: HWND) -> bool {
+    // SAFETY: plain FFI calls; the injected event carries no flags, so it has no effect.
+    unsafe {
+        if SetForegroundWindow(hwnd).as_bool() {
+            return true;
+        }
+        mouse_event(0, 0, 0, 0, 0);
+        SetForegroundWindow(hwnd).as_bool()
+    }
+}
+
 pub fn set_coalescable_timer(hwnd: HWND, id: usize, interval_ms: u32, tolerance_ms: u32) {
     // SAFETY: plain FFI call.
     unsafe {
