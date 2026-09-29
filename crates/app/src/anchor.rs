@@ -46,6 +46,14 @@ fn set_fence_visible(fence: HWND, shadow: Option<HWND>, show: bool) {
     }
 }
 
+/// Our own click-through drag feedback (the drop outline sits directly below the dragged fence,
+/// inside the block): not a foreign window that broke the anchoring.
+fn is_drag_overlay(hwnd: HWND) -> bool {
+    let cls = desktop::class_name(hwnd);
+    (cls == crate::drop_preview::DROP_PREVIEW_CLASS || cls == crate::drag_guides::DRAG_GUIDE_CLASS)
+        && desktop::window_pid(hwnd) == std::process::id()
+}
+
 /// True while this module is repositioning windows; fence handlers let z-order changes through
 /// only in that case.
 pub fn is_anchoring() -> bool {
@@ -414,7 +422,7 @@ impl DesktopAnchor {
                 if remaining == 0 {
                     return true;
                 }
-            } else if desktop::has_visible_surface(cursor) {
+            } else if desktop::has_visible_surface(cursor) && !is_drag_overlay(cursor) {
                 return false;
             }
         }

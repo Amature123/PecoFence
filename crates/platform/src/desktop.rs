@@ -401,6 +401,18 @@ pub fn send_win_d() {
     }
 }
 
+/// Taps the unassigned virtual key 0xE8 while Alt is held, so that releasing Alt is not a lone
+/// Alt press for the foreground window (which would open its menu bar). AutoHotkey's
+/// `#MenuMaskKey` does the same.
+pub fn mask_alt_release() {
+    const VK_UNASSIGNED: u8 = 0xE8;
+    // SAFETY: plain FFI calls; synthesizes keyboard input for the current session.
+    unsafe {
+        keybd_event(VK_UNASSIGNED, 0, 0, 0);
+        keybd_event(VK_UNASSIGNED, 0, KEYEVENTF_KEYUP as u32, 0);
+    }
+}
+
 /// Human-readable z-order dump around the fences, for spike logs.
 pub fn describe_zorder(interesting: &[HWND], all_visible: bool) -> String {
     let mut lines = Vec::new();

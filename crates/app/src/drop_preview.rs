@@ -1,6 +1,7 @@
-//! Outline of where a fence being dragged will land when it is let go over another fence
-//! (`FenceDropped` moves it to the nearest free spot): a click-through layered window placed
-//! directly below the dragged fence.
+//! White outline while a fence is dragged: the spot it will land on when let go over another
+//! fence (`FenceDropped` moves it to the nearest free spot), or the fence it will join as a tab
+//! when its title is over that fence's title. A click-through layered window placed directly
+//! below the dragged fence (so above the fence it outlines).
 
 use pecofence_platform::layered::LayeredImage;
 use pecofence_platform::window::{
@@ -14,15 +15,17 @@ pub const DROP_PREVIEW_CLASS: &str = "PecoFence.DropPreview";
 pub struct DropPreview {
     _class: WindowClass,
     window: Window,
-    /// Size and DPI of the presented outline; a pure move only repositions the window.
-    last: Option<(i32, i32, u32)>,
+    /// Size, DPI and corner radius of the presented outline; a pure move only repositions the
+    /// window.
+    last: Option<(i32, i32, u32, f32)>,
     shown: bool,
 }
 
-/// Premultiplied BGRA outline for a `w` x `h` px rounded rectangle: a light wash, a white
-/// 2 DIP stroke and a dark 1 DIP hairline outside it, readable on light and dark wallpapers.
-fn render(w: i32, h: i32, scale: f32) -> Vec<u8> {
-    let radius = (8.0 * scale).min(w.min(h) as f32 * 0.5);
+/// Premultiplied BGRA outline for a `w` x `h` px rectangle with `radius_dip` corners (the
+/// fences' own): a light wash, a white 2 DIP stroke and a dark 1 DIP hairline outside it,
+/// readable on light and dark wallpapers.
+fn render(w: i32, h: i32, scale: f32, radius_dip: f32) -> Vec<u8> {
+    let radius = (radius_dip * scale).min(w.min(h) as f32 * 0.5);
     let stroke = 2.0 * scale;
     let hair = 1.0 * scale;
     let mut bgra = vec![0u8; (w * h * 4) as usize];
@@ -90,12 +93,12 @@ impl DropPreview {
     }
 
     /// Shows the outline at `rect` (screen px), directly below `dragged` in the z-order.
-    pub fn show_at(&mut self, rect: RECT, dpi: u32, dragged: HWND) {
+    pub fn show_at(&mut self, rect: RECT, dpi: u32, radius_dip: f32, dragged: HWND) {
         let (w, h) = (rect.right - rect.left, rect.bottom - rect.top);
         if w <= 0 || h <= 0 {
             return;
         }
-        if self.last == Some((w, h, dpi)) {
+        if self.last == Some((w, h, dpi, radius_dip)) {
             let _ = self.window.set_bounds_z(
                 rect.left,
                 rect.top,
@@ -106,13 +109,13 @@ impl DropPreview {
             );
         } else {
             let scale = dpi.max(96) as f32 / 96.0;
-            let presented = LayeredImage::new(w, h, &render(w, h, scale))
+            let presented = LayeredImage::new(w, h, &render(w, h, scale, radius_dip))
                 .and_then(|img| img.present(self.window.hwnd(), rect.left, rect.top, 255));
             if let Err(e) = presented {
                 tracing::warn!(error = %e, "drop preview present failed");
                 return;
             }
-            self.last = Some((w, h, dpi));
+            self.last = Some((w, h, dpi, radius_dip));
         }
         let _ = desktop::insert_after(self.window.hwnd(), dragged);
         if !self.shown {
@@ -126,5 +129,10 @@ impl DropPreview {
             self.window.hide();
             self.shown = false;
         }
+    }
+
+    /// The outline's window rect while it is on screen, for test dumps.
+    pub fn shown(&self) -> Option<RECT> {
+        self.shown.then(|| self.window.window_rect())
     }
 }

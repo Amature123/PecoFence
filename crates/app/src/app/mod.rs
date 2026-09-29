@@ -679,6 +679,7 @@ impl App {
                     &state.config.settings.snapping,
                 )),
                 size_to_cells: std::cell::Cell::new(state.config.settings.snapping.size_to_cells),
+                guide_lines: std::cell::Cell::new(state.config.settings.snapping.guide_lines),
                 backdrop: std::cell::Cell::new(backdrop_mode_for(state.config.settings.backdrop)),
                 click_to_expand: std::cell::Cell::new(
                     state.config.settings.roll_up.click_to_expand,
@@ -691,6 +692,11 @@ impl App {
                 drop_preview: std::cell::RefCell::new(
                     crate::drop_preview::DropPreview::create()
                         .map_err(|e| tracing::warn!(error = %e, "drop preview unavailable"))
+                        .ok(),
+                ),
+                drag_guides: std::cell::RefCell::new(
+                    crate::drag_guides::DragGuides::create()
+                        .map_err(|e| tracing::warn!(error = %e, "drag guides unavailable"))
                         .ok(),
                 ),
             }),

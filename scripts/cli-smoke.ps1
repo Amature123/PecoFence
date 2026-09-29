@@ -366,8 +366,8 @@ try {
     $fenceCount = @(Json (Invoke-Cli @("fence", "list")).Out).Count
     Check "snapshot fenceCount is the current layout's" ($r.Code -eq 0 -and $sc.snapshot.fenceCount -eq $fenceCount) "$($r.Out) fences=$fenceCount"
     $null = Invoke-Cli @("snapshot", "delete", $sc.snapshot.id)
-    $r = Invoke-Cli @("settings", "set", "snapping.guideLines", "true")
-    Check "an inert setting is stored with a warning" ($r.Code -eq 0 -and (Json $r.Out).warning -like "*no effect*") "$($r.Out) $($r.Err)"
+    $r = Invoke-Cli @("settings", "set", "snapping.guideLines", "false")
+    Check "snapping.guideLines stored without a warning" ($r.Code -eq 0 -and (Json $r.Out).settings.snapping.guideLines -eq $false -and -not (Json $r.Out).warning) "$($r.Out) $($r.Err)"
     $r = Invoke-Cli @("settings", "set", "snapping.gapPx", "12")
     Check "snapping.gapPx stored" ($r.Code -eq 0 -and (Json $r.Out).settings.snapping.gapPx -eq 12) "$($r.Out) $($r.Err)"
     $r = Invoke-Cli @("fence", "delete", $portalId)

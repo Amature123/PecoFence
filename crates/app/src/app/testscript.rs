@@ -426,6 +426,26 @@ impl App {
                 w.debug_state()
             );
         }
+        let rect = |r: RECT| (r.left, r.top, r.right, r.bottom);
+        let outline = self
+            .ctx
+            .behavior
+            .drop_preview
+            .try_borrow()
+            .ok()
+            .and_then(|p| p.as_ref().and_then(|p| p.shown()).map(rect));
+        let guides: Vec<_> = self
+            .ctx
+            .behavior
+            .drag_guides
+            .try_borrow()
+            .ok()
+            .and_then(|g| {
+                g.as_ref()
+                    .map(|g| g.shown().into_iter().map(rect).collect())
+            })
+            .unwrap_or_default();
+        tracing::info!(target: "pecofence::test", "[{tag}] outline={outline:?} guides={guides:?}");
         let peek = self.peek.is_some();
         let rename = crate::rename::active_target().is_some();
         tracing::info!(target: "pecofence::test", "[{tag}] fences={} dying={} peek={peek} rename={rename} hide_setting={} icons_hidden={}",

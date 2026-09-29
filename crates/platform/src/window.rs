@@ -434,6 +434,14 @@ pub fn key_down(vk: u32) -> bool {
     unsafe { (GetKeyState(vk as i32) as u16 & 0x8000) != 0 }
 }
 
+/// Is the given virtual key physically down right now? Unlike [`key_down`] this does not
+/// depend on the thread's message-queue key state, so it also sees modifiers pressed while
+/// another application has the keyboard focus (fences never activate).
+pub fn key_down_async(vk: u32) -> bool {
+    // SAFETY: plain FFI call.
+    unsafe { GetAsyncKeyState(vk as i32) < 0 }
+}
+
 /// Gives `hwnd` the keyboard focus (a no-op unless this thread owns the foreground queue).
 pub fn set_focus(hwnd: HWND) {
     // SAFETY: plain FFI call.

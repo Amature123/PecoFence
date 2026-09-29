@@ -36,7 +36,7 @@ pub(super) fn flush_window_drag(
     now: Instant,
     release: Option<(i32, i32)>,
 ) -> bool {
-    let (target_hwnd, point, offset, snapping, gap_dip, override_height, behavior) = {
+    let (target_hwnd, point, offset, snapping, gap_dip, override_height, behavior, radius) = {
         let mut guard = view.borrow_mut();
         let Some(v) = guard.as_mut() else {
             return false;
@@ -65,6 +65,7 @@ pub(super) fn flush_window_drag(
             v.behavior.snap_gap_dip.get(),
             (drag.hwnd == controller).then_some(height).flatten(),
             v.behavior.clone(),
+            v.theme.corner_radius,
         )
     };
     let began = Instant::now();
@@ -75,11 +76,13 @@ pub(super) fn flush_window_drag(
         right: point.0 - offset.0 + old.right - old.left,
         bottom: point.1 - offset.1 + override_height.unwrap_or(old.bottom - old.top),
     };
-    let target = merge_target_at(target_hwnd, HWND::default(), point).map_or(0, |h| h.0 as isize);
+    let merge = merge_target_at(target_hwnd, HWND::default(), point);
+    let target = merge.map_or(0, |h| h.0 as isize);
     let target_done = Instant::now();
-    if snapping && target == 0 {
+    let mut guides = Vec::new();
+    if snapping && target == 0 && !snap_paused() {
         let scale = monitors::dpi_for_window(target_hwnd).max(96) as f32 / 96.0;
-        snap_rect(
+        guides = snap_rect(
             &mut rect,
             target_hwnd,
             (gap_dip as f32 * scale) as i32,
@@ -114,7 +117,7 @@ pub(super) fn flush_window_drag(
             rect.bottom - rect.top,
         );
     }
-    update_drop_preview(&behavior, target_hwnd, &rect, target != 0);
+    update_drag_feedback(&behavior, target_hwnd, &rect, merge, &guides, radius);
     if hint_changed {
         queue.push(Command::MergeHint {
             target: HWND(target as *mut core::ffi::c_void),
