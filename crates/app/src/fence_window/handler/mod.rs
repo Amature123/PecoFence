@@ -46,7 +46,12 @@ pub(super) fn finish_drag_cancel(cancel: DragCancel, queue: &CommandQueue, behav
             clear_hint(hinted);
             queue.push(Command::CancelDetach { change });
         }
-        DragCancel::Window { hwnd, rect, hinted } => {
+        DragCancel::Window {
+            hwnd,
+            rect,
+            hinted,
+            group,
+        } => {
             clear_hint(hinted);
             let _ = window::set_window_bounds(
                 hwnd,
@@ -55,6 +60,7 @@ pub(super) fn finish_drag_cancel(cancel: DragCancel, queue: &CommandQueue, behav
                 rect.right - rect.left,
                 rect.bottom - rect.top,
             );
+            restore_members(&group);
         }
         DragCancel::Tab => {}
     }
@@ -97,6 +103,9 @@ pub(super) struct HandlerCtx {
     /// Pointer screen x last reported with the merge hint (the target strip opens its
     /// insertion gap at that slot; re-sent only when the slot could have changed).
     pub(super) merge_x: Cell<i32>,
+    /// The other selected fences moving along with this one in the system move loop (a title
+    /// drag of a fence in the desktop selection); empty otherwise.
+    pub(super) group: RefCell<Vec<GroupMember>>,
 }
 
 impl FenceWindow {
@@ -121,6 +130,7 @@ impl FenceWindow {
             grab_offset: Cell::new((0, 0)),
             merge_target: Cell::new(0isize),
             merge_x: Cell::new(i32::MIN),
+            group: RefCell::new(Vec::new()),
         };
         let trace_test_input = cfg!(debug_assertions)
             && pecofence_core::brand::var_os("PECOFENCE_UI_TEST_WINDOWS").is_some();
@@ -143,6 +153,9 @@ impl FenceWindow {
                         ?hwnd, message, wparam, lparam,
                         "native pointer event"
                     );
+                }
+                if press_ends_selection(&h.behavior, hwnd, message, wparam) {
+                    h.queue.push(Command::ClearFenceSelection);
                 }
                 match message {
                     msg::WM_MOUSEACTIVATE => Some(msg::MA_NOACTIVATE),

@@ -279,6 +279,7 @@ pub(super) fn on_nclbuttondown(
                                 && !v.peeking
                                 && v.roll_anim.is_none(),
                         },
+                        group: group_members(behavior, hwnd),
                         press: start,
                         last_pointer: start,
                         pending_pointer: None,
@@ -525,7 +526,14 @@ pub(super) fn on_entersizemove(
         v.height_anim = None;
     }
     let (r, pt) = (window::window_rect(hwnd), window::cursor_pos());
-    let (start_x, start_y) = move_start.take().unwrap_or((pt.x, pt.y));
+    let caption = move_start.take();
+    let (start_x, start_y) = caption.unwrap_or((pt.x, pt.y));
+    // A title drag (not a resize) of a selected fence takes the rest of the selection along.
+    *h.group.borrow_mut() = if caption.is_some() {
+        group_members(&h.behavior, hwnd)
+    } else {
+        Vec::new()
+    };
     rect_at_enter.set(r);
     grab_offset.set((start_x - r.left, start_y - r.top));
     merge_target.set(0);
@@ -563,11 +571,19 @@ pub(super) fn on_exitsizemove(
     // Esc in the system move loop restores the rect but leaves the cursor
     // where it is (possibly on another fence's title): never merge then.
     let cancelled = rect == at_enter || window::key_down(msg::VK_ESCAPE);
-    let merge_into = if same_size && !cancelled {
+    let group = std::mem::take(&mut *h.group.borrow_mut());
+    let merge_into = if same_size && !cancelled && group.is_empty() {
         merge_target_under_cursor(hwnd)
     } else {
         None
     };
+    if !group.is_empty() && cancelled {
+        restore_members(&group);
+        if rect == at_enter && !window::key_down(msg::VK_ESCAPE) {
+            // A title click without a drag: the selection ends, as a click elsewhere would.
+            queue.push(Command::ClearFenceSelection);
+        }
+    }
     if merge_target.replace(0) != 0 {
         queue.push(Command::MergeHint {
             target: HWND(std::ptr::null_mut()),
@@ -600,6 +616,7 @@ pub(super) fn on_exitsizemove(
         });
     } else if same_size && !cancelled {
         queue.push(Command::FenceDropped(fence_id));
+        commit_members(queue, &group);
     }
     if peeking {
         // The close timer was cancelled on WM_ENTERSIZEMOVE; its arm
@@ -723,10 +740,16 @@ pub(super) fn on_moving(
         grab_offset,
         merge_target,
         merge_x,
+        rect_at_enter,
         ..
     } = h;
+    let group = h.group.borrow().clone();
     // Drag-to-merge: light up the title of the fence under the cursor.
-    let merge = merge_target_under_cursor(hwnd);
+    let merge = if group.is_empty() {
+        merge_target_under_cursor(hwnd)
+    } else {
+        None
+    };
     let target = merge.map_or(0, |h| h.0 as isize);
     // SAFETY: lParam is the RECT* of the window being dragged for this
     // message.
@@ -740,6 +763,27 @@ pub(super) fn on_moving(
     rect.top = pt.y - gy;
     rect.right = rect.left + w;
     rect.bottom = rect.top + h;
+    if !group.is_empty() {
+        let scale = monitors::dpi_for_window(hwnd).max(96) as f32 / 96.0;
+        let snap = (behavior.snapping.get() && !snap_paused()).then(|| {
+            (
+                (behavior.snap_gap_dip.get() as f32 * scale) as i32,
+                (SNAP_DIST_DIP as f32 * scale) as i32,
+            )
+        });
+        let others = fence_rects_outside(hwnd, &group);
+        let (placed, guides) = place_group(
+            rect,
+            &rect_at_enter.get(),
+            &group,
+            &others,
+            work_area_under,
+            snap,
+        );
+        move_members(&group, &placed);
+        show_guides(behavior, hwnd, &guides);
+        return Some(1);
+    }
     // Snapping and merging fight: the 8 px snap would hold the dragged fence
     // at the target's outer edge while the cursor is already on its title.
     // Follow the cursor freely over a target, and while Alt is held.

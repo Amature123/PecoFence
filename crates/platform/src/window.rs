@@ -645,6 +645,23 @@ pub fn set_window_bounds(hwnd: HWND, x: i32, y: i32, width: i32, height: i32) ->
     }
 }
 
+/// Moves any window's top-left to (`x`, `y`), keeping its size, activation and z-order.
+pub fn move_window_to(hwnd: HWND, x: i32, y: i32) -> Result<()> {
+    // SAFETY: plain FFI call on a caller-supplied HWND.
+    unsafe {
+        SetWindowPos(
+            hwnd,
+            None,
+            x,
+            y,
+            0,
+            0,
+            swp::NOACTIVATE | swp::NOZORDER | swp::NOOWNERZORDER | swp::NOSIZE,
+        )
+        .ok()
+    }
+}
+
 /// Moves `hwnd` to the top of the non-topmost band without activating it.
 pub fn set_window_bounds_z_top(hwnd: HWND) -> Result<()> {
     // SAFETY: plain FFI call.

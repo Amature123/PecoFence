@@ -43,6 +43,77 @@ impl ShadowStyle {
     }
 }
 
+/// White ring around a fence selected with a marquee on the desktop, drawn into the shadow just
+/// outside the body, so it follows every move, resize, roll and fade of the fence. It matches
+/// the drop outline: a white 2 DIP stroke with a dark 1 DIP hairline outside it, readable on
+/// light and dark wallpapers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SelectionRing {
+    /// The fence's corner radius (DIPs); the ring is concentric with it.
+    pub radius_dip: f32,
+}
+
+/// Distance between the body edge and the ring (DIPs).
+const RING_GAP_DIP: f32 = 1.0;
+/// White stroke, then the dark hairline outside it (DIPs).
+const RING_STROKE_DIP: f32 = 2.0;
+const RING_HAIR_DIP: f32 = 1.0;
+/// Opacity of the stroke and the hairline (the drop outline's).
+const RING_WHITE_ALPHA: f32 = 0.92;
+const RING_HAIR_ALPHA: f32 = 0.45;
+
+/// Coverage of the distance band `from..to` (px) at signed distance `d`, anti-aliased.
+fn ring_band(d: f32, from: f32, to: f32) -> f32 {
+    (d - from + 0.5).clamp(0.0, 1.0) * (to - d + 0.5).clamp(0.0, 1.0)
+}
+
+/// Composites `ring` over the padded shadow `img` of a `w` x `h` body at `pad`. Only the band
+/// around the body edge is visited.
+fn draw_ring(img: &mut Image, pad: i32, w: i32, h: i32, scale: f32, ring: &SelectionRing) {
+    let gap = RING_GAP_DIP * scale;
+    let white = gap + RING_STROKE_DIP * scale;
+    let outer = white + RING_HAIR_DIP * scale;
+    let radius = (ring.radius_dip * scale).min(w.min(h) as f32 * 0.5);
+    let reach = outer.ceil() as i32 + 1;
+    let (sw, sh) = (img.width as i32, img.height as i32);
+    let (x0, x1) = ((pad - reach).max(0), (pad + w + reach).min(sw));
+    // Rows this close to the top or bottom edge cross a corner or the horizontal stroke.
+    let corner = radius.ceil() as i32 + reach;
+    let sdf = |fx: f32, fy: f32| -> f32 {
+        let dx = (fx - w as f32 / 2.0).abs() - (w as f32 / 2.0 - radius);
+        let dy = (fy - h as f32 / 2.0).abs() - (h as f32 / 2.0 - radius);
+        (dx.max(0.0).powi(2) + dy.max(0.0).powi(2)).sqrt() + dx.max(dy).min(0.0) - radius
+    };
+    for y in (pad - reach).max(0)..(pad + h + reach).min(sh) {
+        let by = y - pad;
+        let spans = if by < corner || by >= h - corner {
+            [(x0, x1), (0, 0)]
+        } else {
+            [(x0, pad + 1), (pad + w - 1, x1)]
+        };
+        for (from, to) in spans {
+            for x in from..to {
+                let d = sdf(x as f32 + 0.5 - pad as f32, by as f32 + 0.5);
+                if d <= gap - 0.5 || d >= outer + 0.5 {
+                    continue;
+                }
+                let i = ((y * sw + x) * 4) as usize;
+                let (mut c, mut a) = (img.bgra[i] as f32 / 255.0, img.bgra[i + 3] as f32 / 255.0);
+                // Premultiplied "over", inside out: the white stroke, then the hairline.
+                for (colour, alpha) in [
+                    (1.0, RING_WHITE_ALPHA * ring_band(d, gap, white)),
+                    (0.0, RING_HAIR_ALPHA * ring_band(d, white, outer)),
+                ] {
+                    c = colour * alpha + c * (1.0 - alpha);
+                    a = alpha + a * (1.0 - alpha);
+                }
+                let c = (c * 255.0).round() as u8;
+                img.bgra[i..i + 4].copy_from_slice(&[c, c, c, (a * 255.0).round() as u8]);
+            }
+        }
+    }
+}
+
 /// Renders the shadow bitmap for a body of `w` x `h` pixels, returning the padded image.
 fn render_shadow(w: i32, h: i32, scale: f32, style: &ShadowStyle) -> Image {
     let pad = style.pad_px(scale);
@@ -225,6 +296,7 @@ pub struct ShadowWindow {
     /// Constant alpha of the layered window (`SourceConstantAlpha`): the fence's whole-window
     /// fade drives it so the shadow fades with the plate.
     alpha: u8,
+    ring: Option<SelectionRing>,
 }
 
 impl ShadowWindow {
@@ -258,7 +330,20 @@ impl ShadowWindow {
             last: None,
             presented: false,
             alpha: 255,
+            ring: None,
         })
+    }
+
+    pub fn ring(&self) -> Option<SelectionRing> {
+        self.ring
+    }
+
+    /// Adds or removes the selection ring; the next `update` renders it.
+    pub fn set_ring(&mut self, ring: Option<SelectionRing>) {
+        if self.ring != ring {
+            self.ring = ring;
+            self.invalidate();
+        }
     }
 
     /// Body size (device px) the current shadow bitmap was rendered for.
@@ -348,7 +433,7 @@ impl ShadowWindow {
         }
         let tpl = &self.template.as_ref().unwrap().1;
         let min_body = tpl.min_body();
-        let img = if w >= min_body && h >= min_body {
+        let mut img = if w >= min_body && h >= min_body {
             tpl.make(w, h)
         } else if w >= min_body {
             // Short body (rolled title row, the tail of a roll / expand): a narrow template
@@ -369,6 +454,9 @@ impl ShadowWindow {
         } else {
             render_shadow(w, h, scale, &self.style)
         };
+        if let Some(ring) = self.ring {
+            draw_ring(&mut img, pad, w, h, scale, &ring);
+        }
         if pecofence_core::brand::var_os("PECOFENCE_DEBUG_SHADOW").is_some() {
             let mut bmp = Vec::new();
             let (iw, ih) = (img.width as i32, img.height as i32);
@@ -534,5 +622,56 @@ mod tests {
             1,
             "200x200",
         );
+    }
+
+    /// The selection ring sits outside the body (white 1–3 DIP out, the hairline 3–4 DIP),
+    /// concentric with its corners, and the band-only walk paints exactly what a walk over
+    /// every pixel would.
+    #[test]
+    fn selection_ring_hugs_the_body_outside() {
+        let ring = SelectionRing { radius_dip: 8.0 };
+        for (w, h, scale, pad) in [(200, 100, 2.0, 56), (120, 72, 1.0, 28), (90, 36, 1.5, 42)] {
+            let blank = || Image {
+                width: (w + pad * 2) as u32,
+                height: (h + pad * 2) as u32,
+                bgra: vec![0u8; ((w + pad * 2) * (h + pad * 2) * 4) as usize],
+            };
+            let mut img = blank();
+            draw_ring(&mut img, pad, w, h, scale, &ring);
+            // Reference: the same coverage evaluated at every pixel.
+            let radius = (ring.radius_dip * scale).min(w.min(h) as f32 * 0.5);
+            let gap = RING_GAP_DIP * scale;
+            let white = gap + RING_STROKE_DIP * scale;
+            let outer = white + RING_HAIR_DIP * scale;
+            let sw = w + pad * 2;
+            for y in 0..h + pad * 2 {
+                for x in 0..sw {
+                    let fx = x as f32 + 0.5 - pad as f32;
+                    let fy = y as f32 + 0.5 - pad as f32;
+                    let dx = (fx - w as f32 / 2.0).abs() - (w as f32 / 2.0 - radius);
+                    let dy = (fy - h as f32 / 2.0).abs() - (h as f32 / 2.0 - radius);
+                    let d = (dx.max(0.0).powi(2) + dy.max(0.0).powi(2)).sqrt()
+                        + dx.max(dy).min(0.0)
+                        - radius;
+                    let aw = RING_WHITE_ALPHA * ring_band(d, gap, white);
+                    let ah = RING_HAIR_ALPHA * ring_band(d, white, outer);
+                    let c = aw * (1.0 - ah);
+                    let a = ah + aw * (1.0 - ah);
+                    let want = [c, c, c, a].map(|v| (v * 255.0).round() as u8);
+                    let i = ((y * sw + x) * 4) as usize;
+                    assert_eq!(&img.bgra[i..i + 4], &want, "{w}x{h}@{scale} at ({x},{y})");
+                }
+            }
+            // Left of the body: mid-stroke white, then the hairline; the body stays clear.
+            let row = (pad + h / 2) * sw;
+            let mid = (pad as f32 - 2.0 * scale) as i32;
+            let i = ((row + mid) * 4) as usize;
+            assert_eq!(&img.bgra[i..i + 4], &[235, 235, 235, 235]);
+            let hair = pad - white.ceil() as i32 - 1;
+            let i = ((row + hair) * 4) as usize;
+            assert_eq!(&img.bgra[i..i + 4], &[0, 0, 0, 115]);
+            let inside = ((row + pad + 1) * 4) as usize;
+            assert_eq!(img.bgra[inside + 3], 0);
+        }
     }
 }

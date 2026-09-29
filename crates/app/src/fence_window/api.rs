@@ -856,6 +856,7 @@ impl FenceWindow {
                 merge_x: i32::MIN,
                 moved_once: false,
                 origin: WindowDragOrigin::Tab(Box::new(change)),
+                group: Vec::new(),
                 press: (pt.x, pt.y),
                 last_pointer: (pt.x, pt.y),
                 pending_pointer: Some((pt.x, pt.y)),
@@ -1261,6 +1262,24 @@ impl FenceWindow {
         });
     }
 
+    /// Marks the window as part of the desktop selection: a white ring just outside it (like
+    /// the drop outline), drawn with its shadow.
+    pub fn set_group_selected(&self, on: bool) {
+        self.with_view(|v| {
+            v.shadow.set_ring(on.then(|| selection_ring(&v.theme)));
+            v.update_shadow();
+        });
+    }
+
+    /// The selection ring is on (test dumps).
+    pub fn group_selected(&self) -> bool {
+        self.view
+            .try_borrow()
+            .ok()
+            .and_then(|g| g.as_ref().map(|v| v.shadow.ring().is_some()))
+            .unwrap_or(false)
+    }
+
     pub fn set_theme(&self, theme: Theme, backdrops: Rc<BackdropSets>, shadow: ShadowStyle) {
         let hwnd = self.hwnd();
         apply_window_shape(hwnd, theme.liquid_glass);
@@ -1293,6 +1312,9 @@ impl FenceWindow {
             }
             v.backdrops = backdrops;
             v.shadow.set_style(shadow);
+            if v.shadow.ring().is_some() {
+                v.shadow.set_ring(Some(selection_ring(&theme)));
+            }
             v.update_shadow();
             v.invalidate_backdrop();
             let (w, h) = window::window_rect_size(v.hwnd);
@@ -1314,5 +1336,12 @@ impl FenceWindow {
                 let _ = v.redraw();
             }
         });
+    }
+}
+
+/// The desktop selection ring, concentric with the fence's corners.
+fn selection_ring(theme: &Theme) -> crate::shadow::SelectionRing {
+    crate::shadow::SelectionRing {
+        radius_dip: theme.corner_radius,
     }
 }

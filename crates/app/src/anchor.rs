@@ -47,10 +47,13 @@ fn set_fence_visible(fence: HWND, shadow: Option<HWND>, show: bool) {
 }
 
 /// Our own click-through drag feedback (the drop outline sits directly below the dragged fence,
-/// inside the block): not a foreign window that broke the anchoring.
+/// the desktop marquee band directly above the icon host, both inside the block): not a
+/// foreign window that broke the anchoring.
 fn is_drag_overlay(hwnd: HWND) -> bool {
     let cls = desktop::class_name(hwnd);
-    (cls == crate::drop_preview::DROP_PREVIEW_CLASS || cls == crate::drag_guides::DRAG_GUIDE_CLASS)
+    (cls == crate::drop_preview::DROP_PREVIEW_CLASS
+        || cls == crate::drag_guides::DRAG_GUIDE_CLASS
+        || cls.starts_with(crate::marquee_band::MARQUEE_BAND_CLASS))
         && desktop::window_pid(hwnd) == std::process::id()
 }
 
@@ -90,10 +93,44 @@ struct QuickHide {
     pending_toggle: Option<POINT>,
     /// Left button went down on the bare desktop here (marquee candidate).
     marquee_origin: Option<POINT>,
+    /// The pointer left the drag threshold since that press: the marquee is being drawn.
+    marquee_live: bool,
+    /// Cursor position last reported with `MarqueeEvent::Moved`.
+    marquee_last: Option<POINT>,
 }
 
 /// Smallest marquee (device pixels, either axis) that counts as "draw a fence here".
-const MARQUEE_MIN_PX: i32 = 48;
+pub const MARQUEE_MIN_PX: i32 = 48;
+
+/// A drag on the bare desktop as it happens (Explorer's own marquee selects nothing while the
+/// icons are hidden): the fences it touches are selected, and one that touches no fence offers
+/// a new fence there.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MarqueeEvent {
+    /// The left button went down on the empty desktop (or the desktop was just activated);
+    /// `additive` = Ctrl or Shift held, which keeps the current selection.
+    Pressed { additive: bool },
+    /// The marquee now spans this screen rectangle (past the drag threshold).
+    Moved(RECT),
+    /// Released: the final marquee.
+    Released(RECT),
+    /// Another window took the foreground mid-drag: the marquee ends where it was.
+    Cancelled,
+}
+
+fn marquee_rect(a: POINT, b: POINT) -> RECT {
+    RECT {
+        left: a.x.min(b.x),
+        top: a.y.min(b.y),
+        right: a.x.max(b.x),
+        bottom: a.y.max(b.y),
+    }
+}
+
+/// Ctrl or Shift is down (physical state; the desktop, not us, has the keyboard focus).
+fn additive_modifier() -> bool {
+    window::key_down_async(msg::VK_CONTROL) || window::key_down_async(msg::VK_SHIFT)
+}
 
 /// Real desktop icon visibility management (plan §5.3).
 struct DesktopIcons {
@@ -151,8 +188,8 @@ pub struct DesktopAnchor {
     /// Set by the test hook / owner to request process exit.
     #[allow(dead_code)]
     pub quit_requested: bool,
-    /// Called with the screen rectangle when the user draws a marquee on the empty desktop.
-    pub on_marquee: Option<Box<dyn Fn(RECT)>>,
+    /// Presses, drags and releases on the empty desktop (fence selection / new fence).
+    pub on_marquee: Option<Box<dyn Fn(MarqueeEvent)>>,
     /// Fence windows (as raw handles) that stay visible during quick hide.
     quick_hide_excluded: std::collections::HashSet<isize>,
     /// Peek in progress: fences are topmost and anchoring is suspended.
@@ -456,11 +493,26 @@ impl DesktopAnchor {
 
         if is_desktop {
             self.set_raw_input_sink(true);
-            self.quick.pending_click = Some((Instant::now(), window::cursor_pos()));
+            let pt = window::cursor_pos();
+            self.quick.pending_click = Some((Instant::now(), pt));
+            // The press that activated the desktop reached Explorer before the sink existed: a
+            // drag it starts still draws a marquee (from where the pointer is now). Activated
+            // any other way, the desktop ends the fence selection like a click on it does.
+            if window::key_down_async(msg::VK_LBUTTON) {
+                self.begin_marquee(pt);
+            } else {
+                self.emit_marquee(MarqueeEvent::Pressed {
+                    additive: additive_modifier(),
+                });
+            }
         } else {
             self.set_raw_input_sink(false);
             self.quick.pending_click = None;
-            self.quick.marquee_origin = None;
+            if self.quick.marquee_origin.take().is_some()
+                && std::mem::take(&mut self.quick.marquee_live)
+            {
+                self.emit_marquee(MarqueeEvent::Cancelled);
+            }
         }
 
         if is_desktop && raised {
@@ -581,11 +633,15 @@ impl DesktopAnchor {
     }
 
     /// `WM_INPUT` on the sentinel: left button down/up on the bare desktop drive quick hide
-    /// (double-click) and the marquee → new fence gesture.
+    /// (double-click) and the marquee (fence selection / new fence); moves in between draw it.
     fn on_raw_input(&mut self, lparam: isize) {
         let Some(buttons) = rawinput::mouse_buttons_from_wm_input(lparam) else {
             return;
         };
+        if !buttons.left_down && !buttons.left_up {
+            self.track_marquee();
+            return;
+        }
         if buttons.left_up {
             self.on_desktop_button_up();
             // Second click of the double-click released without dragging: toggle now rather
@@ -603,15 +659,9 @@ impl DesktopAnchor {
             return;
         }
         let pt = window::cursor_pos();
-        let hit = desktop::window_from_point(pt.x, pt.y);
-        let root = desktop::root_ancestor(hit);
-        if self.all_windows().contains(&root) || !self.is_desktop_window(hit) {
+        if !self.begin_marquee(pt) {
             self.quick.pending_click = None;
-            self.quick.marquee_origin = None;
             return;
-        }
-        if !self.quick.fences_hidden {
-            self.quick.marquee_origin = Some(pt);
         }
         if !self.quick_hide_enabled {
             return;
@@ -632,30 +682,76 @@ impl DesktopAnchor {
         }
     }
 
-    /// Left button released: a large enough drag that started on the bare desktop becomes a
-    /// "new fence here" offer. Explorer's own marquee selects nothing while icons are hidden.
+    /// The left button is down at `pt`. On the bare desktop (not over one of our windows) a
+    /// marquee may start there while the fences show; returns false anywhere else.
+    fn begin_marquee(&mut self, pt: POINT) -> bool {
+        let hit = desktop::window_from_point(pt.x, pt.y);
+        let root = desktop::root_ancestor(hit);
+        if self.all_windows().contains(&root) || !self.is_desktop_window(hit) {
+            self.quick.marquee_origin = None;
+            self.quick.marquee_live = false;
+            return false;
+        }
+        if !self.quick.fences_hidden {
+            self.quick.marquee_origin = Some(pt);
+            self.quick.marquee_live = false;
+            self.quick.marquee_last = None;
+            self.emit_marquee(MarqueeEvent::Pressed {
+                additive: additive_modifier(),
+            });
+        }
+        true
+    }
+
+    /// The pointer moved with the button down since a press on the bare desktop: past the drag
+    /// threshold the marquee is live and reported on every move.
+    fn track_marquee(&mut self) {
+        let Some(origin) = self.quick.marquee_origin else {
+            return;
+        };
+        if !window::key_down_async(msg::VK_LBUTTON) {
+            // The release went unseen: finish the marquee here.
+            self.on_desktop_button_up();
+            return;
+        }
+        let pt = window::cursor_pos();
+        if !self.quick.marquee_live {
+            let (sx, sy) = window::drag_threshold();
+            if (pt.x - origin.x).abs() <= sx && (pt.y - origin.y).abs() <= sy {
+                return;
+            }
+            self.quick.marquee_live = true;
+        }
+        if self.quick.marquee_last == Some(pt) {
+            return;
+        }
+        self.quick.marquee_last = Some(pt);
+        self.emit_marquee(MarqueeEvent::Moved(marquee_rect(origin, pt)));
+    }
+
+    /// Left button released after a drag that started on the bare desktop: the fences the
+    /// marquee touches are selected, or a large enough one that touches none offers a new
+    /// fence there (the App decides).
     fn on_desktop_button_up(&mut self) {
         let Some(origin) = self.quick.marquee_origin.take() else {
             return;
         };
-        let pt = window::cursor_pos();
-        let w = (pt.x - origin.x).abs();
-        let h = (pt.y - origin.y).abs();
-        if w < MARQUEE_MIN_PX || h < MARQUEE_MIN_PX {
+        if !std::mem::take(&mut self.quick.marquee_live) {
             return;
         }
-        let rect = RECT {
-            left: origin.x.min(pt.x),
-            top: origin.y.min(pt.y),
-            right: origin.x.max(pt.x),
-            bottom: origin.y.max(pt.y),
-        };
-        tracing::info!(?rect, "desktop marquee → offer new fence");
-        // A marquee that began with the second click of a double-click is not a quick hide.
-        self.quick.pending_toggle = None;
-        self.sentinel.kill_timer(TIMER_QUICKHIDE);
+        let rect = marquee_rect(origin, window::cursor_pos());
+        tracing::info!(?rect, "desktop marquee");
+        if rect.right - rect.left >= MARQUEE_MIN_PX && rect.bottom - rect.top >= MARQUEE_MIN_PX {
+            // A marquee that began with the second click of a double-click is not a quick hide.
+            self.quick.pending_toggle = None;
+            self.sentinel.kill_timer(TIMER_QUICKHIDE);
+        }
+        self.emit_marquee(MarqueeEvent::Released(rect));
+    }
+
+    fn emit_marquee(&self, event: MarqueeEvent) {
         if let Some(cb) = self.on_marquee.as_ref() {
-            cb(rect);
+            cb(event);
         }
     }
 

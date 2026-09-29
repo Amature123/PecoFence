@@ -6,6 +6,7 @@ impl App {
     /// A fence window that is no longer needed (deleted, merged into another window as a tab)
     /// fades out before it is destroyed; until then it lives in `dying`.
     pub(super) fn retire_window(&mut self, w: FenceWindow) {
+        self.forget_selected_window(w.hwnd());
         if w.retire() {
             self.dying.push(w);
         }
