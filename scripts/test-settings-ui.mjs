@@ -15,7 +15,7 @@ const fixture = {
   settings: {
     language: 'zh-CN',
     autostart: false, hideRealIcons: false, quickHide: { enabled: true },
-    showDesktop: 'keepVisible', theme: 'dark', themeStyle: 'fluent', backdrop: 'acrylic', iconSize: 48,
+    showDesktop: 'keepVisible', theme: 'dark', themeStyle: 'fluent', titleAlign: 'left', backdrop: 'acrylic', iconSize: 48,
     icons: { tintRgb: null, tintStrength: 0.6, chameleon: false },
     rollUp: { hoverPeek: true, clickToExpand: false, titleOnHover: false, hideInactiveScrollbar: false },
     snapping: { enabled: true, gapPx: 8, sizeToCells: false, guideLines: true }, peek: { enabled: true, dim: true, hotkey: 'ctrlAltSpace' },
@@ -29,7 +29,7 @@ const fixture = {
   },
   fences: [
     { id: 'fence-a', title: 'Documents', kind: 'virtual', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'default', tint: null, titleColor: 'theme', titleSize: 'normal', portal: null },
-    { id: 'fence-b', title: 'Images', kind: 'virtual', host: 'Documents', iconSize: 96, spacing: 'loose', autoHeight: true, locked: false, excludeFromQuickHide: false, opacity: 'default', tint: null, titleColor: 'theme', titleSize: 'normal', portal: null },
+    { id: 'fence-b', title: 'Images', kind: 'virtual', host: 'Documents', iconSize: 96, spacing: 'loose', autoHeight: true, locked: false, excludeFromQuickHide: false, opacity: 'transparent', tint: null, titleColor: 'theme', titleSize: 'normal', portal: null },
     { id: 'inbox', title: 'Desktop', kind: 'inbox', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: true, excludeFromQuickHide: true, opacity: 'solid', tint: '0078D4', titleColor: 'tint', titleSize: 'large', portal: null },
     { id: 'portal', title: 'Portal', kind: 'portal', host: null, iconSize: 32, spacing: 'compact', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'clear', tint: '123456', titleColor: 'ABCDEF', titleSize: 'small', portal: { navigate: true, titleIcon: false } },
   ],
@@ -452,6 +452,27 @@ async function runTests() {
     assert(sent.prop === 'tint' && sent.value === '0078D4', 'Fence tint swatch did not post setFence');
     assert(doc.querySelector('#fenceTintSwatches [data-value="0078D4"]').getAttribute('aria-checked') === 'true', 'Fence tint swatch not selected after refresh');
     doc.querySelector('#fenceTintSwatches [data-value=""]').click(); await settle();
+  });
+  await test('Title alignment is posted and previewed; fully transparent fences show their preset', async () => {
+    doc.querySelector('[data-page=general]').click();
+    const align = doc.querySelector('[data-bind=titleAlign]');
+    assert(align.value === 'left', 'Saved alignment not shown');
+    for (const value of ['center', 'right']) {
+      align.value = value;
+      align.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+      await settle();
+      assert(current().settings.titleAlign === value, 'Alignment not posted: ' + value);
+      const title = doc.querySelector('.tile-fluent .preview-title');
+      assert(frame.contentWindow.getComputedStyle(title).textAlign === value, 'Preview title not aligned ' + value);
+    }
+    doc.querySelector('[data-page=fences]').click();
+    change(doc, 'fenceSel', 'fence-b');
+    assert(doc.querySelector('[data-fence=opacity]').value === 'transparent', 'Fully transparent preset not shown');
+    change(doc, 'fenceSel', 'fence-a');
+    change(doc, 'fenceOpacity', 'transparent'); await settle();
+    const sent = frame.contentWindow.testMessages.filter(m => m.type === 'setFence').at(-1);
+    assert(sent.id === 'fence-a' && sent.prop === 'opacity' && sent.value === 'transparent', 'Fully transparent not posted');
+    assert(doc.querySelector('[data-fence=opacity]').value === 'transparent', 'Refreshed opacity not reflected');
   });
   await test('Rule rows are compact and the new-rule form opens when needed', async () => {
     doc = await reset();

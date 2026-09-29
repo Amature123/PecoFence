@@ -331,7 +331,24 @@ impl FenceViewState {
         }
         let (_, end) = self.tab_strip_bounds();
         let available = (end - TAB_LEFT).max(0.0);
-        tab_strip_rects(&self.tab_natural_widths(), gap, available)
+        let natural = self.tab_natural_widths();
+        // 标题对齐 moves the strip as a whole. The offset is measured without the merge gap, so
+        // opening the gap never shifts the slots under the pointer; the gap squeezes the pills
+        // into the room before the chevron zone instead.
+        let shift = match self.behavior.title_align.get() {
+            pecofence_core::TitleAlign::Left => 0.0,
+            align => {
+                let resting = tab_strip_rects(&natural, None, available);
+                let span = resting.last().map_or(0.0, |(x, w)| x + w - TAB_LEFT);
+                let width = self.chrome_panel.size_px().0 as f32 / self.scale();
+                pecofence_render::fence_chrome::aligned_x(align, width, TAB_LEFT, end, span)
+                    - TAB_LEFT
+            }
+        };
+        tab_strip_rects(&natural, gap, available - shift)
+            .into_iter()
+            .map(|(x, w)| (x + shift, w))
+            .collect()
     }
 
     fn tab_strip_bounds(&self) -> (f32, f32) {

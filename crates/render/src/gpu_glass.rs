@@ -407,6 +407,9 @@ impl Effects {
 #[derive(Default)]
 pub struct GpuGlass {
     effects: Option<Effects>,
+    /// Surface row (device px) the last `draw` placed the plate's lens at: a folded title row
+    /// moves it down, and header lenses sample the refracted plate relative to it.
+    origin_y: f32,
     failed: bool,
     stats: Stats,
     controls: HashMap<u128, Control>,
@@ -430,12 +433,16 @@ impl GpuGlass {
         self.failed
     }
 
+    /// Draws the plate lens for the screen rect `rect` at surface row `origin_y` (device px;
+    /// non-zero while title on hover folds the title row away).
+    #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &mut self,
         session: &DrawingSession<'_>,
         cache: &mut WallpaperCache,
         sources: &Rc<Vec<MonitorBackdrop>>,
         rect: [i32; 4],
+        origin_y: f32,
         scale: f32,
         radius: f32,
         opacity: f32,
@@ -452,7 +459,10 @@ impl GpuGlass {
         self.text_inks
             .retain(|_, (_, frame)| *frame + 1 >= self.stats.frames);
         session.set_transform(&Matrix3x2::identity());
-        let result = self.draw_inner(session, cache, sources, rect, scale, radius, opacity, hover);
+        self.origin_y = origin_y;
+        let result = self.draw_inner(
+            session, cache, sources, rect, origin_y, scale, radius, opacity, hover,
+        );
         session.set_transform(&saved);
         if let Err(error) = &result {
             if !windows_canvas::is_device_lost(error.code()) {
@@ -546,7 +556,11 @@ impl GpuGlass {
             self.stats.control_map_builds += 1;
         }
         let (x, y) = (rect.left * scale, rect.top * scale);
-        matrix(&effects.position, [1.0, 0.0, 0.0, 1.0, -x, -y])?;
+        // The parent surface starts at the plate top (`origin_y`), not at the window top.
+        matrix(
+            &effects.position,
+            [1.0, 0.0, 0.0, 1.0, -x, -(y - self.origin_y)],
+        )?;
         let bounds = b::D2D_RECT_F {
             left: x,
             top: y,
@@ -578,12 +592,14 @@ impl GpuGlass {
         Ok(true)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_inner(
         &mut self,
         session: &DrawingSession<'_>,
         cache: &mut WallpaperCache,
         sources: &Rc<Vec<MonitorBackdrop>>,
         rect: [i32; 4],
+        origin_y: f32,
         scale: f32,
         radius: f32,
         opacity: f32,
@@ -632,7 +648,7 @@ impl GpuGlass {
         unsafe {
             context.DrawImage(
                 &effects.output.GetOutput()?,
-                Some(&Vector2::new(0.0, 0.0)),
+                Some(&Vector2::new(0.0, origin_y)),
                 Some(&area),
                 b::D2D1_INTERPOLATION_MODE_LINEAR,
                 b::D2D1_COMPOSITE_MODE_SOURCE_OVER,

@@ -120,8 +120,10 @@ pub struct Behavior {
     pub backdrop: std::cell::Cell<BackdropMode>,
     /// Rolled fences expand on a single title click (hover peek off while set).
     pub click_to_expand: std::cell::Cell<bool>,
-    /// Title row drawn only while hovered.
+    /// Title row drawn only while hovered; at rest the plate starts at the content.
     pub title_on_hover: std::cell::Cell<bool>,
+    /// Title (or tab strip) position in the title row (`titleAlign`).
+    pub title_align: std::cell::Cell<pecofence_core::TitleAlign>,
     /// Scrollbar drawn only while hovered / shortly after scrolling.
     pub hide_inactive_scrollbar: std::cell::Cell<bool>,
     /// `SPI_GETWHEELSCROLLLINES`: rows per wheel notch; `u32::MAX` (`WHEEL_PAGESCROLL`) = one

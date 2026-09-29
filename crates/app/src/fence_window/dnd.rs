@@ -744,6 +744,7 @@ impl FenceViewState {
             None => (None, None, None, false),
         };
         let now = Instant::now();
+        let plate_before = self.plate_visible_target();
         let chrome_changed = self.drop_tab != tab;
         let content_changed =
             self.drop_item != folder || self.drop_insert != insert || self.drop_hover != wash;
@@ -793,6 +794,8 @@ impl FenceViewState {
         if spot.is_none() {
             self.end_drag_dwell();
         }
+        // A fully transparent fence shows its plate while a drag is over it.
+        let chrome_changed = chrome_changed || plate_before != self.plate_visible_target();
         (content_changed, chrome_changed)
     }
 

@@ -18,6 +18,7 @@
 //! size <title> <edge> <x> <y>     drag an edge (left, top-right, bottom …) to x / y through
 //!                            WM_SIZING, as the size loop does; `size-end <title>` releases it
 //! input <title> <action> <x> <y>  debug-only native mouse/cancel regression input
+//!                            (`hover 1 0` / `hover 0 0`: the pointer enters / leaves)
 //! pace <ms>                  debug-only script timer interval (default 50 ms)
 //! reorder <title> <index>    same command as the tab menu
 //! detach <title>             tear the tab out into its own fence (menu path)

@@ -258,6 +258,10 @@ impl FenceWindow {
             shadow_uploaded: None,
             shadow_alpha: Tween::at(1.0, Instant::now()),
             shadow_fading: false,
+            title_reveal: Tween::at(1.0, Instant::now()),
+            plate_reveal: Tween::at(1.0, Instant::now()),
+            plate_inset_px: 0,
+            plate_alpha: 1.0,
             peeking: false,
             behavior: ctx.behavior.clone(),
         };
@@ -362,7 +366,7 @@ impl FenceWindow {
             },
         );
         format!(
-            "title={:?} opacity={:.2} scale={:.3} fade={fade} retired={} rolled={} rolling={} peeking={} items={} tabs={} selected={} focused={:?} shadow_visible={} shadow_alpha={} layout={:?} locked={} auto_height={} active={} scroll={:.1} client={:?} client_offset=({},{}) chrome={:?} glass={:?} wallpaper_uploads={} title_size={} tab_fonts={:?} tab_rects={:?} capture={} tab_drag={} window_drag={} detach_pending={}",
+            "title={:?} opacity={:.2} scale={:.3} fade={fade} retired={} rolled={} rolling={} peeking={} items={} tabs={} selected={} focused={:?} shadow_visible={} shadow_alpha={} layout={:?} locked={} auto_height={} active={} scroll={:.1} client={:?} client_offset=({},{}) chrome={:?} glass={:?} wallpaper_uploads={} title_size={} tab_fonts={:?} tab_rects={:?} capture={} tab_drag={} window_drag={} detach_pending={} plate_inset={} plate_alpha={:.2} mouse_inside={}",
             v.title,
             v.root.opacity(),
             v.root.scale().x,
@@ -399,6 +403,9 @@ impl FenceWindow {
             v.tab_drag.is_some(),
             v.remote_drag.is_some(),
             v.detach_pending,
+            v.plate_inset_px,
+            v.plate_alpha,
+            v.mouse_inside,
         )
     }
 
@@ -420,6 +427,9 @@ impl FenceWindow {
                 }
             }),
             "capture-lost" => window::release_capture(),
+            // The pointer entering (x = 1) / leaving (x = 0) the fence without a real cursor:
+            // title on hover and 全透明 react as they do to WM_MOUSEMOVE / WM_MOUSELEAVE.
+            "hover" => self.with_view(|v| v.set_mouse_inside(x != 0)),
             _ => {
                 let (message, key, point) = match action {
                     "down" => (msg::WM_LBUTTONDOWN, 1, (x, y)),
@@ -637,6 +647,8 @@ impl FenceWindow {
                 if !on {
                     v.resume_peek_close();
                 }
+                // Title on hover / 全透明: the title row and plate stay up under the popup.
+                let _ = v.redraw_chrome_only();
             }
         });
     }
@@ -1268,6 +1280,11 @@ impl FenceWindow {
         self.with_view(|v| {
             v.shadow.set_ring(on.then(|| selection_ring(&v.theme)));
             v.update_shadow();
+            if v.is_clear() {
+                // The ring lives in the shadow, which a fully transparent plate hides at rest:
+                // a selected fence shows its plate.
+                let _ = v.redraw_chrome_only();
+            }
         });
     }
 

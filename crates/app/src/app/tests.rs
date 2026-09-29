@@ -313,6 +313,14 @@ mod ipc {
         let err = parse_fence_prop("tint", &json!("red")).unwrap_err();
         assert_eq!(err.code, ErrorCode::InvalidValue);
         assert_eq!(
+            parse_fence_prop("opacity", &json!("transparent")).unwrap(),
+            FenceProp::Opacity(Some(0.0))
+        );
+        assert_eq!(
+            parse_fence_prop("opacity", &json!("default")).unwrap(),
+            FenceProp::Opacity(None)
+        );
+        assert_eq!(
             parse_fence_prop("labelLines", &json!(4)).unwrap_err().code,
             ErrorCode::InvalidValue
         );

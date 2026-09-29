@@ -300,6 +300,8 @@ pub struct FenceStyle {
     pub title_color: Option<ColorF>,
     /// 0 = small (12), 1 = normal (14), 2 = large (16).
     pub title_size: u8,
+    /// Title position in the row (the global 标题对齐 setting).
+    pub title_align: pecofence_core::TitleAlign,
 }
 
 /// Title-row decorations of a folder portal: a folder glyph before the title and, once the
@@ -329,6 +331,12 @@ pub struct TitleState {
     /// Another fence is being dragged over this title (drop here to merge it as a tab): the
     /// accent wash + ring alpha, 83 ms in / 167 ms out.
     pub merge_hint: f32,
+    /// Title-on-hover fold: the plate (glass, tint, rim) starts this many DIPs below the
+    /// window top, so a resting fence begins at its content; 0 once the title row is shown.
+    pub plate_top: f32,
+    /// How far a fully transparent fence (外观 → 全透明) has cleared its plate: 0 = drawn,
+    /// 1 = no glass, tint or rim at all (the resting look away from the pointer).
+    pub plate_clear: f32,
 }
 
 impl TitleDeco {
@@ -356,7 +364,7 @@ impl TitleDeco {
         )
     }
 
-    /// Where the title text starts.
+    /// Where the title text starts (left-aligned).
     pub fn title_x(&self) -> f32 {
         let mut x = 16.0;
         if self.up_button {
@@ -366,6 +374,27 @@ impl TitleDeco {
             x += Self::ICON_W;
         }
         x
+    }
+}
+
+/// Least room kept free at the right end of the title row: the roll-up chevron.
+pub const TITLE_RIGHT_RESERVE: f32 = 40.0;
+
+/// Left edge of a title-row unit `unit_w` DIPs wide (the title with its folder glyph, or the
+/// whole tab strip) that may occupy `start..end` of a row `width` DIPs wide. Centred means
+/// centred on the whole fence, pushed aside only when it would reach into `start` / `end`.
+pub fn aligned_x(
+    align: pecofence_core::TitleAlign,
+    width: f32,
+    start: f32,
+    end: f32,
+    unit_w: f32,
+) -> f32 {
+    let last = (end - unit_w.max(0.0)).max(start);
+    match align {
+        pecofence_core::TitleAlign::Left => start,
+        pecofence_core::TitleAlign::Center => ((width - unit_w) * 0.5).clamp(start, last),
+        pecofence_core::TitleAlign::Right => last,
     }
 }
 
@@ -512,6 +541,242 @@ fn header_foreground(
         );
     }
     *theme
+}
+
+/// The fence plate inside `outer` (the whole surface, or the part below a folded title row):
+/// backdrop material, opacity veil, tint wash, sheen and the 1 px rim, all at `plate_a`
+/// (a fully transparent fence fades them in only while the pointer is over it). `opacity` is
+/// the per-fence multiplier, already clamped.
+#[allow(clippy::too_many_arguments)]
+fn draw_plate(
+    session: &DrawingSession<'_>,
+    bitmaps: &mut BitmapCache,
+    theme: &Theme,
+    scale: f32,
+    width: f32,
+    height: f32,
+    outer: Rect,
+    radius: f32,
+    backdrop: &Backdrop<'_>,
+    opacity: f32,
+    plate_a: f32,
+    pill_a: f32,
+    hover: f32,
+    style: FenceStyle,
+) -> Result<()> {
+    let px = Px::new(scale);
+    let plate_top = outer.top;
+    // The crop is anchored at the window top and may cover more than the surface (height
+    // animation): the surface clips it, and the compositor clip cuts it at a folded top.
+    let crop_rect =
+        |crop: &BackdropCrop<'_>| Rect::from_xywh(0.0, 0.0, width, crop.height.max(height));
+    match *backdrop {
+        Backdrop::GpuGlass {
+            material,
+            wallpaper,
+            rect,
+            scale,
+        } => {
+            // A folded title row moves the lens (and its bezel) down to the plate top.
+            let inset = (plate_top * scale).round() as i32;
+            let lens = [rect[0], rect[1] + inset, rect[2], (rect[3] - inset).max(1)];
+            let result = material.borrow_mut().draw(
+                session,
+                &mut bitmaps.glass_wallpaper,
+                wallpaper,
+                lens,
+                inset as f32,
+                scale,
+                radius,
+                opacity.min(1.0) * plate_a,
+                hover,
+            );
+            if let Err(error) = result {
+                if windows_canvas::is_device_lost(error.code()) {
+                    return Err(error);
+                }
+                let fallback = if theme.text_primary.r > 0.5 {
+                    Theme::dark().solid_fill
+                } else {
+                    Theme::light().solid_fill
+                };
+                let fill = session.create_solid_brush(with_alpha(fallback, plate_a))?;
+                session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &fill);
+            } else {
+                let mut c = theme.glass_layer_fill;
+                c.a *= opacity.min(1.0) * plate_a;
+                let layer = session.create_solid_brush(c)?;
+                session.fill_rect(&outer, &layer);
+            }
+        }
+        Backdrop::MicaLike(crop) if crop.image.width > 0 && crop.image.height > 0 => {
+            let bitmap = bitmaps.get_or_upload(session, crop.key, crop.image)?;
+            session.draw_bitmap(&bitmap, &crop_rect(&crop), glass_alpha(opacity) * plate_a);
+            let mut c = theme.layer_fill;
+            c.a *= opacity.min(1.0) * plate_a;
+            let layer = session.create_solid_brush(c)?;
+            session.fill_rect(&outer, &layer);
+        }
+        Backdrop::Glass(crop, scale) if crop.image.width > 0 && crop.image.height > 0 => {
+            let bitmap = if theme.liquid_glass {
+                match bitmaps.get(crop.key) {
+                    Some(bitmap) => bitmap,
+                    None => {
+                        let overlay = crate::liquid_glass::refracted_overlay(
+                            crop.image,
+                            width,
+                            crop.height.max(height),
+                            radius,
+                        );
+                        bitmaps.get_or_upload(session, crop.key, &overlay)?
+                    }
+                }
+            } else {
+                bitmaps.get_or_upload(session, crop.key, crop.image)?
+            };
+            let alpha = if theme.liquid_glass {
+                opacity.min(1.0)
+            } else {
+                glass_alpha(opacity)
+            };
+            session.draw_bitmap(&bitmap, &crop_rect(&crop), alpha * plate_a);
+            let mut c = theme.glass_layer_fill;
+            c.a *= opacity.min(1.0) * plate_a;
+            let layer = session.create_solid_brush(c)?;
+            session.fill_rect(&outer, &layer);
+            // Acrylic grain: tile the noise texture at exactly one texel per device pixel.
+            if !theme.liquid_glass {
+                let tile = crate::backdrop::noise_tile();
+                let noise = bitmaps.get_or_upload(session, NOISE_BITMAP_KEY, tile)?;
+                let step = crate::backdrop::NOISE_TILE_PX as f32 / scale.max(0.5);
+                let mut y = 0.0;
+                while y < height {
+                    let mut x = 0.0;
+                    while x < width {
+                        session.draw_bitmap(&noise, &Rect::from_xywh(x, y, step, step), plate_a);
+                        x += step;
+                    }
+                    y += step;
+                }
+            }
+        }
+        Backdrop::SystemMaterial => {
+            let layer = session.create_solid_brush(with_alpha(theme.layer_fill, plate_a))?;
+            session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &layer);
+        }
+        _ => {
+            let fill = session.create_solid_brush(with_alpha(theme.solid_fill, plate_a))?;
+            session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &fill);
+        }
+    }
+
+    if opacity > 1.0 {
+        let veil = session.create_solid_brush(with_alpha(theme.opacity_veil(opacity), plate_a))?;
+        session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &veil);
+    }
+    if let Some(mut tint) = style.tint {
+        // Per-fence colour: a translucent wash so the glass still reads as glass.
+        tint.a = 0.22 * plate_a;
+        let wash = session.create_solid_brush(tint)?;
+        session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &wash);
+    }
+
+    // A quiet, directional reflection gives sampled materials depth without adding a
+    // header band. It is static at rest; existing title hover tweens gently lift the edge.
+    let sampled_material = matches!(
+        backdrop,
+        Backdrop::Glass(..) | Backdrop::MicaLike(..) | Backdrop::GpuGlass { .. }
+    );
+    if sampled_material && !theme.liquid_glass {
+        let sheen = session.create_linear_gradient(
+            Vector2::new(0.0, plate_top),
+            Vector2::new(width, height.max(plate_top + 1.0)),
+            &[
+                GradientStop::new(0.0, with_alpha(theme.glass_rim_top, 0.16 * plate_a)),
+                GradientStop::new(0.48, ColorF::TRANSPARENT),
+                GradientStop::new(1.0, with_alpha(theme.glass_rim_bottom, 0.12 * plate_a)),
+            ],
+        )?;
+        session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &sheen);
+    }
+
+    // A single 1 px rim, lit from the upper left and snapped to device pixels at every DPI.
+    let rim_rect = px.ring(outer, radius);
+    if sampled_material && theme.liquid_glass {
+        // The GPU material lights its own rim (kube's specular ring).
+        if !matches!(backdrop, Backdrop::GpuGlass { .. }) {
+            let saved = session.transform();
+            session.set_transform(&(Matrix3x2::translation(0.0, plate_top) * saved));
+            let drawn = crate::liquid_glass::draw_reflection(
+                session,
+                theme,
+                scale,
+                width,
+                outer.height(),
+                pill_a,
+                opacity,
+            );
+            session.set_transform(&saved);
+            drawn?;
+        }
+    } else if sampled_material {
+        let rim = session.create_linear_gradient(
+            Vector2::new(0.0, plate_top),
+            Vector2::new(width * 0.65, height.max(plate_top + 1.0)),
+            &[
+                GradientStop::new(
+                    0.0,
+                    with_alpha(theme.glass_rim_top, (1.0 + 0.2 * pill_a) * plate_a),
+                ),
+                GradientStop::new(
+                    0.55,
+                    with_alpha(
+                        lerp(theme.glass_rim_top, theme.glass_rim_bottom, 0.72),
+                        plate_a,
+                    ),
+                ),
+                GradientStop::new(1.0, with_alpha(theme.glass_rim_bottom, plate_a)),
+            ],
+        )?;
+        session.draw_rounded_rect(&rim_rect, &rim, px.hair());
+    } else {
+        let stroke = session.create_solid_brush(with_alpha(theme.stroke, plate_a))?;
+        session.draw_rounded_rect(&rim_rect, &stroke, px.hair());
+    }
+    Ok(())
+}
+
+/// Halo under a caption drawn in `ink` straight over wallpaper (Liquid Glass labels, a fully
+/// transparent plate): a dark rim under light text, a light one under dark text.
+fn halo_color(ink: ColorF, alpha: f32) -> ColorF {
+    if ink.r > 0.5 {
+        ColorF::new(0.0, 0.0, 0.0, 0.38 * alpha)
+    } else {
+        ColorF::new(1.0, 1.0, 1.0, 0.55 * alpha)
+    }
+}
+
+/// Draws `text` in `rect`, over a four-way `halo` outline (¾ DIP each way) when one is given.
+fn draw_caption(
+    session: &DrawingSession<'_>,
+    text: &str,
+    format: &TextFormat,
+    rect: &Rect,
+    brush: &Brush,
+    halo: Option<&Brush>,
+) {
+    if let Some(halo) = halo {
+        for (dx, dy) in [(-0.75, 0.0), (0.75, 0.0), (0.0, -0.75), (0.0, 0.75)] {
+            let r = Rect {
+                left: rect.left + dx,
+                top: rect.top + dy,
+                right: rect.right + dx,
+                bottom: rect.bottom + dy,
+            };
+            session.draw_text(text, format, &r, halo);
+        }
+    }
+    session.draw_text(text, format, rect, brush);
 }
 
 fn draw_legible_text(
@@ -1154,149 +1419,47 @@ impl FenceChrome {
         let px = Px::new(scale);
         // Per-fence opacity: <1 thins the layer over the glass, >1 adds a solid veil on top.
         let opacity = opacity.clamp(0.4, 1.8);
-        let outer = Rect::from_xywh(0.0, 0.0, width, height);
-        let radius = theme.corner_radius.min(width.min(height) * 0.5).max(0.0);
-        // The crop may cover more than the surface (height animation): the surface clips it.
-        let crop_rect =
-            |crop: &BackdropCrop<'_>| Rect::from_xywh(0.0, 0.0, width, crop.height.max(height));
-
-        match backdrop {
-            Backdrop::GpuGlass {
-                material,
-                wallpaper,
-                rect,
-                scale,
-            } => {
-                let result = material.borrow_mut().draw(
-                    session,
-                    &mut bitmaps.glass_wallpaper,
-                    wallpaper,
-                    rect,
-                    scale,
-                    radius,
-                    opacity,
-                    state.hover,
-                );
-                if let Err(error) = result {
-                    if windows_canvas::is_device_lost(error.code()) {
-                        return Err(error);
-                    }
-                    let fallback = if theme.text_primary.r > 0.5 {
-                        Theme::dark().solid_fill
-                    } else {
-                        Theme::light().solid_fill
-                    };
-                    let fill = session.create_solid_brush(fallback)?;
-                    session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &fill);
-                } else {
-                    let mut c = theme.glass_layer_fill;
-                    c.a *= opacity.min(1.0);
-                    let layer = session.create_solid_brush(c)?;
-                    session.fill_rect(&outer, &layer);
-                }
-            }
-            Backdrop::MicaLike(crop) if crop.image.width > 0 && crop.image.height > 0 => {
-                let bitmap = bitmaps.get_or_upload(session, crop.key, crop.image)?;
-                session.draw_bitmap(&bitmap, &crop_rect(&crop), glass_alpha(opacity));
-                let mut c = theme.layer_fill;
-                c.a *= opacity.min(1.0);
-                let layer = session.create_solid_brush(c)?;
-                session.fill_rect(&outer, &layer);
-            }
-            Backdrop::Glass(crop, scale) if crop.image.width > 0 && crop.image.height > 0 => {
-                let bitmap = if theme.liquid_glass {
-                    match bitmaps.get(crop.key) {
-                        Some(bitmap) => bitmap,
-                        None => {
-                            let overlay = crate::liquid_glass::refracted_overlay(
-                                crop.image,
-                                width,
-                                crop.height.max(height),
-                                radius,
-                            );
-                            bitmaps.get_or_upload(session, crop.key, &overlay)?
-                        }
-                    }
-                } else {
-                    bitmaps.get_or_upload(session, crop.key, crop.image)?
-                };
-                let alpha = if theme.liquid_glass {
-                    opacity.min(1.0)
-                } else {
-                    glass_alpha(opacity)
-                };
-                session.draw_bitmap(&bitmap, &crop_rect(&crop), alpha);
-                let mut c = theme.glass_layer_fill;
-                c.a *= opacity.min(1.0);
-                let layer = session.create_solid_brush(c)?;
-                session.fill_rect(&outer, &layer);
-                // Acrylic grain: tile the noise texture at exactly one texel per device pixel.
-                if !theme.liquid_glass {
-                    let tile = crate::backdrop::noise_tile();
-                    let noise = bitmaps.get_or_upload(session, NOISE_BITMAP_KEY, tile)?;
-                    let step = crate::backdrop::NOISE_TILE_PX as f32 / scale.max(0.5);
-                    let mut y = 0.0;
-                    while y < height {
-                        let mut x = 0.0;
-                        while x < width {
-                            session.draw_bitmap(&noise, &Rect::from_xywh(x, y, step, step), 1.0);
-                            x += step;
-                        }
-                        y += step;
-                    }
-                }
-            }
-            Backdrop::SystemMaterial => {
-                let layer = session.create_solid_brush(theme.layer_fill)?;
-                session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &layer);
-            }
-            _ => {
-                let fill = session.create_solid_brush(theme.solid_fill)?;
-                session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &fill);
-            }
-        }
-
-        if opacity > 1.0 {
-            let veil = session.create_solid_brush(theme.opacity_veil(opacity))?;
-            session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &veil);
-        }
-        if let Some(mut tint) = style.tint {
-            // Per-fence colour: a translucent wash so the glass still reads as glass.
-            tint.a = 0.22;
-            let wash = session.create_solid_brush(tint)?;
-            session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &wash);
-        }
-
-        // A quiet, directional reflection gives sampled materials depth without adding a
-        // header band. It is static at rest; existing title hover tweens gently lift the edge.
-        let sampled_material = matches!(
-            backdrop,
-            Backdrop::Glass(..) | Backdrop::MicaLike(..) | Backdrop::GpuGlass { .. }
-        );
-        if sampled_material && !theme.liquid_glass {
-            let sheen = session.create_linear_gradient(
-                Vector2::new(0.0, 0.0),
-                Vector2::new(width, height.max(1.0)),
-                &[
-                    GradientStop::new(0.0, with_alpha(theme.glass_rim_top, 0.16)),
-                    GradientStop::new(0.48, ColorF::TRANSPARENT),
-                    GradientStop::new(1.0, with_alpha(theme.glass_rim_bottom, 0.12)),
-                ],
-            )?;
-            session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &sheen);
-        }
-
+        // The plate is the whole surface, or only the part below the title row while title on
+        // hover keeps that row folded away (the compositor clip cuts the surface at its top).
+        // A fully transparent fence fades the whole plate with `plate_a`.
+        let plate_top = state.plate_top.clamp(0.0, (height - 1.0).max(0.0));
+        let plate_a = 1.0 - state.plate_clear.clamp(0.0, 1.0);
+        let outer = Rect::from_xywh(0.0, plate_top, width, height - plate_top);
+        let radius = theme
+            .corner_radius
+            .min(width.min(outer.height()) * 0.5)
+            .max(0.0);
         // Title-row reveal ("title on hover"); a rolled fence always shows its title row.
         let title_a = if rolled_up {
             1.0
         } else {
             state.title.clamp(0.0, 1.0)
         };
+        let title_h = theme.title_height.min(height);
+        let pill_a = state.hover * title_a;
+
+        if plate_a > 0.0 {
+            draw_plate(
+                session,
+                bitmaps,
+                theme,
+                scale,
+                width,
+                height,
+                outer,
+                radius,
+                &backdrop,
+                opacity,
+                plate_a,
+                pill_a,
+                state.hover,
+                style,
+            )?;
+        }
+
         // No header band, no divider: the title sits directly on the glass. Hovering a
         // single-title fence shows an inset pill (SubtleFill, 83 ms fade), never a full-width
         // strip; a tab strip gets its feedback from the individual tab pills instead.
-        let title_h = theme.title_height.min(height);
-        let pill_a = state.hover * title_a;
         if pill_a > 0.0 && tabs.len() <= 1 {
             let row = Rect::from_xywh(4.0, 4.0, (width - 8.0).max(0.0), (title_h - 8.0).max(0.0));
             if theme.liquid_glass {
@@ -1308,34 +1471,6 @@ impl FenceChrome {
                     &pill,
                 );
             }
-        }
-
-        // A single 1 px rim, lit from the upper left and snapped to device pixels at every DPI.
-        let rim_rect = px.ring(outer, radius);
-        if sampled_material && theme.liquid_glass {
-            // The GPU material lights its own rim (kube's specular ring).
-            if !matches!(backdrop, Backdrop::GpuGlass { .. }) {
-                crate::liquid_glass::draw_reflection(
-                    session, theme, scale, width, height, pill_a, opacity,
-                )?;
-            }
-        } else if sampled_material {
-            let rim = session.create_linear_gradient(
-                Vector2::new(0.0, 0.0),
-                Vector2::new(width * 0.65, height.max(1.0)),
-                &[
-                    GradientStop::new(0.0, with_alpha(theme.glass_rim_top, 1.0 + 0.2 * pill_a)),
-                    GradientStop::new(
-                        0.55,
-                        lerp(theme.glass_rim_top, theme.glass_rim_bottom, 0.72),
-                    ),
-                    GradientStop::new(1.0, theme.glass_rim_bottom),
-                ],
-            )?;
-            session.draw_rounded_rect(&rim_rect, &rim, px.hair());
-        } else {
-            let stroke = session.create_solid_brush(theme.stroke)?;
-            session.draw_rounded_rect(&rim_rect, &stroke, px.hair());
         }
 
         if state.merge_hint > 0.0 {
@@ -1369,16 +1504,29 @@ impl FenceChrome {
         }
         // Title text; leave room for the roll-up chevron on the right, ellipsize the rest.
         let title_width = crate::text::measure_width(title, self.title_format(style.title_size))
-            .min((width - deco.title_x() - 40.0).max(1.0));
+            .min((width - deco.title_x() - TITLE_RIGHT_RESERVE).max(1.0));
+        let sample_x = aligned_x(
+            style.title_align,
+            width,
+            deco.title_x(),
+            width - TITLE_RIGHT_RESERVE,
+            title_width,
+        );
         let foreground = header_foreground(
             &backdrop,
             theme,
             5,
-            Rect::from_xywh(deco.title_x(), 0.0, title_width, title_h),
+            Rect::from_xywh(sample_x, 0.0, title_width, title_h),
             scale,
             opacity,
             style.tint,
         );
+        // Captions over bare wallpaper (a fully transparent plate) get a halo.
+        let halo = if theme.text_halo {
+            Some(session.create_solid_brush(ColorF::TRANSPARENT)?)
+        } else {
+            None
+        };
         let text = session.create_solid_brush(with_alpha(
             style.title_color.unwrap_or(foreground.text_primary),
             title_a,
@@ -1525,7 +1673,11 @@ impl FenceChrome {
                         })
                 };
                 let brush = session.create_solid_brush(with_alpha(color, ta))?;
-                session.draw_text(
+                if let Some(halo) = &halo {
+                    halo.set_color(halo_color(color, ta));
+                }
+                draw_caption(
+                    session,
                     &fitted,
                     fmt,
                     &Rect::from_xywh(
@@ -1535,6 +1687,7 @@ impl FenceChrome {
                         title_h,
                     ),
                     &brush,
+                    halo.as_ref(),
                 );
             }
         } else {
@@ -1582,6 +1735,18 @@ impl FenceChrome {
                 );
                 x += TitleDeco::UP_W;
             }
+            // The folder glyph travels with the title to the chosen alignment; the up button
+            // stays at the far left.
+            let glyph_w = if deco.folder_icon {
+                TitleDeco::ICON_W
+            } else {
+                0.0
+            };
+            let end = width - TITLE_RIGHT_RESERVE - title_reserve;
+            let title_w = (end - x - glyph_w).max(0.0);
+            let fitted = crate::text::fit_width(title, title_format, title_w);
+            let unit_w = glyph_w + crate::text::measure_width(&fitted, title_format).min(title_w);
+            x = aligned_x(style.title_align, width, x, end, unit_w);
             if deco.folder_icon {
                 // Folder glyph (E8B7) aligned with the title baseline.
                 session.draw_text(
@@ -1590,15 +1755,21 @@ impl FenceChrome {
                     &Rect::from_xywh(x - 2.0, 0.0, 20.0, title_h),
                     &secondary,
                 );
-                x += TitleDeco::ICON_W;
+                x += glyph_w;
             }
-            let title_w = (width - x - 40.0 - title_reserve).max(0.0);
-            let fitted = crate::text::fit_width(title, title_format, title_w);
-            session.draw_text(
+            if let Some(halo) = &halo {
+                halo.set_color(halo_color(
+                    style.title_color.unwrap_or(foreground.text_primary),
+                    title_a,
+                ));
+            }
+            draw_caption(
+                session,
                 &fitted,
                 title_format,
                 &Rect::from_xywh(x, 0.0, title_w, title_h),
                 &text,
+                halo.as_ref(),
             );
         }
         if count_a > 0.0
@@ -1615,7 +1786,17 @@ impl FenceChrome {
                 header_foreground(&backdrop, theme, 6, count_rect, scale, opacity, style.tint);
             let count =
                 session.create_solid_brush(with_alpha(foreground.text_tertiary, count_a))?;
-            session.draw_text(caption, &self.count_format, &count_rect, &count);
+            if let Some(halo) = &halo {
+                halo.set_color(halo_color(foreground.text_tertiary, count_a));
+            }
+            draw_caption(
+                session,
+                caption,
+                &self.count_format,
+                &count_rect,
+                &count,
+                halo.as_ref(),
+            );
         }
 
         // Chevron (Segoe Fluent Icons ChevronUp E70E, turned 180° by the roll progress so it
@@ -1713,7 +1894,7 @@ impl FenceChrome {
         let secondary = session.create_solid_brush(theme.text_secondary)?;
         let cols = rows.columns;
         let header_h = rows.header_h;
-        let halo = if theme.liquid_glass {
+        let halo = if theme.liquid_glass || theme.text_halo {
             Some(session.create_solid_brush(ColorF::TRANSPARENT)?)
         } else {
             None
@@ -2073,7 +2254,7 @@ impl FenceChrome {
         if !content.group_headers.is_empty() {
             let line = session.create_solid_brush(theme.stroke)?;
             // The same local halo the labels get over mixed wallpaper.
-            let halo = if theme.liquid_glass {
+            let halo = if theme.liquid_glass || theme.text_halo {
                 Some(session.create_solid_brush(if theme.text_secondary.r > 0.5 {
                     ColorF::new(0.0, 0.0, 0.0, 0.28)
                 } else {
@@ -2260,26 +2441,21 @@ impl FenceChrome {
         } else {
             resting
         };
-        if theme.liquid_glass {
-            // A local halo protects labels over mixed light/dark wallpaper. It does not
-            // frost or darken the glass between icons.
-            let halo = if theme.text_primary.r > 0.5 {
-                ColorF::new(0.0, 0.0, 0.0, 0.38 * alpha)
-            } else {
-                ColorF::new(1.0, 1.0, 1.0, 0.55 * alpha)
-            };
-            let halo = session.create_solid_brush(halo)?;
-            for (dx, dy) in [(-0.75, 0.0), (0.75, 0.0), (0.0, -0.75), (0.0, 0.75)] {
-                let r = Rect {
-                    left: label_rect.left + dx,
-                    top: label_rect.top + dy,
-                    right: label_rect.right + dx,
-                    bottom: label_rect.bottom + dy,
-                };
-                session.draw_text(text, &self.label_font.borrow().format, &r, &halo);
-            }
-        }
-        session.draw_text(text, &self.label_font.borrow().format, &label_rect, brush);
+        // A local halo protects labels over mixed light/dark wallpaper (Liquid Glass, a fully
+        // transparent plate). It does not frost or darken the glass between icons.
+        let halo = if theme.liquid_glass || theme.text_halo {
+            Some(session.create_solid_brush(halo_color(theme.text_primary, alpha))?)
+        } else {
+            None
+        };
+        draw_caption(
+            session,
+            text,
+            &self.label_font.borrow().format,
+            &label_rect,
+            brush,
+            halo.as_ref(),
+        );
 
         Ok(())
     }
@@ -2299,6 +2475,21 @@ fn empty_text_top(avail: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn title_alignment_centres_on_the_fence_and_keeps_clear_of_the_chevron() {
+        use pecofence_core::TitleAlign::{Center, Left, Right};
+        // A 300 DIP row whose title may use 16..260 (the chevron zone follows).
+        assert_eq!(aligned_x(Left, 300.0, 16.0, 260.0, 80.0), 16.0);
+        assert_eq!(aligned_x(Center, 300.0, 16.0, 260.0, 80.0), 110.0);
+        assert_eq!(aligned_x(Right, 300.0, 16.0, 260.0, 80.0), 180.0);
+        // Centring a long title would reach into the chevron zone: it moves left instead.
+        assert_eq!(aligned_x(Center, 300.0, 16.0, 260.0, 230.0), 30.0);
+        // Wider than the room (the caller ellipsizes): every alignment starts at the left.
+        for align in [Left, Center, Right] {
+            assert_eq!(aligned_x(align, 300.0, 16.0, 260.0, 400.0), 16.0);
+        }
+    }
 
     #[test]
     fn stacked_and_standalone_titles_have_identical_metrics() {

@@ -3,6 +3,9 @@
 use super::*;
 
 pub(super) const RESIZE_BORDER_DIP: f32 = 6.0;
+/// Corner radius DWM gives a Fluent fence (DWMWCP_ROUNDSMALL; the shadow casts the same one):
+/// the root clip matches it while a folded title row moves the plate's top edge down.
+pub(super) const FLUENT_WINDOW_RADIUS_DIP: f32 = 4.0;
 pub(super) const TIMER_PEEK_OPEN: usize = 31;
 pub(super) const TIMER_PEEK_CLOSE: usize = 32;
 pub(super) const TIMER_SHADOW: usize = 33;
