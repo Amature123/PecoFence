@@ -822,6 +822,12 @@ impl App {
         let Some(owner) = self.fences.values().map(|w| w.hwnd()).next() else {
             return;
         };
+        // The marquee's clicks went to Explorer, so the plain SetForegroundWindow in
+        // `show_context` is refused; a menu whose owner is not in the foreground ignores
+        // clicks outside it and Esc, and could only be closed by choosing its item.
+        if !window::claim_foreground(owner) {
+            tracing::warn!("new fence offer could not take the foreground");
+        }
         let pt = window::cursor_pos();
         let menu = PopupMenu::new();
         menu.item(
