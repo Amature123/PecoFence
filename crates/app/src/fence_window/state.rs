@@ -269,6 +269,15 @@ pub struct FenceViewState {
     /// cached shadow bitmap with the sampled alpha each frame while `shadow_fading`.
     pub(super) shadow_alpha: Tween,
     pub(super) shadow_fading: bool,
+    /// Title on hover: 1 = title row shown, 0 = folded away — the plate then starts at the
+    /// content, and its top edge glides up (167 ms decelerate) when the pointer arrives.
+    pub(super) title_reveal: Tween,
+    /// 全透明: 1 = plate shown, 0 = cleared (167 ms linear); always 1 for other opacities.
+    pub(super) plate_reveal: Tween,
+    /// Plate top inset (device px) and plate alpha as of the last chrome draw: the root clip
+    /// and the shadow follow them (`sync_plate_shape`).
+    pub(super) plate_inset_px: i32,
+    pub(super) plate_alpha: f32,
     /// Temporarily expanded by hovering a rolled fence (state stays "rolled" for persistence).
     pub(super) peeking: bool,
     pub(super) behavior: Rc<Behavior>,

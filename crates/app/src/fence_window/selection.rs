@@ -365,13 +365,13 @@ impl FenceViewState {
     }
 
     /// Tracks the mouse entering / leaving the window as a whole; redraws the chrome when the
-    /// title-on-hover rule changes what is shown.
+    /// title-on-hover rule or a fully transparent plate changes what is shown.
     pub(super) fn set_mouse_inside(&mut self, inside: bool) {
         if self.mouse_inside == inside {
             return;
         }
         self.mouse_inside = inside;
-        if self.behavior.title_on_hover.get() {
+        if self.behavior.title_on_hover.get() || self.is_clear() {
             let _ = self.redraw_chrome_only();
         }
         if self.behavior.hide_inactive_scrollbar.get() {

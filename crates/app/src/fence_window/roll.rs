@@ -103,7 +103,7 @@ impl FenceViewState {
             self.shadow.hide();
             return;
         }
-        let r = window::window_rect(self.hwnd);
+        let r = self.plate_rect();
         if self.shadow.body_size() == Some((r.right - r.left, r.bottom - r.top)) {
             // Move only: cheap reposition, never throttled (a lagging shadow reads as a ghost).
             self.shadow.update(r, self.dpi);
@@ -128,9 +128,41 @@ impl FenceViewState {
 
     pub(super) fn update_shadow_now(&mut self) {
         window::kill_timer(self.hwnd, TIMER_SHADOW);
-        let r = window::window_rect(self.hwnd);
+        let r = self.plate_rect();
         self.shadow.update(r, self.dpi);
         self.shadow_uploaded = Some(Instant::now());
+    }
+
+    /// Screen rect of the visible plate: the window, minus a title row that title on hover
+    /// has folded away (the shadow casts from this).
+    pub(super) fn plate_rect(&self) -> RECT {
+        let mut r = window::window_rect(self.hwnd);
+        r.top = (r.top + self.plate_inset_px).min(r.bottom - 1);
+        r
+    }
+
+    /// After a chrome draw moved the plate's top edge or changed its alpha: the root clip and
+    /// the shadow follow (per frame while the fold or the 全透明 fade runs).
+    pub(super) fn sync_plate_shape(&mut self, inset_px: i32, alpha: f32) {
+        if inset_px != self.plate_inset_px {
+            self.plate_inset_px = inset_px;
+            let (w, h) = self.chrome_panel.size_px();
+            if let Err(error) = self.update_shape_clip(w, h) {
+                tracing::warn!(%error, "plate clip update failed");
+            }
+            self.update_shadow_now();
+        }
+        if (alpha - self.plate_alpha).abs() > f32::EPSILON {
+            self.plate_alpha = alpha;
+            self.apply_shadow_alpha(Instant::now());
+        }
+    }
+
+    /// The shadow's constant alpha: the whole-window fade times the plate's own alpha, so a
+    /// fully transparent fence casts no shadow until its plate shows.
+    pub(super) fn apply_shadow_alpha(&mut self, now: Instant) {
+        let a = self.shadow_alpha.value_at(now).clamp(0.0, 1.0) * self.plate_alpha;
+        self.shadow.set_alpha((a * 255.0).round() as u8);
     }
 
     /// The window height is being animated (roll-up / expand or an auto-height settle): the
@@ -270,7 +302,7 @@ impl FenceViewState {
         self.motion.set_scale(&self.root, 1.0);
         self.shadow_alpha = Tween::at(1.0, Instant::now());
         self.shadow_fading = false;
-        self.shadow.set_alpha(255);
+        self.apply_shadow_alpha(Instant::now());
     }
 
     /// Advances the shadow's fade for one frame (see `shadow_alpha`); true while it still moves.
@@ -278,8 +310,7 @@ impl FenceViewState {
         if !self.shadow_fading {
             return false;
         }
-        let a = self.shadow_alpha.value_at(now).clamp(0.0, 1.0);
-        self.shadow.set_alpha((a * 255.0).round() as u8);
+        self.apply_shadow_alpha(now);
         if self.shadow_alpha.is_done(now) {
             self.shadow_fading = false;
             return false;
@@ -287,9 +318,37 @@ impl FenceViewState {
         true
     }
 
-    /// Whether the title row is shown right now (title-on-hover rule).
+    /// Whether the title row is shown right now (title-on-hover rule): also while another
+    /// fence is dragged over it to merge and while the title is being renamed.
     pub(super) fn title_visible_target(&self) -> bool {
-        !self.behavior.title_on_hover.get() || self.mouse_inside || self.roll_target()
+        !self.behavior.title_on_hover.get()
+            || self.mouse_inside
+            || self.roll_target()
+            || self.merge_hint
+            || self.title_renaming
+    }
+
+    /// 外观 → 全透明: no plate (glass, tint, rim, shadow) at rest.
+    pub(super) fn is_clear(&self) -> bool {
+        self.opacity <= 0.0
+    }
+
+    /// Whether the plate is shown right now: always, except on a fully transparent fence,
+    /// whose plate appears while the pointer is over it, while it is rolled up, floats above
+    /// other windows (Peek) or is selected with a desktop marquee (the ring is part of the
+    /// shadow), and while something is dropped on it or merged into it.
+    pub(super) fn plate_visible_target(&self) -> bool {
+        !self.is_clear()
+            || self.mouse_inside
+            || self.shadow.ring().is_some()
+            || self.roll_target()
+            || self.behavior.floating.get()
+            || self.merge_hint
+            || self.drop_hover
+            || self.drop_item.is_some()
+            || self.drop_insert.is_some()
+            || self.drop_tab.is_some()
+            || self.title_renaming
     }
 
     /// End height (device px) of the roll / auto-height tween in flight.

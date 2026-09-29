@@ -159,7 +159,7 @@
     background: radial-gradient(ellipse at var(--glass-light-x, 25%) 0, #ffffff10, transparent 55%);
     box-shadow: inset 1px 2px 3px #ffffff50, inset -1px -2px 4px #383a471c, inset 0 -1px 1px #ffffff70; }
   .preview-glass { position: absolute; inset: -20px; background: var(--glass-panel); backdrop-filter: blur(.65px) saturate(110%); pointer-events: none; }
-  .preview-title { position: relative; z-index: 1; padding: 7px 12px 0; font-size: 12px; line-height: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .preview-title { position: relative; z-index: 1; padding: 7px 12px 0; font-size: 12px; line-height: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: var(--preview-title-align, left); }
   .tile-glass .preview-title { text-shadow: var(--glass-label-shadow); }
   .mini-items { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; padding: 8px 12px 10px; min-height: 52px; }
   .file-icon { width: var(--preview-icon-size, 26px); height: var(--preview-icon-size, 26px); position: relative; display: grid; place-items: center; border-radius: 5px; font-size: 13px; flex: none;
@@ -294,6 +294,8 @@
         </div></div>
       <div class="card"><div class="l"><span class="ic">&#xE7A1;</span><div><div class="t">颜色模式</div></div></div>
         <select data-bind="theme"><option value="followWindowsMode">跟随 Windows 模式</option><option value="followAppMode">跟随应用模式</option><option value="light">浅色</option><option value="dark">深色</option></select></div>
+      <div class="card"><div class="l"><span class="ic">&#xE8E4;</span><div><div class="t">标题对齐</div></div></div>
+        <select data-bind="titleAlign"><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></div>
       <div class="card"><div class="l"><span class="ic">&#xE8B9;</span><div><div class="t">默认图标大小</div><div class="s">新建栅栏时使用，每个栅栏可在「栅栏」页或右键菜单中单独设置</div></div></div>
         <select data-bind="iconSize"><option value="32">小图标</option><option value="48">中等图标</option><option value="64">较大图标</option><option value="96">大图标</option></select></div>
       <div class="group">
@@ -343,8 +345,8 @@
       <div class="card"><div class="l"><span class="ic">&#xE8AC;</span><div><div class="t">名称</div></div></div>
         <input type="text" id="fenceTitle" data-fence="title" maxlength="120"></div>
       <h3>外观</h3>
-      <div class="card"><div class="l"><span class="ic">&#xE744;</span><div><div class="t">不透明度</div><div class="s">默认的玻璃让桌面透出来；更厚实会加一层实色</div></div></div>
-        <select id="fenceOpacity" data-fence="opacity"><option value="clear">更透明</option><option value="default">默认</option><option value="solid">更厚实</option></select></div>
+      <div class="card"><div class="l"><span class="ic">&#xE744;</span><div><div class="t">不透明度</div><div class="s">默认的玻璃让桌面透出来；更厚实会加一层实色；全透明只在鼠标悬停时显示玻璃</div></div></div>
+        <select id="fenceOpacity" data-fence="opacity"><option value="transparent">全透明</option><option value="clear">更透明</option><option value="default">默认</option><option value="solid">更厚实</option></select></div>
       <div class="card"><div class="l"><span class="ic">&#xE790;</span><div><div class="t">色调</div><div class="s">给玻璃染上一层颜色，标签页的色条随之变化</div></div></div>
         <div class="swatches" id="fenceTintSwatches" role="radiogroup"></div>
         <select id="fenceTint" data-fence="tint" hidden><option value="">无</option></select></div>
@@ -472,6 +474,7 @@
     preview.style.setProperty('--preview-icon-size', ({ 32: 21, 48: 26, 64: 31, 96: 36 }[settings.iconSize] || 26) + 'px');
     preview.style.setProperty('--preview-tint', settings.icons.tintRgb ? '#' + rgbToHex(settings.icons.tintRgb) : 'transparent');
     preview.style.setProperty('--preview-tint-strength', settings.icons.tintStrength);
+    preview.style.setProperty('--preview-title-align', settings.titleAlign || 'left');
   }
   function bindThemeStyle() {
     const value = state.settings.themeStyle || 'fluent';

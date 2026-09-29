@@ -193,9 +193,10 @@ pub fn validate(cfg: &Config) -> Result<(), String> {
                     f.title, g.w, g.h
                 ));
             }
-            // 0.4–1.8: the per-fence menu offers 0.55 ("更透明") and 1.6 ("更厚实" = a veil).
+            // The presets are 0.55 ("更透明"), 1.6 ("更厚实" = a veil) and 0 ("全透明").
             if let Some(a) = &f.appearance
                 && let Some(o) = a.opacity
+                && o != 0.0
                 && !(0.2..=2.0).contains(&o)
             {
                 return Err(format!("fence {} opacity {o} out of range", f.title));
@@ -498,6 +499,24 @@ mod tests {
                 assert_eq!(from, store.bak_path());
             }
             other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn opacity_presets_validate_and_stray_values_do_not() {
+        for (opacity, ok) in [
+            (0.0, true),
+            (0.55, true),
+            (1.6, true),
+            (0.1, false),
+            (2.5, false),
+        ] {
+            let mut c = sample();
+            c.layouts[0].fences[0].appearance = Some(AppearanceOverride {
+                opacity: Some(opacity),
+                ..Default::default()
+            });
+            assert_eq!(validate(&c).is_ok(), ok, "opacity {opacity}");
         }
     }
 

@@ -389,6 +389,8 @@ pub(super) fn fence_style_for(f: &pecofence_core::Fence) -> FenceStyle {
             TitleSize::Normal => 1,
             TitleSize::Large => 2,
         },
+        // Global (标题对齐): the window takes it from `Behavior` at draw time.
+        title_align: pecofence_core::TitleAlign::Left,
     }
 }
 

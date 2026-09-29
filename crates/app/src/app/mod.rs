@@ -695,6 +695,7 @@ impl App {
                     state.config.settings.roll_up.click_to_expand,
                 ),
                 title_on_hover: std::cell::Cell::new(state.config.settings.roll_up.title_on_hover),
+                title_align: std::cell::Cell::new(state.config.settings.title_align),
                 hide_inactive_scrollbar: std::cell::Cell::new(
                     state.config.settings.roll_up.hide_inactive_scrollbar,
                 ),

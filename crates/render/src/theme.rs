@@ -66,6 +66,9 @@ pub struct Theme {
     pub corner_radius: f32,
     /// Title bar height in DIPs.
     pub title_height: f32,
+    /// Captions sit on bare wallpaper (a fully transparent plate): titles, tabs and labels
+    /// get the legibility halo Liquid Glass labels always have.
+    pub text_halo: bool,
 }
 
 impl Theme {
@@ -98,6 +101,7 @@ impl Theme {
             accent: ColorF::from_rgba8(0x60, 0xCD, 0xFF, 0xFF),
             corner_radius: 8.0,
             title_height: 36.0,
+            text_halo: false,
         }
     }
 
@@ -130,6 +134,7 @@ impl Theme {
             accent: ColorF::from_rgba8(0x00, 0x5F, 0xB8, 0xFF),
             corner_radius: 8.0,
             title_height: 36.0,
+            text_halo: false,
         }
     }
 
@@ -233,7 +238,7 @@ impl Theme {
     /// Hysteresis prevents the caption and all icon labels flashing black/white while a
     /// moving plate samples a background close to the contrast threshold.
     pub fn over_glass_with_previous_ink(
-        mut self,
+        self,
         image: &crate::Image,
         opacity: f32,
         tint: Option<ColorF>,
@@ -242,6 +247,48 @@ impl Theme {
         if !self.liquid_glass || image.bgra.is_empty() {
             return self;
         }
+        let foreground = if self.prefers_dark_text(image, opacity, tint, previous_dark_text) {
+            Self::light().with_liquid_glass()
+        } else {
+            Self::dark().with_liquid_glass()
+        };
+        self.with_ink_of(foreground)
+    }
+
+    /// A fully transparent plate (外观 → 全透明): the captions sit on the wallpaper at rest and
+    /// on the default plate while hovered, so the ink is chosen against the tinted backdrop
+    /// sample (the plate the pointer reveals) and every caption gets a halo for the bare
+    /// wallpaper in between.
+    pub fn over_clear_plate(
+        mut self,
+        image: &crate::Image,
+        tint: Option<ColorF>,
+        previous_dark_text: Option<bool>,
+    ) -> Self {
+        self.text_halo = true;
+        if self.liquid_glass {
+            return self.over_glass_with_previous_ink(image, 1.0, tint, previous_dark_text);
+        }
+        if image.bgra.is_empty() {
+            return self;
+        }
+        let foreground = if self.prefers_dark_text(image, 1.0, tint, previous_dark_text) {
+            Self::light()
+        } else {
+            Self::dark()
+        };
+        self.with_ink_of(foreground)
+    }
+
+    /// Whether dark text reads better over `image` once the plate's own layers (glass layer,
+    /// opacity veil, tint wash) are composited over it.
+    fn prefers_dark_text(
+        &self,
+        image: &crate::Image,
+        opacity: f32,
+        tint: Option<ColorF>,
+        previous_dark_text: Option<bool>,
+    ) -> bool {
         let mut sum = 0.0;
         let mut count = 0;
         let (cols, rows) = (image.width.min(16), image.height.min(16));
@@ -256,7 +303,7 @@ impl Theme {
             }
         }
         let luminance = |c: ColorF| 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-        let mut brightness = sum / count as f32;
+        let mut brightness = sum / count.max(1) as f32;
         let mut layer = self.glass_layer_fill;
         layer.a *= opacity.clamp(0.4, 1.0);
         for overlay in [
@@ -274,11 +321,12 @@ impl Theme {
             Some(false) => 0.62,
             None => 0.56,
         };
-        let foreground = if brightness > threshold {
-            Self::light().with_liquid_glass()
-        } else {
-            Self::dark().with_liquid_glass()
-        };
+        brightness > threshold
+    }
+
+    /// Takes the text and control-feedback tokens of `foreground`; material, accent and
+    /// geometry stay.
+    fn with_ink_of(mut self, foreground: Self) -> Self {
         self.text_primary = foreground.text_primary;
         self.text_secondary = foreground.text_secondary;
         self.text_tertiary = foreground.text_tertiary;
@@ -374,6 +422,33 @@ mod tests {
             assert_eq!(glass.corner_radius, crate::liquid_glass::BEZEL_DIP);
             assert_eq!(glass.title_height, base.title_height);
             assert!(!base.liquid_glass);
+        }
+    }
+
+    #[test]
+    fn clear_plate_picks_ink_from_the_backdrop_and_adds_a_halo() {
+        for base in [
+            Theme::dark(),
+            Theme::light(),
+            Theme::dark().with_liquid_glass(),
+        ] {
+            assert!(!base.text_halo);
+            let on_light =
+                base.over_clear_plate(&crate::Image::solid(30, 30, [235; 3]), None, None);
+            let on_dark = base.over_clear_plate(&crate::Image::solid(30, 30, [20; 3]), None, None);
+            assert!(on_light.text_halo && on_dark.text_halo);
+            assert!(
+                on_light.text_primary.r < 0.5,
+                "dark ink over a bright wallpaper"
+            );
+            assert!(
+                on_dark.text_primary.r > 0.5,
+                "light ink over a dark wallpaper"
+            );
+            // Material and accent stay the user's.
+            assert_eq!(on_light.liquid_glass, base.liquid_glass);
+            assert_eq!(on_light.selection_fill, base.selection_fill);
+            assert_eq!(on_light.glass_layer_fill, base.glass_layer_fill);
         }
     }
 

@@ -29,9 +29,11 @@ pub(super) fn tint_palette_json() -> serde_json::Value {
         .collect()
 }
 
-/// "更透明" / "更厚实" opacity presets (the menu's former values).
+/// "更透明" / "更厚实" opacity presets (the menu's former values) and "全透明": no plate until
+/// the pointer is over the fence.
 const OPACITY_CLEAR: f32 = 0.55;
 const OPACITY_SOLID: f32 = 1.6;
+const OPACITY_NONE: f32 = 0.0;
 
 fn hex(rgb: [u8; 3]) -> String {
     format!("{:02X}{:02X}{:02X}", rgb[0], rgb[1], rgb[2])
@@ -85,7 +87,7 @@ pub(super) enum FenceProp {
     AutoHeight(bool),
     Locked(bool),
     ExcludeFromQuickHide(bool),
-    /// None = the global default; otherwise a preset (see `OPACITY_CLEAR` / `OPACITY_SOLID`).
+    /// None = the global default; otherwise a preset (`OPACITY_CLEAR` / `_SOLID` / `_NONE`).
     Opacity(Option<f32>),
     Tint(Option<[u8; 3]>),
     TitleColor(TitleColorChoice),
@@ -141,11 +143,12 @@ pub(super) fn parse_fence_prop(
         "locked" => FenceProp::Locked(as_bool()?),
         "excludeFromQuickHide" => FenceProp::ExcludeFromQuickHide(as_bool()?),
         "opacity" => {
-            const ALLOWED: &[&str] = &["default", "clear", "solid"];
+            const ALLOWED: &[&str] = &["default", "clear", "solid", "transparent"];
             FenceProp::Opacity(match as_str(ALLOWED)? {
                 "default" => None,
                 "clear" => Some(OPACITY_CLEAR),
                 "solid" => Some(OPACITY_SOLID),
+                "transparent" => Some(OPACITY_NONE),
                 _ => return Err(bad(ALLOWED)),
             })
         }
@@ -384,6 +387,7 @@ impl App {
         let opacity = h.appearance.as_ref().and_then(|a| a.opacity);
         let opacity = match opacity {
             None => "default",
+            Some(o) if o <= 0.0 => "transparent",
             Some(o) if o < 1.0 => "clear",
             Some(_) => "solid",
         };

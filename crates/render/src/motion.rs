@@ -356,6 +356,19 @@ impl Motion {
     /// Clip the entire fence, including scrolling content. Reuse its geometry on resize.
     /// Coordinates are physical composition pixels, not DIPs.
     pub fn clip_rounded(&self, v: &Visual, width: f32, height: f32, radius: f32) -> Result<()> {
+        self.clip_rounded_at(v, 0.0, width, height, radius)
+    }
+
+    /// [`Motion::clip_rounded`] for a rectangle starting `top` pixels below the visual's
+    /// origin (a fence whose title row is folded away).
+    pub fn clip_rounded_at(
+        &self,
+        v: &Visual,
+        top: f32,
+        width: f32,
+        height: f32,
+        radius: f32,
+    ) -> Result<()> {
         let visual = raw_visual(v)?;
         let existing = visual
             .Clip()
@@ -372,6 +385,7 @@ impl Motion {
             }
         };
         let radius = radius.min(width.min(height) * 0.5).max(0.0);
+        geometry.SetOffset(Vector2::new(0.0, top))?;
         geometry.SetSize(Vector2::new(width, height))?;
         geometry.SetCornerRadius(Vector2::new(radius, radius))
     }

@@ -75,6 +75,9 @@ pub struct Settings {
     /// Material style is independent of the light/dark preference.
     #[serde(default)]
     pub theme_style: ThemeStyle,
+    /// Where every fence's title (or tab strip) sits in its title row.
+    #[serde(default)]
+    pub title_align: TitleAlign,
     pub icon_size: u32,
     pub quick_hide: QuickHideSettings,
     pub roll_up: RollUpSettings,
@@ -137,6 +140,7 @@ impl Default for Settings {
             backdrop: Backdrop::Acrylic,
             theme: ThemeSetting::FollowWindowsMode,
             theme_style: ThemeStyle::Fluent,
+            title_align: TitleAlign::Left,
             icon_size: 48,
             quick_hide: QuickHideSettings::default(),
             roll_up: RollUpSettings::default(),
@@ -180,6 +184,18 @@ pub enum ThemeStyle {
     #[default]
     Fluent,
     LiquidGlass,
+}
+
+/// Title position in the title row (Fences centres it). The chevron zone on the right stays
+/// clear whichever is chosen.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "camelCase")]
+pub enum TitleAlign {
+    #[default]
+    Left,
+    Center,
+    Right,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -450,6 +466,8 @@ impl Default for FenceView {
 pub struct AppearanceOverride {
     /// Colour wash over the glass (Fences per-fence colour).
     pub tint_rgb: Option<[u8; 3]>,
+    /// Glass opacity multiplier (None = 1): 0.55 更透明, 1.6 更厚实, 0 全透明 — no plate at all
+    /// until the pointer is over the fence.
     pub opacity: Option<f32>,
     pub backdrop: Option<Backdrop>,
     /// Title text colour (None = theme text colour).
@@ -1076,8 +1094,10 @@ mod tests {
     fn theme_style_loads_legacy_settings_and_roundtrips_independently_of_mode() {
         let mut json = serde_json::to_value(Settings::default()).unwrap();
         json.as_object_mut().unwrap().remove("themeStyle");
+        json.as_object_mut().unwrap().remove("titleAlign");
         let legacy: Settings = serde_json::from_value(json).unwrap();
         assert_eq!(legacy.theme_style, ThemeStyle::Fluent);
+        assert_eq!(legacy.title_align, TitleAlign::Left);
         for mode in [
             ThemeSetting::Light,
             ThemeSetting::Dark,

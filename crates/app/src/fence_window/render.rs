@@ -81,11 +81,14 @@ pub(super) fn apply_window_shape(hwnd: HWND, liquid_glass: bool) {
 }
 
 impl FenceViewState {
+    /// Opacity multiplier the plate is drawn with. A fully transparent fence draws the
+    /// default plate while it shows it (its alpha comes from `plate_reveal`).
     pub(super) fn material_opacity(&self) -> f32 {
+        let opacity = if self.is_clear() { 1.0 } else { self.opacity };
         if self.behavior.floating.get() && self.theme.liquid_glass {
-            self.opacity.max(1.0)
+            opacity.max(1.0)
         } else {
-            self.opacity
+            opacity
         }
     }
 
@@ -95,6 +98,19 @@ impl FenceViewState {
             return self.theme;
         }
         match &self.backdrop_crop {
+            Some(image) if self.is_clear() => {
+                // Captions sit on bare wallpaper at rest, on the default plate while hovered.
+                let foreground =
+                    self.theme
+                        .over_clear_plate(image, self.style.tint, self.glass_dark_text.get());
+                self.glass_dark_text
+                    .set(Some(foreground.text_primary.r < 0.5));
+                foreground
+            }
+            None if self.is_clear() => Theme {
+                text_halo: true,
+                ..self.theme
+            },
             Some(image) if self.theme.liquid_glass => {
                 // The GPU renders a complete wallpaper-backed material, so floating
                 // fences do not expose application text through a transparent centre.
@@ -218,6 +234,22 @@ impl FenceViewState {
         let animate = self.motion.enabled();
         let title_visible = self.title_visible_target();
         let rolled = self.roll_target();
+        // Title on hover folds the title row away (the plate starts at the content) and the
+        // plate's top edge glides back up with the reveal; 全透明 fades the plate itself.
+        let reveal = title_visible as u8 as f32;
+        if (self.title_reveal.target() - reveal).abs() > f32::EPSILON {
+            let dur = self.anim_dur(motion::FAST);
+            self.title_reveal
+                .retarget(reveal, dur, Curve::Decelerate, now);
+        }
+        let plate = self.plate_visible_target() as u8 as f32;
+        if (self.plate_reveal.target() - plate).abs() > f32::EPSILON {
+            let dur = self.anim_dur(motion::FAST);
+            self.plate_reveal.retarget(plate, dur, Curve::Linear, now);
+        }
+        let plate_top =
+            self.theme.title_height * (1.0 - self.title_reveal.value_at(now).clamp(0.0, 1.0));
+        let plate_clear = 1.0 - self.plate_reveal.value_at(now).clamp(0.0, 1.0);
         let f = &mut self.chrome_fades;
         f.set(animate, ChromeKey::Title, title_visible as u8 as f32, now);
         f.set(
@@ -263,6 +295,8 @@ impl FenceViewState {
             chevron_pressed: self.pressed == Some(PressTarget::Chevron) && inside,
             count: f.value(&ChromeKey::Count, now),
             merge_hint: self.merge_t.value_at(now),
+            plate_top,
+            plate_clear,
         }
     }
 
@@ -271,6 +305,8 @@ impl FenceViewState {
         let now = Instant::now();
         let title = self.title_visible_target() as u8 as f32;
         self.chrome_fades.snap(ChromeKey::Title, title, now);
+        self.title_reveal = Tween::at(title, now);
+        self.plate_reveal = Tween::at(self.plate_visible_target() as u8 as f32, now);
         self.chrome_fades
             .snap(ChromeKey::Count, self.roll_target() as u8 as f32, now);
     }
@@ -344,7 +380,10 @@ impl FenceViewState {
             self.pill_anim = None;
         }
         let deco = self.deco;
-        let style = self.style;
+        let style = FenceStyle {
+            title_align: self.behavior.title_align.get(),
+            ..self.style
+        };
         let pressed_tab = match self.pressed {
             Some(PressTarget::Tab(t)) if self.press_inside => Some(t),
             _ => None,
@@ -392,6 +431,8 @@ impl FenceViewState {
             )
         })?;
         self.note_draw_result(ok);
+        let inset = (state.plate_top * scale).round() as i32;
+        self.sync_plate_shape(inset, 1.0 - state.plate_clear);
         let ntabs = self.tabs.len();
         self.chrome_fades.prune(now, |k| match k {
             ChromeKey::Tab(i) | ChromeKey::TabDrop(i) => *i < ntabs,
@@ -403,6 +444,8 @@ impl FenceViewState {
             self.tab_settle = None;
         }
         self.chrome_busy = self.chrome_fades.busy(now)
+            || !self.title_reveal.is_done(now)
+            || !self.plate_reveal.is_done(now)
             || self.pill_anim.is_some()
             || !self.merge_t.is_done(now)
             || !self.tab_slide.is_empty()
@@ -496,14 +539,26 @@ impl FenceViewState {
         Ok(())
     }
 
-    /// The clip must follow every height-animation frame even while content stays frozen.
+    /// The clip must follow every height-animation frame even while content stays frozen. It
+    /// starts at the plate top: a title row folded away by title on hover is cut off too (a
+    /// Fluent window is otherwise rounded by DWM alone).
     pub(super) fn update_shape_clip(&self, w: i32, h: i32) -> Result<()> {
+        let inset = self.plate_inset_px.clamp(0, (h - 1).max(0));
         if self.theme.liquid_glass {
-            self.motion.clip_rounded(
+            self.motion.clip_rounded_at(
                 &self.root,
+                inset as f32,
                 w as f32,
-                h as f32,
+                (h - inset) as f32,
                 self.theme.corner_radius * self.scale(),
+            )?;
+        } else if inset > 0 {
+            self.motion.clip_rounded_at(
+                &self.root,
+                inset as f32,
+                w as f32,
+                (h - inset) as f32,
+                FLUENT_WINDOW_RADIUS_DIP * self.scale(),
             )?;
         } else {
             self.motion.clear_clip(&self.root)?;
