@@ -71,4 +71,6 @@ Regenerate Win32 bindings with `cargo run -p tool_bindgen`. The definitions in
 `tools/bindgen` generate platform, Composition and GPU-glass bindings.
 
 `vendor/windows-composition` carries the small upstream wrapper patch needed by
-the renderer. Preserve its license files when changing or distributing it.
+the renderer, and `vendor/windows-canvas` adds `TextFormat::with_locale` so fence
+text picks the right CJK font (upstream hard-codes `en-us`). Preserve their license
+files when changing or distributing them.

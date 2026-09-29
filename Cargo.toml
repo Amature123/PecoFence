@@ -49,8 +49,12 @@ manual_div_ceil = "allow"
 # Vendored copy of the upstream 0.100.0 crate with two additions (`Visual::as_raw`,
 # `Compositor::as_raw` on the `system` stack) so `crates/render` can reach Composition APIs the
 # wrapper does not expose. Drop the patch once upstream ships an equivalent accessor.
+#
+# windows-canvas: vendored 0.100.0 with `TextFormat::with_locale` (upstream hard-codes `en-us`,
+# which makes DirectWrite draw Chinese file names with the Japanese UI font).
 [patch.crates-io]
 windows-composition = { path = "vendor/windows-composition" }
+windows-canvas = { path = "vendor/windows-canvas" }
 
 [profile.release]
 opt-level = 3
