@@ -51,6 +51,7 @@ mod dnd;
 mod fence_options;
 mod fences;
 mod fileops;
+mod group;
 mod ipc;
 mod items;
 mod menus;
@@ -161,6 +162,13 @@ pub struct App {
     dying: Vec<FenceWindow>,
     /// `--test-script` state while a script runs.
     test: Option<testscript::TestScript>,
+    /// Selection kept by a Ctrl / Shift desktop marquee in progress (empty for a plain one);
+    /// `None` between marquees.
+    marquee_base: Option<Vec<(HWND, FenceId)>>,
+    /// Our rubber band for desktop marquees (created on first use), and whether the marquee in
+    /// progress shows it (only while Explorer's icons are hidden: Explorer draws its own).
+    marquee_band: Option<crate::marquee_band::MarqueeBand>,
+    marquee_draws_band: bool,
     anchor: AnchorCell,
     control: Window,
     queue: CommandQueue,
@@ -629,7 +637,9 @@ impl App {
         std::mem::forget(sentinel_class);
         if let Some(a) = anchor_cell.borrow_mut().as_mut() {
             let q = queue.clone();
-            a.on_marquee = Some(Box::new(move |rect| q.push(Command::NewFenceRect(rect))));
+            a.on_marquee = Some(Box::new(move |event| {
+                q.push(Command::DesktopMarquee(event))
+            }));
         }
 
         let motion = Rc::new(Motion::new(&stack)?);
@@ -699,6 +709,7 @@ impl App {
                         .map_err(|e| tracing::warn!(error = %e, "drag guides unavailable"))
                         .ok(),
                 ),
+                selection: std::cell::RefCell::new(Vec::new()),
             }),
         });
 
@@ -795,6 +806,9 @@ impl App {
             peek: None,
             dying: Vec::new(),
             test: None,
+            marquee_base: None,
+            marquee_band: None,
+            marquee_draws_band: false,
             peek_hotkey: None,
             peek_hotkey_wanted: None,
             desktop_unavailable: false,
@@ -1290,6 +1304,8 @@ impl App {
             Command::DeleteFence(fence) => self.delete_fence(fence),
             Command::NewFence { x, y } => self.new_fence_near(x, y),
             Command::NewFenceRect(rect) => self.offer_new_fence(rect),
+            Command::DesktopMarquee(event) => self.on_desktop_marquee(event),
+            Command::ClearFenceSelection => self.set_fence_selection(Vec::new()),
             Command::RaiseFence(hwnd) => {
                 if let Some(a) = self.anchor.borrow_mut().as_mut() {
                     a.raise_fence(hwnd);

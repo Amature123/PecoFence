@@ -49,6 +49,7 @@ mod api;
 mod consts;
 mod dnd;
 mod frame;
+mod group;
 mod handler;
 mod hit;
 mod items;
@@ -69,6 +70,7 @@ pub use dnd::filter_folder_paths;
 
 use self::consts::*;
 use self::dnd::*;
+use self::group::*;
 use self::hit::*;
 use self::items::*;
 use self::render::*;
@@ -129,6 +131,9 @@ pub struct Behavior {
     /// the fence it would join as a tab.
     pub drop_preview: std::cell::RefCell<Option<crate::drop_preview::DropPreview>>,
     pub drag_guides: std::cell::RefCell<Option<crate::drag_guides::DragGuides>>,
+    /// Fence windows (and their host fence ids) selected with a marquee on the desktop; a
+    /// title drag of one of them moves them all. Owned by the App (`App::set_fence_selection`).
+    pub selection: std::cell::RefCell<Vec<(HWND, FenceId)>>,
 }
 
 /// How the shown items fit the window (see [`FenceWindow::fit_report`]).

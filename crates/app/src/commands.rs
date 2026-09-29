@@ -223,8 +223,12 @@ pub enum Command {
         x: i32,
         y: i32,
     },
-    /// The user drew a marquee on the empty desktop: offer a fence with these screen bounds.
+    /// Offer a fence with these screen bounds (a desktop marquee that touched no fence).
     NewFenceRect(RECT),
+    /// A press / drag / release on the empty desktop: selects the fences the marquee touches.
+    DesktopMarquee(crate::anchor::MarqueeEvent),
+    /// A click elsewhere ended the desktop fence selection.
+    ClearFenceSelection,
     ToggleAllFences,
     /// Peek hotkey: float all fences above the current windows (again = end).
     TogglePeek,

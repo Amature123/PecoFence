@@ -36,7 +36,7 @@ pub(super) fn flush_window_drag(
     now: Instant,
     release: Option<(i32, i32)>,
 ) -> bool {
-    let (target_hwnd, point, offset, snapping, gap_dip, override_height, behavior, radius) = {
+    let (target_hwnd, point, offset, snapping, gap_dip, override_height, behavior, radius, group) = {
         let mut guard = view.borrow_mut();
         let Some(v) = guard.as_mut() else {
             return false;
@@ -66,6 +66,12 @@ pub(super) fn flush_window_drag(
             (drag.hwnd == controller).then_some(height).flatten(),
             v.behavior.clone(),
             v.theme.corner_radius,
+            match &drag.origin {
+                WindowDragOrigin::Caption { rect, .. } if !drag.group.is_empty() => {
+                    Some((*rect, drag.group.clone()))
+                }
+                _ => None,
+            },
         )
     };
     let began = Instant::now();
@@ -76,11 +82,25 @@ pub(super) fn flush_window_drag(
         right: point.0 - offset.0 + old.right - old.left,
         bottom: point.1 - offset.1 + override_height.unwrap_or(old.bottom - old.top),
     };
-    let merge = merge_target_at(target_hwnd, HWND::default(), point);
+    // A group drag never joins a tab strip.
+    let merge = if group.is_none() {
+        merge_target_at(target_hwnd, HWND::default(), point)
+    } else {
+        None
+    };
     let target = merge.map_or(0, |h| h.0 as isize);
     let target_done = Instant::now();
     let mut guides = Vec::new();
-    if snapping && target == 0 && !snap_paused() {
+    let mut placed = Vec::new();
+    if let Some((start, members)) = &group {
+        let scale = monitors::dpi_for_window(target_hwnd).max(96) as f32 / 96.0;
+        let snap = (snapping && !snap_paused()).then_some((
+            (gap_dip as f32 * scale) as i32,
+            (SNAP_DIST_DIP as f32 * scale) as i32,
+        ));
+        let others = fence_rects_outside(target_hwnd, members);
+        (placed, guides) = place_group(&mut rect, start, members, &others, work_area_under, snap);
+    } else if snapping && target == 0 && !snap_paused() {
         let scale = monitors::dpi_for_window(target_hwnd).max(96) as f32 / 96.0;
         guides = snap_rect(
             &mut rect,
@@ -117,7 +137,13 @@ pub(super) fn flush_window_drag(
             rect.bottom - rect.top,
         );
     }
-    update_drag_feedback(&behavior, target_hwnd, &rect, merge, &guides, radius);
+    match &group {
+        Some((_, members)) => {
+            move_members(members, &placed);
+            show_guides(&behavior, target_hwnd, &guides);
+        }
+        None => update_drag_feedback(&behavior, target_hwnd, &rect, merge, &guides, radius),
+    }
     if hint_changed {
         queue.push(Command::MergeHint {
             target: HWND(target as *mut core::ffi::c_void),
@@ -125,6 +151,7 @@ pub(super) fn flush_window_drag(
         });
     }
     tracing::trace!(target: "pecofence::drag_frame", requests, applied, finish = release.is_some(),
+        members = placed.len(),
         target_us = target_done.duration_since(began).as_micros(),
         snap_us = snap_done.duration_since(target_done).as_micros(),
         move_us = snap_done.elapsed().as_micros(), "window drag frame");

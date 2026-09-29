@@ -198,6 +198,9 @@ pub(super) fn on_keydown(
             }
             v.selected.clear();
             v.type_ahead.clear();
+            if !h.behavior.selection.borrow().is_empty() {
+                queue.push(Command::ClearFenceSelection);
+            }
             release = v.end_marquee()
                 || v.drag.take().is_some()
                 || v.end_scrollbar_press()

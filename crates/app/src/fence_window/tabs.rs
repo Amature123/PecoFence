@@ -86,6 +86,8 @@ pub(super) enum DragCancel {
         hwnd: HWND,
         rect: RECT,
         hinted: bool,
+        /// The other fences of a group drag, put back too.
+        group: Vec<GroupMember>,
     },
 }
 
@@ -107,6 +109,8 @@ pub(super) struct RemoteDrag {
     pub(super) moved_once: bool,
     /// Only the ownership and geometry changed by this gesture; used when cancelling.
     pub(super) origin: WindowDragOrigin,
+    /// A title drag of a fence in the desktop selection: the other selected fences move along.
+    pub(super) group: Vec<GroupMember>,
     pub(super) press: (i32, i32),
     pub(super) last_pointer: (i32, i32),
     pub(super) pending_pointer: Option<(i32, i32)>,
@@ -307,6 +311,7 @@ impl FenceViewState {
                 hwnd: rd.hwnd,
                 rect,
                 hinted: rd.merge_target != 0,
+                group: rd.group,
             },
         })
     }

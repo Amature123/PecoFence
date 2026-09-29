@@ -271,6 +271,37 @@ impl App {
                         bottom: y + h,
                     }));
                 }
+                // What the anchor reports for a drag over the bare desktop from (x, y) to
+                // (x + w, y + h); `add` = Ctrl / Shift held. `marquee` presses, drags and
+                // releases; `marquee-drag` stops before the release, `marquee-end` releases.
+                // Releasing over no fence opens the new-fence menu, so scripts draw over fences.
+                [
+                    verb @ ("marquee" | "marquee-drag" | "marquee-end"),
+                    x,
+                    y,
+                    w,
+                    h,
+                    rest @ ..,
+                ] if rest.is_empty() || rest == ["add"] => {
+                    use crate::anchor::MarqueeEvent;
+                    let p = |s: &str| s.parse::<i32>().unwrap_or(0);
+                    let (x, y, w, h) = (p(x), p(y), p(w), p(h));
+                    let rect = RECT {
+                        left: x.min(x + w),
+                        top: y.min(y + h),
+                        right: x.max(x + w),
+                        bottom: y.max(y + h),
+                    };
+                    if *verb != "marquee-end" {
+                        self.on_desktop_marquee(MarqueeEvent::Pressed {
+                            additive: !rest.is_empty(),
+                        });
+                        self.on_desktop_marquee(MarqueeEvent::Moved(rect));
+                    }
+                    if *verb != "marquee-drag" {
+                        self.on_desktop_marquee(MarqueeEvent::Released(rect));
+                    }
+                }
                 ["drop-desktop", title] => {
                     // What a drag-out onto the bare desktop ends in (minus the OLE round
                     // trip): the fence's first item goes back to the inbox and through the rules.
@@ -484,6 +515,22 @@ impl App {
             })
             .unwrap_or_default();
         tracing::info!(target: "pecofence::test", "[{tag}] outline={outline:?} guides={guides:?}");
+        let selected: Vec<String> = self
+            .ctx
+            .behavior
+            .selection
+            .borrow()
+            .iter()
+            .filter_map(|(_, id)| self.state.fence(*id).map(|f| f.title.clone()))
+            .collect();
+        let ringed: Vec<String> = self
+            .fences
+            .iter()
+            .filter(|(_, w)| w.group_selected())
+            .filter_map(|(id, _)| self.state.fence(*id).map(|f| f.title.clone()))
+            .collect();
+        let band = self.marquee_band_shown().map(rect);
+        tracing::info!(target: "pecofence::test", "[{tag}] selection={selected:?} ringed={ringed:?} band={band:?}");
         let peek = self.peek.is_some();
         let rename = crate::rename::active_target().is_some();
         tracing::info!(target: "pecofence::test", "[{tag}] fences={} dying={} peek={peek} rename={rename} hide_setting={} icons_hidden={}",

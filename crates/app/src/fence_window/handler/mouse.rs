@@ -319,6 +319,11 @@ pub(super) fn on_lbuttonup(
                 }
                 queue.push(Command::ToggleRollUp(drag.fence));
             }
+            // A title click without a drag ends the desktop selection, as a click elsewhere
+            // would.
+            if !h.behavior.selection.borrow().is_empty() {
+                queue.push(Command::ClearFenceSelection);
+            }
             return Some(0);
         }
         let rect = window::window_rect(drag.hwnd);
@@ -332,7 +337,12 @@ pub(super) fn on_lbuttonup(
                 x: 0,
             });
         }
-        if let Some(into) = merge_target_at(drag.hwnd, HWND::default(), (release.x, release.y)) {
+        if !drag.group.is_empty() {
+            queue.push(Command::FenceDropped(drag.fence));
+            commit_members(queue, &drag.group);
+        } else if let Some(into) =
+            merge_target_at(drag.hwnd, HWND::default(), (release.x, release.y))
+        {
             let x = release.x;
             queue.push(Command::MergeFence {
                 fence: drag.fence,
@@ -488,6 +498,12 @@ pub(super) fn on_capturechanged(
                 fence: rd.fence,
                 rect,
             });
+            for m in &rd.group {
+                queue.push(Command::FenceBoundsChanged {
+                    fence: m.fence,
+                    rect: window::window_rect(m.hwnd),
+                });
+            }
             if rd.merge_target != 0 {
                 queue.push(Command::MergeHint {
                     target: HWND(std::ptr::null_mut()),

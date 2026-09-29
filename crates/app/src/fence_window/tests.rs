@@ -14,6 +14,7 @@ fn window_drag_keeps_the_latest_sample_and_release_before_first_frame() {
             rect: RECT::default(),
             click_expand: false,
         },
+        group: Vec::new(),
         press: (-500, 200),
         last_pointer: (-500, 200),
         pending_pointer: None,
@@ -1028,4 +1029,37 @@ fn resized_top_edge_minimum_and_rolled_fences() {
         }
     );
     assert_eq!(SizingEdges::from_wmsz(3), top);
+}
+
+/// A group drag keeps every member's offset to the dragged fence; with snapping the group's
+/// bounding box (not the dragged fence alone) lines up with a fence outside the group.
+#[test]
+fn group_drag_keeps_offsets_and_snaps_its_bounding_box() {
+    let start = rc(100, 100, 300, 300);
+    let member = GroupMember {
+        hwnd: HWND::default(),
+        fence: FenceId::new_v4(),
+        start: rc(320, 100, 520, 260),
+    };
+    let work = rc(-5000, -5000, 5000, 5000);
+    let mut r = rc(150, 150, 350, 350);
+    let (placed, guides) = place_group(&mut r, &start, &[member], &[], |_| Some(work), None);
+    assert_eq!(r, rc(150, 150, 350, 350));
+    assert_eq!(placed, vec![rc(370, 150, 570, 310)]);
+    assert!(guides.is_empty());
+    // The box (170..590) ends 10 px short of a gap before the fence at 600: it moves 2 px
+    // right as a whole, and its top joins that fence's top.
+    let other = rc(600, 0, 800, 400);
+    let mut r = rc(170, 5, 370, 205);
+    let (placed, guides) = place_group(
+        &mut r,
+        &start,
+        &[member],
+        &[other],
+        |_| Some(work),
+        Some((8, 20)),
+    );
+    assert_eq!(r, rc(172, 0, 372, 200));
+    assert_eq!(placed, vec![rc(392, 0, 592, 160)]);
+    assert!(guides.iter().any(|g| !g.vertical && g.at == 0));
 }

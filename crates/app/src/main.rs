@@ -12,6 +12,7 @@ mod fence_window;
 mod icons;
 mod ipc_server;
 mod layout;
+mod marquee_band;
 mod peek;
 mod rename;
 mod settings_host;
