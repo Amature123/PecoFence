@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.3
+
 - 「显示标题栏」 per fence (fence options, `fence set <FENCE> titleOnHover default|hover|always`): each fence can fold its title row away until the pointer is over it, or always show it, whatever 「鼠标悬停时才显示标题栏」 says; fences left at 「跟随常规设置」 (`default`) keep following that setting. A fully transparent fence with a hover-only title shows nothing but its icons at rest.
 - The tray icon comes back after Explorer restarts or crashes. It used to stay gone until PecoFence was restarted, and every notification went with it; an icon that could not be added at logon is retried too.
 - A `config.json` this version cannot read (one written by a newer version, or a hand edit gone wrong) is kept as `config.unreadable-<date>-<n>.json` next to it, with a notification. It used to be rotated into `config.bak` and deleted by the second save.

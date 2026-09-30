@@ -57,5 +57,5 @@
     "productivity"
   ],
   "trailerTitle": "PecoFence — organize your desktop, or let your AI do it",
-  "releaseNotes": "New: pecofence-cli, a command-line tool included with the app. Terminals, scripts and AI coding agents can create and arrange fences, add and apply sorting rules, change settings and appearance, take snapshots, and back up or restore your configuration. Also: Start with Windows now follows the version you launch."
+  "releaseNotes": "What's new: pecofence-cli, a command-line tool for terminals, scripts and AI coding agents (create and arrange fences, sorting rules, settings, snapshots, backups). A reworked Liquid Glass look. Alignment guides and centre snapping while moving or resizing fences. Select several fences with a rectangle on the desktop and move them together. Fully transparent fences, titles that appear only on hover (per fence), and centred or right-aligned titles. Smoother virtual desktop switches and less memory. Fixes: the tray icon returns after Explorer restarts, files dropped from another drive are copied as in Explorer, deleting a fence asks first, and the settings window fits small high-DPI screens."
 }
