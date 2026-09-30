@@ -318,10 +318,16 @@ impl FenceViewState {
         true
     }
 
+    /// Title on hover for this fence: its own choice, else the global setting.
+    pub(super) fn title_on_hover(&self) -> bool {
+        self.title_on_hover_override
+            .unwrap_or_else(|| self.behavior.title_on_hover.get())
+    }
+
     /// Whether the title row is shown right now (title-on-hover rule): also while another
     /// fence is dragged over it to merge and while the title is being renamed.
     pub(super) fn title_visible_target(&self) -> bool {
-        !self.behavior.title_on_hover.get()
+        !self.title_on_hover()
             || self.mouse_inside
             || self.roll_target()
             || self.merge_hint

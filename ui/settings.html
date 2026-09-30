@@ -317,7 +317,7 @@
       <h3>行为</h3>
       <div class="card"><div class="l"><span class="ic">&#xE70D;</span><div><div class="t">卷起的栅栏悬停时自动展开</div><div class="s">鼠标离开后自动卷回</div></div></div><div class="toggle" role="switch" tabindex="0" data-bind="rollUp.hoverPeek"></div></div>
       <div class="card"><div class="l"><span class="ic">&#xE7C9;</span><div><div class="t">卷起的栅栏需点击标题才展开</div><div class="s">打开后不再悬停展开；拖动标题仍可移动栅栏</div></div></div><div class="toggle" role="switch" tabindex="0" data-bind="rollUp.clickToExpand"></div></div>
-      <div class="card"><div class="l"><span class="ic">&#xE737;</span><div><div class="t">鼠标悬停时才显示标题栏</div><div class="s">平时只显示图标，让桌面更安静</div></div></div><div class="toggle" role="switch" tabindex="0" data-bind="rollUp.titleOnHover"></div></div>
+      <div class="card"><div class="l"><span class="ic">&#xE737;</span><div><div class="t">鼠标悬停时才显示标题栏</div><div class="s">平时只显示图标，让桌面更安静；每个栅栏可在「栅栏」页单独设置</div></div></div><div class="toggle" role="switch" tabindex="0" data-bind="rollUp.titleOnHover"></div></div>
       <div class="card"><div class="l"><span class="ic">&#xE7B1;</span><div><div class="t">不活动时隐藏滚动条</div><div class="s">仅在鼠标位于栅栏内或滚动后短暂显示</div></div></div><div class="toggle" role="switch" tabindex="0" data-bind="rollUp.hideInactiveScrollbar"></div></div>
       <h3>吸附与对齐</h3>
       <div class="group">
@@ -354,6 +354,8 @@
         <select id="fenceTitleColor" data-fence="titleColor"><option value="theme">跟随主题</option><option value="tint">跟随色调</option><option value="white">白色</option><option value="black">黑色</option></select></div>
       <div class="card"><div class="l"><span class="ic">&#xE8E9;</span><div><div class="t">标题字号</div><div class="s">标题栏高度随字号变化</div></div></div>
         <select id="fenceTitleSize" data-fence="titleSize"><option value="small">小</option><option value="normal">标准</option><option value="large">大</option></select></div>
+      <div class="card"><div class="l"><span class="ic">&#xE737;</span><div><div class="t">显示标题栏</div><div class="s">鼠标悬停时显示：平时收起标题行，指针移到栅栏上才出现</div></div></div>
+        <select id="fenceTitleOnHover" data-fence="titleOnHover"><option value="default">跟随常规设置</option><option value="always">始终显示</option><option value="hover">鼠标悬停时显示</option></select></div>
       <h3>布局</h3>
       <div class="card"><div class="l"><span class="ic">&#xE8B9;</span><div><div class="t">图标大小</div><div class="s">也可以在栅栏内按住 Ctrl 滚动鼠标滚轮</div></div></div>
         <select id="fenceIconSize" data-fence="iconSize"><option value="32">小图标</option><option value="48">中图标</option><option value="64">较大图标</option><option value="96">大图标</option></select></div>

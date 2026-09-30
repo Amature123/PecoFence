@@ -167,6 +167,13 @@ try {
     # 3b. Review follow-ups: colour values, --string, --all, inbox alias, rect validation.
     $r = Invoke-Cli @("fence", "set", $id, "tint", "#FF8800")
     Check "fence set tint #FF8800" ($r.Code -eq 0 -and (Json $r.Out).fence.tint -eq "#FF8800") "$($r.Out) $($r.Err)"
+    $r = Invoke-Cli @("fence", "set", $id, "titleOnHover", "hover")
+    Check "fence set titleOnHover hover" ($r.Code -eq 0 -and (Json $r.Out).fence.titleOnHover -eq "hover") "$($r.Out) $($r.Err)"
+    $r = Invoke-Cli @("fence", "set", $id, "titleOnHover", "true")
+    $e = Json $r.Err
+    Check "fence set titleOnHover true -> invalid_value" ($r.Code -eq 1 -and $e.error.code -eq "invalid_value" -and ($e.error.details.allowed -contains "always")) "code=$($r.Code) $($r.Err)"
+    $r = Invoke-Cli @("fence", "set", $id, "titleOnHover", "default")
+    Check "fence set titleOnHover default" ($r.Code -eq 0 -and (Json $r.Out).fence.titleOnHover -eq "default") "$($r.Out) $($r.Err)"
     $r = Invoke-Cli @("fence", "set", $id, "title", "2024", "--string")
     Check "fence set title 2024 --string" ($r.Code -eq 0 -and (Json $r.Out).fence.title -eq "2024") "$($r.Out) $($r.Err)"
     $r = Invoke-Cli @("fence", "set", "--all", "locked", "false")

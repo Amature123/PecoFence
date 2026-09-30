@@ -147,7 +147,7 @@ pub enum Method {
     /// Per-fence option; `prop` and `value` use the same names and values as [`FenceDto`]
     /// (`iconSize` 32|48|64|96, `spacing`, `autoHeight`, `locked`, `excludeFromQuickHide`,
     /// `opacity` default|clear|solid|transparent, `tint` "#RRGGBB"|null, `titleColor`, `titleSize`,
-    /// `layout` icons|list|details, `sort`, `reverse`, `groupByDate`, `labelLines`,
+    /// `titleOnHover` default|hover|always, `layout` icons|list|details, `sort`, `reverse`, `groupByDate`, `labelLines`,
     /// `portalNavigate`, `portalTitleIcon`). Result: `{changed, fence}`.
     #[serde(rename = "fences.setOption")]
     FencesSetOption {

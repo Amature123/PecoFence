@@ -28,10 +28,10 @@ const fixture = {
     ],
   },
   fences: [
-    { id: 'fence-a', title: 'Documents', kind: 'virtual', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'default', tint: null, titleColor: 'theme', titleSize: 'normal', portal: null },
-    { id: 'fence-b', title: 'Images', kind: 'virtual', host: 'Documents', iconSize: 96, spacing: 'loose', autoHeight: true, locked: false, excludeFromQuickHide: false, opacity: 'transparent', tint: null, titleColor: 'theme', titleSize: 'normal', portal: null },
-    { id: 'inbox', title: 'Desktop', kind: 'inbox', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: true, excludeFromQuickHide: true, opacity: 'solid', tint: '0078D4', titleColor: 'tint', titleSize: 'large', portal: null },
-    { id: 'portal', title: 'Portal', kind: 'portal', host: null, iconSize: 32, spacing: 'compact', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'clear', tint: '123456', titleColor: 'ABCDEF', titleSize: 'small', portal: { navigate: true, titleIcon: false } },
+    { id: 'fence-a', title: 'Documents', kind: 'virtual', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'default', tint: null, titleColor: 'theme', titleSize: 'normal', titleOnHover: 'default', portal: null },
+    { id: 'fence-b', title: 'Images', kind: 'virtual', host: 'Documents', iconSize: 96, spacing: 'loose', autoHeight: true, locked: false, excludeFromQuickHide: false, opacity: 'transparent', tint: null, titleColor: 'theme', titleSize: 'normal', titleOnHover: 'default', portal: null },
+    { id: 'inbox', title: 'Desktop', kind: 'inbox', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: true, excludeFromQuickHide: true, opacity: 'solid', tint: '0078D4', titleColor: 'tint', titleSize: 'large', titleOnHover: 'hover', portal: null },
+    { id: 'portal', title: 'Portal', kind: 'portal', host: null, iconSize: 32, spacing: 'compact', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'clear', tint: '123456', titleColor: 'ABCDEF', titleSize: 'small', titleOnHover: 'always', portal: { navigate: true, titleIcon: false } },
   ],
   tintPalette: [{ name: '红', hex: 'E74856' }, { name: '蓝', hex: '0078D4' }, { name: '灰', hex: '7A7574' }],
   snapshots: [{ id: 'snapshot-a', name: 'Before changes', date: '2026-09-09', fenceCount: 4 }],
@@ -72,7 +72,7 @@ function bridge() {
         if (message.name === 'addTemplate' && !state.rules.list.some(r => r.template === message.template)) {
           // Mirror the host: a new fence plus its rule at the top of the list.
           const id = 'tpl-' + message.template;
-          state.fences.push({ id, title: message.template, kind: 'virtual', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'default', tint: null, titleColor: 'theme', titleSize: 'normal', portal: null });
+          state.fences.push({ id, title: message.template, kind: 'virtual', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'default', tint: null, titleColor: 'theme', titleSize: 'normal', titleOnHover: 'default', portal: null });
           const idle = message.template === 'cleanup';
           const allOf = idle ? [{ cond: 'type', value: ['installers', 'archives'] }, { cond: 'idleDays', value: { min: 30 } }] : [{ cond: 'type', value: [message.template] }];
           const at = idle ? 0 : state.rules.list.findIndex(r => !r.allOf.some(c => c.cond === 'idleDays'));
@@ -184,6 +184,7 @@ async function runTests() {
     assert(doc.querySelector('[data-fence=tint]').value === '0078D4', 'Palette tint not selected');
     assert(doc.querySelector('[data-fence=titleColor]').value === 'tint' && !doc.querySelector('[data-fence=titleColor] [value=tint]').disabled, 'Follow-tint title not shown');
     assert(doc.querySelector('[data-fence=titleSize]').value === 'large', 'Title size not shown');
+    assert(doc.querySelector('[data-fence=titleOnHover]').value === 'hover', 'Title on hover not shown');
     change(doc, 'fenceSel', 'portal');
     assert(doc.getElementById('fencePortalGroup').style.display === '', 'Portal options hidden for a portal');
     assert(doc.querySelector('[data-fence=portalNavigate]').classList.contains('on') && !doc.querySelector('[data-fence=portalTitleIcon]').classList.contains('on'), 'Portal flags wrong');
@@ -198,16 +199,18 @@ async function runTests() {
     change(doc, 'fenceIconSize', '96');
     change(doc, 'fenceTint', 'E74856');
     change(doc, 'fenceTitle', '  Renamed  ');
+    change(doc, 'fenceTitleOnHover', 'always');
     await settle();
     const sent = messages().slice(before);
-    assert(sent.length === 4, 'Expected four setFence messages, got ' + sent.length);
+    assert(sent.length === 5, 'Expected five setFence messages, got ' + sent.length);
     assert(sent.every(m => m.id === 'fence-a'), 'Message addressed to the wrong fence');
     assert(sent[0].prop === 'locked' && sent[0].value === true, 'Lock toggle not posted');
     assert(sent[1].prop === 'iconSize' && sent[1].value === 96, 'Icon size not posted as a number');
     assert(sent[2].prop === 'tint' && sent[2].value === 'E74856', 'Tint not posted');
     assert(sent[3].prop === 'title' && sent[3].value === 'Renamed', 'Title not trimmed');
+    assert(sent[4].prop === 'titleOnHover' && sent[4].value === 'always', 'Title on hover not posted');
     assert(doc.getElementById('fenceSel').value === 'fence-a', 'Selection lost on refresh');
-    assert(doc.querySelector('[data-fence=locked]').classList.contains('on') && doc.querySelector('[data-fence=tint]').value === 'E74856', 'Refreshed state not reflected');
+    assert(doc.querySelector('[data-fence=locked]').classList.contains('on') && doc.querySelector('[data-fence=tint]').value === 'E74856' && doc.querySelector('[data-fence=titleOnHover]').value === 'always', 'Refreshed state not reflected');
     assert(!doc.querySelector('[data-fence=titleColor] [value=tint]').disabled, 'Follow-tint stays disabled after choosing a tint');
     change(doc, 'fenceTint', ''); await settle();
     assert(messages().at(-1).value === null, 'Clearing the tint did not post null');

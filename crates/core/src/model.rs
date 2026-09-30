@@ -264,7 +264,8 @@ pub struct RollUpSettings {
     /// click to expand"). Hover peek is ignored while this is on.
     #[serde(default)]
     pub click_to_expand: bool,
-    /// Draw the title (and tabs) only while the mouse is over the fence.
+    /// Draw the title (and tabs) only while the mouse is over the fence; a fence's
+    /// `appearance.titleOnHover` overrides it.
     #[serde(default)]
     pub title_on_hover: bool,
     /// Show the scrollbar only while the mouse is inside the fence or right after scrolling.
@@ -475,6 +476,10 @@ pub struct AppearanceOverride {
     pub title_rgb: Option<[u8; 3]>,
     #[serde(default)]
     pub title_size: Option<TitleSize>,
+    /// The title row folds away until the pointer is over the fence (None = the global
+    /// `rollUp.titleOnHover`).
+    #[serde(default)]
+    pub title_on_hover: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

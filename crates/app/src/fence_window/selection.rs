@@ -371,7 +371,7 @@ impl FenceViewState {
             return;
         }
         self.mouse_inside = inside;
-        if self.behavior.title_on_hover.get() || self.is_clear() {
+        if self.title_on_hover() || self.is_clear() {
             let _ = self.redraw_chrome_only();
         }
         if self.behavior.hide_inactive_scrollbar.get() {

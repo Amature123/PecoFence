@@ -222,6 +222,8 @@ pub struct FenceViewState {
     pub(super) backdrop_override: Option<BackdropMode>,
     /// Per-fence opacity multiplier for the glass layer (1.0 = default).
     pub(super) opacity: f32,
+    /// Per-fence title on hover; None follows `Behavior::title_on_hover`.
+    pub(super) title_on_hover_override: Option<bool>,
     /// Per-fence colour wash / title colour / title size.
     pub(super) style: FenceStyle,
     /// Icon grid spacing (FenceView.spacing).

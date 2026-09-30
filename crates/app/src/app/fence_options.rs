@@ -2,9 +2,9 @@
 //! one setter per property (state + window + anchor + save) and the page protocol
 //! (`fences[]` details in the state JSON, `setFence` messages, `showFence` navigation).
 //!
-//! Window-level properties (appearance, lock, quick-hide exclusion, auto height, dock) act on
-//! the fence's host window when the fence is a tab; content properties (icon size, spacing,
-//! portal flags) act on the fence itself, exactly like the menu did.
+//! Window-level properties (appearance, title on hover, lock, quick-hide exclusion, auto
+//! height, dock) act on the fence's host window when the fence is a tab; content properties
+//! (icon size, spacing, portal flags) act on the fence itself, exactly like the menu did.
 
 use super::*;
 
@@ -60,6 +60,7 @@ pub(super) const FENCE_PROPS: &[&str] = &[
     "tint",
     "titleColor",
     "titleSize",
+    "titleOnHover",
     "layout",
     "sort",
     "reverse",
@@ -93,6 +94,8 @@ pub(super) enum FenceProp {
     TitleColor(TitleColorChoice),
     /// None = normal.
     TitleSize(Option<TitleSize>),
+    /// None = the global `rollUp.titleOnHover`.
+    TitleOnHover(Option<bool>),
     PortalNavigate(bool),
     PortalTitleIcon(bool),
     Layout(ViewLayout),
@@ -177,6 +180,15 @@ pub(super) fn parse_fence_prop(
                 "small" => Some(TitleSize::Small),
                 "normal" => None,
                 "large" => Some(TitleSize::Large),
+                _ => return Err(bad(ALLOWED)),
+            })
+        }
+        "titleOnHover" => {
+            const ALLOWED: &[&str] = &["default", "hover", "always"];
+            FenceProp::TitleOnHover(match as_str(ALLOWED)? {
+                "default" => None,
+                "hover" => Some(true),
+                "always" => Some(false),
                 _ => return Err(bad(ALLOWED)),
             })
         }
@@ -323,6 +335,14 @@ impl App {
         self.schedule_save();
     }
 
+    /// `None` = follow the global 「鼠标悬停时才显示标题栏」.
+    pub(super) fn set_fence_title_on_hover(&mut self, fence: FenceId, on: Option<bool>) {
+        let host = self.state.host_of(fence);
+        self.state.set_title_on_hover(host, on);
+        self.apply_fence_appearance(host);
+        self.schedule_save();
+    }
+
     pub(super) fn set_fence_spacing(&mut self, fence: FenceId, spacing: Spacing) {
         self.state.set_spacing(fence, spacing);
         if let Some(w) = self.window_for(fence)
@@ -398,6 +418,11 @@ impl App {
             Some([0x00, 0x00, 0x00]) => "black".to_string(),
             Some(rgb) => hex(rgb),
         };
+        let title_on_hover = match h.appearance.as_ref().and_then(|a| a.title_on_hover) {
+            None => "default",
+            Some(true) => "hover",
+            Some(false) => "always",
+        };
         let title_size = match title_size.unwrap_or_default() {
             TitleSize::Small => "small",
             TitleSize::Normal => "normal",
@@ -432,6 +457,7 @@ impl App {
             "tint": tint.map(hex),
             "titleColor": title_color,
             "titleSize": title_size,
+            "titleOnHover": title_on_hover,
             "portal": portal,
         })
     }
@@ -508,6 +534,7 @@ impl App {
                 let (_, title_rgb, _) = self.style_of(fence);
                 self.set_fence_title_style(fence, title_rgb, size);
             }
+            FenceProp::TitleOnHover(on) => self.set_fence_title_on_hover(fence, on),
             FenceProp::PortalNavigate(on) => self.set_fence_portal_navigate(fence, on),
             FenceProp::PortalTitleIcon(on) => self.set_fence_title_icon(fence, on),
             FenceProp::Layout(layout) => {

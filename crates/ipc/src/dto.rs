@@ -147,7 +147,7 @@ pub struct FenceDto {
     pub spacing: String,
     pub auto_height: bool,
     pub exclude_from_quick_hide: bool,
-    /// `default` | `clear` | `solid`.
+    /// `default` | `clear` | `solid` | `transparent`.
     pub opacity: String,
     /// `#RRGGBB` or `null`.
     pub tint: Option<String>,
@@ -155,6 +155,9 @@ pub struct FenceDto {
     pub title_color: String,
     /// `small` | `normal` | `large`.
     pub title_size: String,
+    /// `default` (the global `rollUp.titleOnHover`) | `hover` | `always`.
+    #[serde(default)]
+    pub title_on_hover: String,
     /// `icons` | `list` | `details`.
     pub layout: String,
     /// `manual` | `name` | `type` | `date` | `size` | `openCount`.

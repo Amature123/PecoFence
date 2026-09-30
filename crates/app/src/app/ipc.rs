@@ -1234,6 +1234,7 @@ impl App {
                 .map(|t| with_hash(t.to_string())),
             title_color: with_hash(text("titleColor")),
             title_size: text("titleSize"),
+            title_on_hover: text("titleOnHover"),
             layout: layout_name(f.view.layout).to_string(),
             sort: sort_name(f.view.sort).to_string(),
             reverse: f.view.reverse,
