@@ -1541,6 +1541,19 @@ impl AppState {
         }
     }
 
+    /// Per-fence title on hover (None = follow `rollUp.titleOnHover`).
+    pub fn set_title_on_hover(&mut self, id: FenceId, on: Option<bool>) {
+        if let Some(f) = self.fence_mut(id) {
+            let mut next = f.appearance.clone().unwrap_or_default();
+            next.title_on_hover = on;
+            let next = (next != pecofence_core::AppearanceOverride::default()).then_some(next);
+            if f.appearance != next {
+                f.appearance = next;
+                self.dirty = true;
+            }
+        }
+    }
+
     pub fn set_spacing(&mut self, id: FenceId, spacing: pecofence_core::Spacing) {
         if let Some(f) = self.fence_mut(id)
             && f.view.spacing != spacing

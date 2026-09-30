@@ -126,8 +126,8 @@ impl App {
         self.apply_auto_height(host);
     }
 
-    /// Pushes the persisted per-fence flags (lock, quick-hide exclusion, appearance override)
-    /// into the window and the anchor.
+    /// Pushes the persisted per-fence flags (lock, quick-hide exclusion, appearance override,
+    /// title on hover) into the window and the anchor.
     pub(super) fn apply_fence_appearance(&mut self, id: FenceId) {
         let id = self.state.host_of(id);
         let Some(f) = self.state.fence(id).cloned() else {
@@ -143,6 +143,7 @@ impl App {
             .map(|a| (a.backdrop.map(backdrop_mode_for), a.opacity.unwrap_or(1.0)))
             .unwrap_or((None, 1.0));
         w.set_appearance(bd, op);
+        w.set_title_on_hover(f.appearance.as_ref().and_then(|a| a.title_on_hover));
         w.set_style(fence_style_for(&f));
         if let Some(a) = self.anchor.borrow_mut().as_mut() {
             a.set_quick_hide_excluded(w.hwnd(), f.exclude_from_quick_hide);

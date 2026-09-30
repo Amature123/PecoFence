@@ -158,7 +158,9 @@ in; only the tab currently shown can be measured, so another tab is `unsupported
 32/48/64/96, `spacing` compact/normal/loose, `autoHeight`, `locked`, `excludeFromQuickHide`,
 `opacity` default/clear/solid/transparent (transparent: no glass, rim or shadow until the pointer
 is over the fence), `tint` `"#RRGGBB"` or `null`, `titleColor`
-theme/tint/white/black/`"#RRGGBB"`, `titleSize` small/normal/large, `layout` icons/list/details,
+theme/tint/white/black/`"#RRGGBB"`, `titleSize` small/normal/large, `titleOnHover`
+default/hover/always (hover: the title row folds away until the pointer is over the fence; default
+follows `rollUp.titleOnHover`), `layout` icons/list/details,
 `sort` manual/name/type/date/size/openCount, `reverse`, `groupByDate`, `labelLines`,
 `portalNavigate`, `portalTitleIcon`. `--all` applies the option to every fence one call at a time and
 skips tabs hosted inside another fence (their options belong to the host).
@@ -211,7 +213,7 @@ is rejected with `invalid_value` and the hint to re-save it (`| Set-Content -Enc
 `themeStyle`, `hideRealIcons`, `autostart`, `peek.enabled`, `quickHide.enabled`, `quickHide.delayMs`,
 `titleAlign` (left/center/right: the title and tab strip in every title row),
 `rollUp.hoverPeek`, `rollUp.clickToExpand`, `rollUp.titleOnHover` (the title row folds away until the
-pointer is over the fence), `snapping.enabled`, `snapping.gapPx` (the gap, in DIPs,
+pointer is over the fence; for every fence whose `titleOnHover` is `default`), `snapping.enabled`, `snapping.gapPx` (the gap, in DIPs,
 fences keep to each other and the screen edges while snapping; 0 to 64, default 8),
 `snapping.sizeToCells` (resizing keeps whole icon columns and rows), `snapping.guideLines`
 (alignment guides while dragging, default on), `icons.chameleon`.

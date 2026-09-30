@@ -282,6 +282,7 @@ mod ipc {
             "iconSize",
             "layout",
             "labelLines",
+            "titleOnHover",
             "portalTitleIcon",
         ] {
             assert!(allowed.as_array().unwrap().contains(&json!(p)), "{allowed}");
@@ -319,6 +320,23 @@ mod ipc {
         assert_eq!(
             parse_fence_prop("opacity", &json!("default")).unwrap(),
             FenceProp::Opacity(None)
+        );
+        for (value, on) in [
+            ("default", None),
+            ("hover", Some(true)),
+            ("always", Some(false)),
+        ] {
+            assert_eq!(
+                parse_fence_prop("titleOnHover", &json!(value)).unwrap(),
+                FenceProp::TitleOnHover(on)
+            );
+        }
+        assert_eq!(
+            parse_fence_prop("titleOnHover", &json!(true))
+                .unwrap_err()
+                .details
+                .unwrap()["allowed"],
+            json!(["default", "hover", "always"])
         );
         assert_eq!(
             parse_fence_prop("labelLines", &json!(4)).unwrap_err().code,

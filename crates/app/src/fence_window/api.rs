@@ -232,6 +232,7 @@ impl FenceWindow {
             locked: false,
             backdrop_override: None,
             opacity: 1.0,
+            title_on_hover_override: None,
             style: FenceStyle::default(),
             spacing: Spacing::Normal,
             anchor_index: None,
@@ -1131,6 +1132,16 @@ impl FenceWindow {
                     matches!(v.theme.mode, pecofence_render::ThemeMode::Dark),
                 );
                 v.invalidate_backdrop();
+                let _ = v.redraw();
+            }
+        });
+    }
+
+    /// Per-fence title on hover (None = follow the global setting).
+    pub fn set_title_on_hover(&self, on: Option<bool>) {
+        self.with_view(|v| {
+            if v.title_on_hover_override != on {
+                v.title_on_hover_override = on;
                 let _ = v.redraw();
             }
         });
