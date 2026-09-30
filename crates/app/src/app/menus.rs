@@ -176,6 +176,100 @@ impl App {
         if items.is_empty() {
             return;
         }
+        let (menu, shell_menu, paths) = self.build_item_menu(fence, &items);
+        let owner = self
+            .window_for(fence)
+            .map(|w| w.hwnd())
+            .unwrap_or(self.control.hwnd());
+        let cmd = menu.show_context(owner, x, y);
+        if let Some(sm) = shell_menu.as_ref()
+            && sm.contains(cmd)
+        {
+            let verb = sm.verb(cmd).unwrap_or_default();
+            tracing::info!(cmd, %verb, count = paths.len(), "shell verb invoked");
+            // Shift at the moment of choosing (Shift+click on 删除 = permanent, as in Explorer).
+            let shift = window::key_down(msg::VK_SHIFT);
+            if let Err(e) = sm.invoke(cmd, owner, POINT { x, y }, shift) {
+                tracing::warn!(error = %e, %verb, "shell verb failed");
+            }
+            // Deletions / moves are picked up by the desktop watcher. What a namespace item's
+            // verb changes (Empty Recycle Bin, hide This PC) arrives as a shell notification;
+            // a resync is requested here too in case that channel is unavailable.
+            if items
+                .iter()
+                .any(|id| self.state.item(*id).is_some_and(|it| it.is_namespace()))
+            {
+                window::post_message(self.control.hwnd(), WM_APP_FS_CHANGED, 0, 0);
+            }
+            return;
+        }
+        drop(shell_menu);
+        match cmd {
+            CMD_ITEM_OPEN => {
+                for id in &items {
+                    self.launch(*id);
+                }
+            }
+            CMD_ITEM_LOCATION => {
+                if let Some(item) = items.first().and_then(|id| self.state.item(*id))
+                    && !item.is_namespace()
+                    && let Some(p) = item.key.as_path()
+                {
+                    let _ = std::process::Command::new("explorer.exe")
+                        .arg(format!("/select,{p}"))
+                        .spawn();
+                }
+            }
+            CMD_ITEM_PROPERTIES => self.show_properties(fence, &items),
+            CMD_ITEM_TO_INBOX => {
+                if let Some(inbox) = self.state.inbox_id() {
+                    self.move_items(&items, inbox);
+                }
+            }
+            CMD_ITEM_PORTAL => {
+                if let Some(folder) = self.single_folder_of(&items) {
+                    self.create_portal(folder, x, y, Some(fence));
+                }
+            }
+            CMD_ITEM_RENAME => {
+                if let [item] = items[..] {
+                    self.begin_item_rename(fence, item);
+                }
+            }
+            CMD_ITEM_DELETE => self.delete_items(fence, &items, window::key_down(msg::VK_SHIFT)),
+            c if c >= CMD_ITEM_MOVE_BASE && c < CMD_ITEM_MOVE_BASE + 1000 => {
+                let idx = (c - CMD_ITEM_MOVE_BASE) as usize;
+                if let Some(target) = self.state.fences().get(idx).map(|f| f.id) {
+                    self.move_items(&items, target);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// The folder behind a single selected folder item (在桌面显示此文件夹).
+    fn single_folder_of(&self, items: &[ItemId]) -> Option<PathBuf> {
+        match items {
+            [only] => self
+                .state
+                .item(*only)
+                .filter(|it| it.is_folder)
+                .and_then(|it| it.key.as_path().map(PathBuf::from)),
+            _ => None,
+        }
+    }
+
+    /// Test dump (`--test-script item-menu`): the menu a right-click on `item` would show.
+    pub(super) fn item_menu_labels(&self, fence: FenceId, item: ItemId) -> Vec<String> {
+        self.build_item_menu(fence, &[item]).0.labels()
+    }
+
+    /// The item context menu: our commands, then Explorer's own menu for the same files.
+    fn build_item_menu(
+        &self,
+        fence: FenceId,
+        items: &[ItemId],
+    ) -> (PopupMenu, Option<ShellContextMenu>, Vec<PathBuf>) {
         let menu = PopupMenu::new();
         // Namespace items (Recycle Bin, ...) have no file: rename and "open location" are off.
         let single_namespace = matches!(
@@ -188,6 +282,7 @@ impl App {
             false,
             false,
         )
+        .default_item(CMD_ITEM_OPEN)
         .item(
             CMD_ITEM_LOCATION,
             pecofence_core::i18n::text("打开文件所在位置"),
@@ -207,15 +302,7 @@ impl App {
             single_namespace,
         )
         .separator();
-        let single_folder: Option<PathBuf> = match items[..] {
-            [only] => self
-                .state
-                .item(only)
-                .filter(|it| it.is_folder)
-                .and_then(|it| it.key.as_path().map(PathBuf::from)),
-            _ => None,
-        };
-        if single_folder.is_some() {
+        if self.single_folder_of(items).is_some() {
             menu.item(
                 CMD_ITEM_PORTAL,
                 pecofence_core::i18n::text("在桌面显示此文件夹"),
@@ -264,7 +351,7 @@ impl App {
         );
         menu.separator();
         // Explorer's own menu (send to / copy / delete / pin / extensions …) appended below ours.
-        let paths = self.shell_paths_of(&items);
+        let paths = self.shell_paths_of(items);
         let mut shell_menu =
             ShellContextMenu::for_paths(&paths.iter().map(|p| p.as_path()).collect::<Vec<_>>())
                 .ok();
@@ -278,7 +365,12 @@ impl App {
                 CMD_SHELL_LAST,
                 extended,
             ) {
-                Ok(n) => shell_items = n,
+                Ok(n) => {
+                    shell_items = n;
+                    // Explorer's own 打开 / 删除 (and 重命名 where it adds one) duplicate ours.
+                    sm.remove_verbs(menu.handle(), &["open", "delete", "rename"]);
+                    menu.tidy_separators();
+                }
                 Err(e) => tracing::warn!(error = %e, "shell context menu unavailable"),
             }
         }
@@ -291,74 +383,7 @@ impl App {
                 false,
             );
         }
-        let owner = self
-            .window_for(fence)
-            .map(|w| w.hwnd())
-            .unwrap_or(self.control.hwnd());
-        let cmd = menu.show_context(owner, x, y);
-        if let Some(sm) = shell_menu.as_ref()
-            && sm.contains(cmd)
-        {
-            let verb = sm.verb(cmd).unwrap_or_default();
-            tracing::info!(cmd, %verb, count = paths.len(), "shell verb invoked");
-            // Shift at the moment of choosing (Shift+click on 删除 = permanent, as in Explorer).
-            let shift = window::key_down(msg::VK_SHIFT);
-            if let Err(e) = sm.invoke(cmd, owner, POINT { x, y }, shift) {
-                tracing::warn!(error = %e, %verb, "shell verb failed");
-            }
-            // Deletions / moves are picked up by the desktop watcher. What a namespace item's
-            // verb changes (Empty Recycle Bin, hide This PC) arrives as a shell notification;
-            // a resync is requested here too in case that channel is unavailable.
-            if items
-                .iter()
-                .any(|id| self.state.item(*id).is_some_and(|it| it.is_namespace()))
-            {
-                window::post_message(self.control.hwnd(), WM_APP_FS_CHANGED, 0, 0);
-            }
-            return;
-        }
-        drop(shell_menu);
-        match cmd {
-            CMD_ITEM_OPEN => {
-                for id in &items {
-                    self.launch(*id);
-                }
-            }
-            CMD_ITEM_LOCATION => {
-                if let Some(item) = items.first().and_then(|id| self.state.item(*id))
-                    && !item.is_namespace()
-                    && let Some(p) = item.key.as_path()
-                {
-                    let _ = std::process::Command::new("explorer.exe")
-                        .arg(format!("/select,{p}"))
-                        .spawn();
-                }
-            }
-            CMD_ITEM_PROPERTIES => self.show_properties(fence, &items),
-            CMD_ITEM_TO_INBOX => {
-                if let Some(inbox) = inbox {
-                    self.move_items(&items, inbox);
-                }
-            }
-            CMD_ITEM_PORTAL => {
-                if let Some(folder) = single_folder {
-                    self.create_portal(folder, x, y, Some(fence));
-                }
-            }
-            CMD_ITEM_RENAME => {
-                if let [item] = items[..] {
-                    self.begin_item_rename(fence, item);
-                }
-            }
-            CMD_ITEM_DELETE => self.delete_items(fence, &items, window::key_down(msg::VK_SHIFT)),
-            c if c >= CMD_ITEM_MOVE_BASE && c < CMD_ITEM_MOVE_BASE + 1000 => {
-                let idx = (c - CMD_ITEM_MOVE_BASE) as usize;
-                if let Some(target) = self.state.fences().get(idx).map(|f| f.id) {
-                    self.move_items(&items, target);
-                }
-            }
-            _ => {}
-        }
+        (menu, shell_menu, paths)
     }
 
     /// Fence background / title menu. Frequent actions only; per-fence properties (appearance,
@@ -626,6 +651,7 @@ impl App {
         match cmd {
             CMD_FENCE_ROLL => self.toggle_roll(host),
             CMD_FENCE_RENAME => self.begin_rename(fence),
+            CMD_TAB_NEW if !self.fence_room_or_notice() => {}
             CMD_TAB_NEW => {
                 let rect = self.fences.get(&host).map(|w| w.rect()).unwrap_or(RECT {
                     left: x,
@@ -740,7 +766,7 @@ impl App {
                 let rect = self.place_new_fence(3, 200.0, x, y, Some(host));
                 self.create_fence_at(rect, None);
             }
-            CMD_FENCE_DELETE => self.delete_fence(fence),
+            CMD_FENCE_DELETE => self.delete_fence_from_menu(fence),
             _ => return,
         }
         // An open settings page shows these fences too; keep it current.

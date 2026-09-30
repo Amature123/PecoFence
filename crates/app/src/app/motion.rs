@@ -2,6 +2,12 @@
 
 use super::*;
 
+/// Debug-only fault injection (`--test-script device-lost <n>`): the next `n` device rebuilds
+/// fail as a driver reset in progress would make them.
+#[cfg(debug_assertions)]
+pub(super) static TEST_FAILING_RECOVERIES: std::sync::atomic::AtomicU32 =
+    std::sync::atomic::AtomicU32::new(0);
+
 impl App {
     /// A fence window that is no longer needed (deleted, merged into another window as a tab)
     /// fades out before it is destroyed; until then it lives in `dying`.
@@ -13,18 +19,67 @@ impl App {
     }
 
     /// `DXGI_ERROR_DEVICE_REMOVED`: rebuild the device, drop GPU bitmaps, recreate every surface.
+    /// A failure (the driver is still resetting) is retried on a timer: a window that lost its
+    /// device reports it only once, so nothing else would ever try again.
     pub(super) fn recover_device(&mut self) {
         if !self.fences.values().any(|w| w.device_lost()) {
+            self.device_retry_ms = DEVICE_RETRY_FIRST_MS;
             return;
         }
-        if let Err(e) = self.ctx.stack.recover() {
+        if let Err(e) = self.rebuild_stack() {
             tracing::error!(error = %e, "render stack recovery failed");
+            self.schedule_device_retry();
             return;
         }
         self.ctx.bitmaps.borrow_mut().clear();
         for w in self.fences.values() {
             w.recreate_surfaces(&self.ctx.stack);
         }
+        if self.fences.values().any(|w| w.device_lost()) {
+            // A window got no new surfaces (logged there): rebuild everything again later.
+            self.schedule_device_retry();
+        } else {
+            self.device_retry_ms = DEVICE_RETRY_FIRST_MS;
+        }
+    }
+
+    /// Arms the recovery retry unless one is pending; each armed retry waits twice as long as
+    /// the previous one, up to `DEVICE_RETRY_MAX_MS`. The windows queue one request each, so a
+    /// burst of failures within one batch arms a single retry.
+    fn schedule_device_retry(&mut self) {
+        if self.device_retry_pending {
+            return;
+        }
+        self.device_retry_pending = true;
+        tracing::info!(ms = self.device_retry_ms, "GPU recovery retry scheduled");
+        window::set_timer(
+            self.control.hwnd(),
+            TIMER_DEVICE_RETRY,
+            self.device_retry_ms,
+        );
+        self.device_retry_ms = (self.device_retry_ms * 2).min(DEVICE_RETRY_MAX_MS);
+    }
+
+    /// TIMER_DEVICE_RETRY fired.
+    pub(super) fn retry_device_recovery(&mut self) {
+        self.device_retry_pending = false;
+        self.recover_device();
+    }
+
+    fn rebuild_stack(&self) -> windows_core::Result<()> {
+        #[cfg(debug_assertions)]
+        {
+            use std::sync::atomic::Ordering;
+            if TEST_FAILING_RECOVERIES
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1))
+                .is_ok()
+            {
+                return Err(windows_core::Error::from_hresult(windows_core::HRESULT(
+                    0x887A_0005_u32 as i32, // DXGI_ERROR_DEVICE_REMOVED
+                )));
+            }
+        }
+        self.ctx.stack.recover()
     }
 
     /// Drawing has been quiet for `GPU_TRIM_IDLE_MS`. An animation still running keeps its

@@ -8,7 +8,7 @@ use crate::commands::{Command, CommandQueue};
 use pecofence_platform::window::{
     self, ClassOptions, MessageHandler, Window, WindowBuilder, WindowClass, style,
 };
-use pecofence_platform::{HWND, dwm, monitors, msg};
+use pecofence_platform::{HWND, RECT, dwm, monitors, msg};
 use pecofence_render::ThemeMode;
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -98,7 +98,10 @@ impl SettingsHost {
         let mons = monitors::enumerate();
         let primary = mons.iter().find(|m| m.primary).or(mons.first());
         let scale = primary.map(|m| m.scale()).unwrap_or(1.0);
-        let (min_w, min_h) = ((720.0 * scale) as i32, (480.0 * scale) as i32);
+        let place = primary.map(|m| placement(m.work_area, scale));
+        let (min_w, min_h) = place
+            .map(|p| (p.min_w, p.min_h))
+            .unwrap_or(((720.0 * scale) as i32, (480.0 * scale) as i32));
 
         let handler: MessageHandler = {
             let state = state.clone();
@@ -151,15 +154,12 @@ impl SettingsHost {
             )
         };
 
-        let (w, h) = ((960.0 * scale) as i32, (660.0 * scale) as i32);
-        let (x, y) = primary
-            .map(|m| {
-                (
-                    (m.work_area.left + m.work_area.right - w) / 2,
-                    (m.work_area.top + m.work_area.bottom - h) / 2,
-                )
-            })
-            .unwrap_or((100, 100));
+        let (x, y, w, h) = place.map(|p| (p.x, p.y, p.w, p.h)).unwrap_or((
+            100,
+            100,
+            (960.0 * scale) as i32,
+            (660.0 * scale) as i32,
+        ));
 
         let window = WindowBuilder::new(class)
             .title(pecofence_core::i18n::text("PecoFence 设置"))
@@ -328,4 +328,76 @@ fn apply_caption(hwnd: HWND, mode: ThemeMode, mica: bool) {
     // DWM takes COLORREF (0x00BBGGRR).
     let c = u32::from(bg.r) | (u32::from(bg.g) << 8) | (u32::from(bg.b) << 16);
     let _ = dwm::set_caption_color(hwnd, c);
+}
+
+/// Where the settings window opens on a work area (physical px) at `scale`, and its minimum
+/// tracking size.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Placement {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    min_w: i32,
+    min_h: i32,
+}
+
+/// The designed 960 x 660 DIP window (minimum 720 x 480), centred on the work area. Both
+/// shrink to fit it: 1366 x 768 at 125 % would otherwise open 825 px tall on a 708 px work
+/// area, caption above the screen where it cannot be dragged back.
+fn placement(work: RECT, scale: f32) -> Placement {
+    let (area_w, area_h) = (work.right - work.left, work.bottom - work.top);
+    let w = ((960.0 * scale) as i32).min(area_w);
+    let h = ((660.0 * scale) as i32).min(area_h);
+    Placement {
+        x: work.left + (area_w - w) / 2,
+        y: work.top + (area_h - h) / 2,
+        w,
+        h,
+        min_w: ((720.0 * scale) as i32).min(w),
+        min_h: ((480.0 * scale) as i32).min(h),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn work(w: i32, h: i32) -> RECT {
+        RECT {
+            left: 0,
+            top: 0,
+            right: w,
+            bottom: h,
+        }
+    }
+
+    /// 1366 x 768 at 125 % (a 48 DIP taskbar = 60 px): the window must fit, caption on screen.
+    #[test]
+    fn settings_window_fits_small_high_dpi_screens() {
+        for (area, scale) in [
+            (work(1366, 708), 1.25),
+            (work(1920, 996), 1.75),
+            (work(1280, 672), 1.5),
+            (work(2560, 1392), 1.0),
+        ] {
+            let p = placement(area, scale);
+            assert!(
+                p.y >= area.top && p.x >= area.left,
+                "{p:?} off-screen on {area:?}"
+            );
+            assert!(
+                p.y + p.h <= area.bottom && p.x + p.w <= area.right,
+                "{p:?} too big"
+            );
+            assert!(
+                p.min_w <= p.w && p.min_h <= p.h,
+                "{p:?} minimum above the window"
+            );
+        }
+        // Room to spare: the designed size, centred.
+        let p = placement(work(2560, 1392), 1.0);
+        assert_eq!((p.w, p.h), (960, 660));
+        assert_eq!((p.x, p.y), (800, 366));
+    }
 }

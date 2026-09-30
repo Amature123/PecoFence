@@ -269,6 +269,7 @@ pub(super) fn on_nclbuttondown(
                         hwnd,
                         fence: v.fence_id,
                         offset: (start.0 - rect.left, start.1 - rect.top),
+                        offset_dpi: monitors::dpi_for_window(hwnd),
                         merge_target: 0,
                         merge_x: i32::MIN,
                         moved_once: false,
@@ -536,6 +537,7 @@ pub(super) fn on_entersizemove(
     };
     rect_at_enter.set(r);
     grab_offset.set((start_x - r.left, start_y - r.top));
+    h.grab_dpi.set(monitors::dpi_for_window(hwnd));
     merge_target.set(0);
     merge_x.set(i32::MIN);
     window::kill_timer(hwnd, TIMER_PEEK_OPEN);
@@ -744,6 +746,7 @@ pub(super) fn on_moving(
         ..
     } = h;
     let group = h.group.borrow().clone();
+    let grab_dpi = h.grab_dpi.get();
     // Drag-to-merge: light up the title of the fence under the cursor.
     let merge = if group.is_empty() {
         merge_target_under_cursor(hwnd)
@@ -758,7 +761,7 @@ pub(super) fn on_moving(
     // from the previous, possibly snapped, position.
     let pt = window::cursor_pos();
     let (w, h) = (rect.right - rect.left, rect.bottom - rect.top);
-    let (gx, gy) = grab_offset.get();
+    let (gx, gy) = grab_offset_for_dpi(grab_offset.get(), grab_dpi, monitors::dpi_for_window(hwnd));
     rect.left = pt.x - gx;
     rect.top = pt.y - gy;
     rect.right = rect.left + w;

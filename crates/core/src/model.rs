@@ -64,6 +64,24 @@ pub struct Snapshot {
 
 pub const MAX_SNAPSHOTS: usize = 20;
 
+/// Settings the file keeps but no version acts on (planned options that were never built).
+/// They stay in `config.json` because older versions require them to read the file; the CLI
+/// hides them from `settings get` / the schema and refuses to set them.
+pub const UNUSED_SETTINGS: &[&str] = &[
+    "showRealIconsWhenFencesHidden",
+    "telemetry",
+    "quickHide.scope",
+    "quickHide.alwaysShowAtStartup",
+    "quickHide.delayMs",
+    "quickHide.autoHideIdleSec",
+    "quickHide.autoShowOnUse",
+    "quickHide.wallpaperEngineClassWhitelist",
+    "rollUp.doubleClickTitle",
+    "rollUp.autoOnScreenEdge",
+    "rollUp.hoverOpenMs",
+    "rollUp.closeGraceMs",
+];
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
@@ -83,11 +101,16 @@ pub struct Settings {
     pub roll_up: RollUpSettings,
     pub show_desktop: ShowDesktopSetting,
     pub hide_real_icons: bool,
+    /// Unused (see [`UNUSED_SETTINGS`]).
+    #[serde(default)]
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub show_real_icons_when_fences_hidden: bool,
     pub snapping: SnappingSettings,
     pub zorder: ZOrderSetting,
     pub autostart: bool,
+    /// Unused (see [`UNUSED_SETTINGS`]).
     #[serde(default)]
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub telemetry: bool,
     /// Fences "Peek": a hotkey floats every fence above the current windows.
     #[serde(default)]
@@ -216,15 +239,21 @@ pub enum ZOrderSetting {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct QuickHideSettings {
     pub enabled: bool,
+    // The rest is unused (see [`UNUSED_SETTINGS`]).
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub scope: QuickHideScope,
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub always_show_at_startup: bool,
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub delay_ms: u32,
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub auto_hide_idle_sec: u32,
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub auto_show_on_use: bool,
-    #[serde(default)]
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub wallpaper_engine_class_whitelist: Vec<String>,
 }
 
@@ -253,12 +282,18 @@ pub enum QuickHideScope {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct RollUpSettings {
+    /// Unused (see [`UNUSED_SETTINGS`]), like `auto_on_screen_edge`, `hover_open_ms` and
+    /// `close_grace_ms`.
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub double_click_title: bool,
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub auto_on_screen_edge: bool,
     pub hover_peek: bool,
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub hover_open_ms: u32,
+    #[cfg_attr(feature = "schema", schemars(skip))]
     pub close_grace_ms: u32,
     /// A rolled fence expands on a single title click instead of on hover (Fences "require a
     /// click to expand"). Hover peek is ignored while this is on.
@@ -1094,6 +1129,28 @@ pub fn now_unix() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unused_settings_are_real_fields_and_may_be_missing() {
+        let mut json = serde_json::to_value(Settings::default()).unwrap();
+        for path in UNUSED_SETTINGS {
+            let (parent, key) = match path.rsplit_once('.') {
+                Some((p, k)) => (format!("/{p}"), k),
+                None => (String::new(), *path),
+            };
+            let obj = json
+                .pointer_mut(&parent)
+                .and_then(|v| v.as_object_mut())
+                .unwrap();
+            assert!(obj.remove(key).is_some(), "{path} is not a Settings field");
+        }
+        // A file written without them (settings get output, a future version) still loads.
+        let back: Settings = serde_json::from_value(json).unwrap();
+        assert_eq!(
+            back.quick_hide.enabled,
+            Settings::default().quick_hide.enabled
+        );
+    }
 
     #[test]
     fn theme_style_loads_legacy_settings_and_roundtrips_independently_of_mode() {

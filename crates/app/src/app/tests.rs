@@ -26,6 +26,7 @@ mod ipc {
         AUTO_SNAPSHOT_PREFIX, MAX_NAME_CHARS, MIN_EXPIRY_MS, adjusted, auto_snapshot_slot,
         check_rule_conditions, checked_name, is_inbox_alias, patch_settings_path,
         prune_auto_snapshots, request_expiry, rolled_back_settings, snapshot_dto, validate_rect,
+        visible_settings_json,
     };
     use pecofence_core::geometry::WorkArea;
     use pecofence_core::{Cond, MAX_SNAPSHOTS, Settings, Snapshot, ViewLayout};
@@ -228,6 +229,25 @@ mod ipc {
         let err = patch_settings_path(&Settings::default(), "nope", json!(1)).unwrap_err();
         assert_eq!(err.code, ErrorCode::InvalidPath);
         assert!(err.hint.unwrap().starts_with("Top-level keys"));
+    }
+
+    #[test]
+    fn unused_settings_are_hidden_and_refused() {
+        let current = Settings::default();
+        let visible = visible_settings_json(&current).unwrap();
+        assert!(visible.pointer("/quickHide/delayMs").is_none());
+        assert!(visible.pointer("/quickHide/enabled").is_some());
+        assert!(visible.get("telemetry").is_none());
+        for path in pecofence_core::UNUSED_SETTINGS {
+            let err = patch_settings_path(&current, path, json!(1)).unwrap_err();
+            assert_eq!(err.code, ErrorCode::InvalidPath, "{path}");
+        }
+        // `settings get` output fed back whole still applies.
+        let mut edited = visible.clone();
+        edited["iconSize"] = json!(64);
+        let patched = patch_settings_path(&current, "", edited).unwrap();
+        assert_eq!(patched.icon_size, 64);
+        assert_eq!(patched.quick_hide.enabled, current.quick_hide.enabled);
     }
 
     #[test]
@@ -437,14 +457,34 @@ mod ipc {
             snap(&format!("{AUTO_SNAPSHOT_PREFIX}d"), 6),
         ];
         let oldest_auto = list[1].id;
-        let evicted = prune_auto_snapshots(&mut list, 3);
+        let evicted = prune_auto_snapshots(&mut list, 3, None);
         assert_eq!(evicted, vec![oldest_auto]);
         let names: Vec<&str> = list.iter().map(|s| s.name.as_str()).collect();
         assert_eq!(
             names,
             ["mine", "auto-cli-b", "yours", "auto-cli-c", "auto-cli-d"]
         );
-        assert!(prune_auto_snapshots(&mut list, 3).is_empty());
+        assert!(prune_auto_snapshots(&mut list, 3, None).is_empty());
+    }
+
+    #[test]
+    fn restoring_the_oldest_auto_snapshot_keeps_it() {
+        // Three auto snapshots and a restore of the oldest: the slot for the restore's own
+        // backup must evict the next oldest, not the snapshot being restored.
+        let mut list = vec![
+            snap("base", 1),
+            snap(&format!("{AUTO_SNAPSHOT_PREFIX}a"), 2),
+            snap(&format!("{AUTO_SNAPSHOT_PREFIX}b"), 3),
+            snap(&format!("{AUTO_SNAPSHOT_PREFIX}c"), 4),
+        ];
+        let (oldest, next) = (list[1].id, list[2].id);
+        assert!(auto_snapshot_slot(&mut list, Some(oldest)));
+        assert!(
+            list.iter().any(|s| s.id == oldest),
+            "restore target evicted"
+        );
+        assert!(list.iter().all(|s| s.id != next));
+        assert_eq!(list.len(), 3);
     }
 
     #[test]
@@ -457,7 +497,7 @@ mod ipc {
         list.push(snap(&format!("{AUTO_SNAPSHOT_PREFIX}a"), 100));
         list.push(snap(&format!("{AUTO_SNAPSHOT_PREFIX}b"), 101));
         let before: Vec<uuid::Uuid> = list.iter().map(|s| s.id).collect();
-        assert!(!auto_snapshot_slot(&mut list));
+        assert!(!auto_snapshot_slot(&mut list, None));
         let after: Vec<uuid::Uuid> = list.iter().map(|s| s.id).collect();
         assert_eq!(after, before, "nothing may be evicted when no slot opens");
 
@@ -471,7 +511,7 @@ mod ipc {
         let oldest_auto = list.last().unwrap().id;
         list.push(snap(&format!("{AUTO_SNAPSHOT_PREFIX}b"), 101));
         list.push(snap(&format!("{AUTO_SNAPSHOT_PREFIX}c"), 102));
-        assert!(auto_snapshot_slot(&mut list));
+        assert!(auto_snapshot_slot(&mut list, None));
         assert_eq!(list.len(), MAX_SNAPSHOTS - 1);
         assert!(list.iter().all(|s| s.id != oldest_auto));
         assert!(users.iter().all(|u| list.iter().any(|s| s.id == *u)));
@@ -481,13 +521,13 @@ mod ipc {
             .map(|i| snap(&format!("mine {i}"), i as i64))
             .collect();
         let before: Vec<uuid::Uuid> = list.iter().map(|s| s.id).collect();
-        assert!(!auto_snapshot_slot(&mut list));
+        assert!(!auto_snapshot_slot(&mut list, None));
         let after: Vec<uuid::Uuid> = list.iter().map(|s| s.id).collect();
         assert_eq!(after, before);
 
         // Plenty of room: nothing pruned beyond the rotation, slot granted.
         let mut list = vec![snap("mine", 1)];
-        assert!(auto_snapshot_slot(&mut list));
+        assert!(auto_snapshot_slot(&mut list, None));
         assert_eq!(list.len(), 1);
     }
 }

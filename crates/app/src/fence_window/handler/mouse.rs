@@ -203,32 +203,14 @@ pub(super) fn on_lbuttondown(
                 // dragging and collapses it on a release without a drag; a
                 // press on the sole selected item may become a slow
                 // double-click rename.
-                let plain = !shift && !ctrl && v.selected.contains(&i);
-                let collapse_on_up = plain && v.selected.len() > 1;
-                let was_sole_selected = plain && v.selected.len() == 1;
-                if shift && let Some(a) = v.range_anchor {
-                    // Explorer-style range from the anchor to the clicked item.
-                    let (lo, hi) = (a.min(i), a.max(i));
-                    if !ctrl {
-                        v.selected.clear();
-                    }
-                    v.selected.extend(lo..=hi);
-                } else if ctrl {
-                    if !v.selected.remove(&i) {
-                        v.selected.insert(i);
-                    }
-                    v.range_anchor = Some(i);
-                } else if !v.selected.contains(&i) {
-                    v.selected.clear();
-                    v.selected.insert(i);
-                    v.range_anchor = Some(i);
-                }
+                let press = press_item(&mut v.selected, &mut v.range_anchor, i, shift, ctrl);
                 v.anchor_index = Some(i);
                 v.drag = Some(DragState {
                     start: (x, y),
                     item: i,
-                    collapse_on_up,
-                    was_sole_selected,
+                    collapse_on_up: press.collapse_on_up,
+                    was_sole_selected: press.was_sole_selected,
+                    deselect_on_up: press.deselect_on_up,
                 });
                 v.pressed = Some(PressTarget::Item(i));
                 v.press_inside = true;
@@ -442,6 +424,16 @@ pub(super) fn on_lbuttonup(
     if let Some(d) = drag {
         if d.collapse_on_up {
             v.select_only(d.item);
+            need_content = true;
+        } else if d.deselect_on_up {
+            release_item(
+                &mut v.selected,
+                d.item,
+                ItemPress {
+                    deselect_on_up: true,
+                    ..Default::default()
+                },
+            );
             need_content = true;
         } else if d.was_sole_selected
             && v.selected.len() == 1

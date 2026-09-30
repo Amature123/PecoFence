@@ -107,6 +107,16 @@ const GPU_TRIM_IDLE_MS: u32 = 3_000;
 /// this long (every signal re-arms it), and finishes a prepared one.
 const TIMER_WALLPAPER_PREWARM: usize = 55;
 const TIMER_PREWARM_FINISH: usize = 56;
+/// The tray icon could not be added (taskbar not ready, or the App was busy on
+/// `TaskbarCreated`): try again.
+const TIMER_TRAY_RETRY: usize = 57;
+const TRAY_RETRY_MS: u32 = 2_000;
+/// WM_ENDSESSION(FALSE) arrived while the App was borrowed: hide the icons again shortly.
+const TIMER_SHUTDOWN_CANCELLED: usize = 58;
+/// Rebuilding the GPU device failed (driver reset in progress): try again, backing off.
+const TIMER_DEVICE_RETRY: usize = 59;
+const DEVICE_RETRY_FIRST_MS: u32 = 1_000;
+const DEVICE_RETRY_MAX_MS: u32 = 30_000;
 const WALLPAPER_PREWARM_DELAY_MS: u32 = 3_000;
 const SPI_SETDESKWALLPAPER: usize = 0x0014;
 const SPI_SETWORKAREA: usize = 0x002F;
@@ -160,6 +170,9 @@ pub struct App {
     /// Windows of deleted / merged fences, kept alive while they fade out; dropped (destroyed)
     /// on `Command::FadeOutDone`.
     dying: Vec<FenceWindow>,
+    /// GPU recovery retry: one is armed (`TIMER_DEVICE_RETRY`), and the delay of the next one.
+    device_retry_pending: bool,
+    device_retry_ms: u32,
     /// `--test-script` state while a script runs.
     test: Option<testscript::TestScript>,
     /// Selection kept by a Ctrl / Shift desktop marquee in progress (empty for a plain one);
@@ -267,6 +280,9 @@ impl App {
         if let Some(p) = &state.recovered_from {
             tracing::warn!(from = %p.display(), "config recovered from backup");
         }
+        if let Some(p) = &state.unreadable_moved_to {
+            tracing::warn!(to = %p.display(), "config.json unreadable; kept aside");
+        }
 
         let theme_mode = pick_theme_mode(state.config.settings.theme, &args);
         let accent = systheme::accent_palette();
@@ -290,6 +306,7 @@ impl App {
         let control_class = WindowClass::register("PecoFence.Control", ClassOptions::default())?;
         let control_handler: MessageHandler = {
             let cell = cell.clone();
+            let taskbar_created = desktop::taskbar_created_message();
             // Folder-watcher debounce state (see WM_APP_FS_CHANGED / TIMER_FS).
             let fs_armed = Cell::new(false);
             let fs_flushed: Cell<Option<Instant>> = Cell::new(None);
@@ -532,6 +549,36 @@ impl App {
                                         }
                                     }
                                 }
+                                TIMER_DEVICE_RETRY => {
+                                    window::kill_timer(hwnd, TIMER_DEVICE_RETRY);
+                                    if let Ok(mut guard) = cell.try_borrow_mut()
+                                        && let Some(app) = guard.as_mut()
+                                    {
+                                        app.retry_device_recovery();
+                                    } else {
+                                        window::set_timer(hwnd, TIMER_DEVICE_RETRY, 250);
+                                    }
+                                }
+                                TIMER_SHUTDOWN_CANCELLED => {
+                                    window::kill_timer(hwnd, TIMER_SHUTDOWN_CANCELLED);
+                                    if let Ok(mut guard) = cell.try_borrow_mut()
+                                        && let Some(app) = guard.as_mut()
+                                    {
+                                        app.shutdown_cancelled();
+                                    } else {
+                                        window::set_timer(hwnd, TIMER_SHUTDOWN_CANCELLED, 250);
+                                    }
+                                }
+                                TIMER_TRAY_RETRY => {
+                                    window::kill_timer(hwnd, TIMER_TRAY_RETRY);
+                                    let shown = cell
+                                        .try_borrow()
+                                        .ok()
+                                        .and_then(|g| g.as_ref().map(App::show_tray));
+                                    if shown != Some(true) {
+                                        window::set_timer(hwnd, TIMER_TRAY_RETRY, TRAY_RETRY_MS);
+                                    }
+                                }
                                 TIMER_WORKAREA => {
                                     window::kill_timer(hwnd, TIMER_WORKAREA);
                                     if let Ok(mut guard) = cell.try_borrow_mut()
@@ -592,6 +639,18 @@ impl App {
                             }
                             Some(0)
                         }
+                        m if m == taskbar_created && m != 0 => {
+                            // Explorer (re)started: its new taskbar has no notification icons.
+                            tracing::info!("TaskbarCreated: adding the tray icon again");
+                            let shown = cell
+                                .try_borrow()
+                                .ok()
+                                .and_then(|g| g.as_ref().map(App::show_tray));
+                            if shown != Some(true) {
+                                window::set_timer(hwnd, TIMER_TRAY_RETRY, 250);
+                            }
+                            Some(0)
+                        }
                         msg::WM_QUERYENDSESSION => {
                             if let Ok(mut guard) = cell.try_borrow_mut()
                                 && let Some(app) = guard.as_mut()
@@ -602,6 +661,18 @@ impl App {
                                 }
                             }
                             Some(1)
+                        }
+                        msg::WM_ENDSESSION if wparam == 0 => {
+                            // The shutdown was cancelled (another program refused, or the user
+                            // chose Cancel): WM_QUERYENDSESSION showed the real icons again.
+                            if let Ok(mut guard) = cell.try_borrow_mut()
+                                && let Some(app) = guard.as_mut()
+                            {
+                                app.shutdown_cancelled();
+                            } else {
+                                window::set_timer(hwnd, TIMER_SHUTDOWN_CANCELLED, 250);
+                            }
+                            Some(0)
                         }
                         msg::WM_DESTROY => Some(0),
                         _ => None,
@@ -721,9 +792,16 @@ impl App {
             tray_px,
             &tray_icon_image(tray_px, theme.accent_rgb8(), theme_mode == ThemeMode::Dark),
         )
-        .and_then(|icon| TrayIcon::add(control.hwnd(), TRAY_ID, WM_APP_TRAY, icon, "PecoFence"))
-        .map_err(|e| tracing::warn!(error = %e, "tray icon failed"))
+        .map(|icon| TrayIcon::new(control.hwnd(), TRAY_ID, WM_APP_TRAY, icon, "PecoFence"))
+        .map_err(|e| tracing::warn!(error = %e, "tray icon image failed"))
         .ok();
+        if let Some(t) = &tray
+            && let Err(e) = t.show()
+        {
+            // At logon the taskbar may not exist yet; TaskbarCreated or the retry adds it.
+            tracing::warn!(error = %e, "tray icon not added yet; retrying");
+            window::set_timer(control.hwnd(), TIMER_TRAY_RETRY, TRAY_RETRY_MS);
+        }
 
         // Watchers.
         let fs_pending: Arc<Mutex<Vec<FsEvent>>> = Arc::new(Mutex::new(Vec::new()));
@@ -806,6 +884,8 @@ impl App {
             peek_class,
             peek: None,
             dying: Vec::new(),
+            device_retry_pending: false,
+            device_retry_ms: DEVICE_RETRY_FIRST_MS,
             test: None,
             marquee_base: None,
             marquee_band: None,
@@ -854,6 +934,21 @@ impl App {
             }));
         }
 
+        if let Some(moved) = &app.state.unreadable_moved_to
+            && let Some(t) = &app.tray
+        {
+            t.show_info(
+                "PecoFence",
+                &pecofence_core::i18n::format(
+                    "配置文件无法读取（可能由更新版本的 PecoFence 写入），已原样保留为 {0}。",
+                    &[moved
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default()],
+                ),
+                true,
+            );
+        }
         // Desktop folder moved since last run? Re-point the item records before syncing, or
         // every item would be orphaned and re-routed by the rules.
         if let Some(desk) = shell::user_desktop() {
@@ -1379,6 +1474,32 @@ impl App {
                 self.dying.retain(|w| w.hwnd() != hwnd);
             }
             Command::SettingsMessage(json) => self.on_settings_message(&json),
+        }
+    }
+
+    /// The session did not end after all: hide the real desktop icons again if the setting
+    /// wants them hidden (WM_QUERYENDSESSION restored them, as for a real logoff).
+    fn shutdown_cancelled(&mut self) {
+        tracing::info!("shutdown cancelled");
+        if self.state.config.settings.hide_real_icons
+            && !self.no_hide_icons
+            && let Some(a) = self.anchor.borrow_mut().as_mut()
+        {
+            a.request_hide_desktop_icons();
+        }
+    }
+
+    /// (Re)adds the notification icon; false while the taskbar does not take it.
+    fn show_tray(&self) -> bool {
+        let Some(t) = &self.tray else {
+            return true;
+        };
+        match t.show() {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::debug!(error = %e, "tray icon not added");
+                false
+            }
         }
     }
 

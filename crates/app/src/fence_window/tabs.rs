@@ -100,8 +100,9 @@ pub(super) enum WindowDragOrigin {
 pub(super) struct RemoteDrag {
     pub(super) hwnd: HWND,
     pub(super) fence: FenceId,
-    /// Cursor position relative to the dragged window's top-left.
+    /// Cursor position relative to the dragged window's top-left, in pixels at `offset_dpi`.
     pub(super) offset: (i32, i32),
+    pub(super) offset_dpi: u32,
     /// Merge target currently highlighted (0 = none).
     pub(super) merge_target: isize,
     /// Pointer screen x last sent with the hint (the target's insertion gap follows it).

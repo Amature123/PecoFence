@@ -12,6 +12,67 @@ pub(super) struct DragState {
     /// The pressed item was the sole selected item before the press: a release on its label
     /// arms the slow-double-click rename.
     pub(super) was_sole_selected: bool,
+    /// Ctrl press on an already-selected item: a release that never became a drag deselects
+    /// it; a drag carries the whole selection (Explorer's Ctrl+drag copy).
+    pub(super) deselect_on_up: bool,
+}
+
+/// What a left press on item `i` did to the selection, for the release.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct ItemPress {
+    pub(super) collapse_on_up: bool,
+    pub(super) was_sole_selected: bool,
+    pub(super) deselect_on_up: bool,
+}
+
+/// Explorer's press rules on item `i`: Shift = range from the anchor (added to the selection
+/// with Ctrl), Ctrl = toggle, plain = select it unless it is already selected (a plain press
+/// keeps a multi-selection for dragging and collapses it on a release without a drag). Ctrl
+/// on a selected item toggles it off only on a release without a drag ([`release_item`]).
+pub(super) fn press_item(
+    selected: &mut HashSet<usize>,
+    range_anchor: &mut Option<usize>,
+    i: usize,
+    shift: bool,
+    ctrl: bool,
+) -> ItemPress {
+    let plain = !shift && !ctrl && selected.contains(&i);
+    let press = ItemPress {
+        collapse_on_up: plain && selected.len() > 1,
+        was_sole_selected: plain && selected.len() == 1,
+        deselect_on_up: ctrl && !shift && selected.contains(&i),
+    };
+    if shift && let Some(a) = *range_anchor {
+        let (lo, hi) = (a.min(i), a.max(i));
+        if !ctrl {
+            selected.clear();
+        }
+        selected.extend(lo..=hi);
+    } else if ctrl {
+        selected.insert(i);
+        *range_anchor = Some(i);
+    } else if !selected.contains(&i) {
+        selected.clear();
+        selected.insert(i);
+        *range_anchor = Some(i);
+    }
+    press
+}
+
+/// The button came up on `i` without a drag: finish a Ctrl toggle-off.
+pub(super) fn release_item(selected: &mut HashSet<usize>, i: usize, press: ItemPress) {
+    if press.deselect_on_up {
+        selected.remove(&i);
+    }
+}
+
+/// The drag threshold was crossed on `item`: a drag carries the selection it belongs to, or
+/// just `item` when it is not selected.
+pub(super) fn drag_selection(selected: &mut HashSet<usize>, item: usize) {
+    if !selected.contains(&item) {
+        selected.clear();
+        selected.insert(item);
+    }
 }
 
 /// The control the mouse button is held on. Items and tabs act on press (selection / switch,

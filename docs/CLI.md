@@ -210,7 +210,7 @@ array of `Cond` objects (`describe --schema Cond`) for everything else (size, cr
 is rejected with `invalid_value` and the hint to re-save it (`| Set-Content -Encoding utf8`).
 
 `settings set` paths are dotted camelCase keys of the Settings object, e.g. `iconSize`, `theme`,
-`themeStyle`, `hideRealIcons`, `autostart`, `peek.enabled`, `quickHide.enabled`, `quickHide.delayMs`,
+`themeStyle`, `hideRealIcons`, `autostart`, `peek.enabled`, `quickHide.enabled`,
 `titleAlign` (left/center/right: the title and tab strip in every title row),
 `rollUp.hoverPeek`, `rollUp.clickToExpand`, `rollUp.titleOnHover` (the title row folds away until the
 pointer is over the fence; for every fence whose `titleOnHover` is `default`), `snapping.enabled`, `snapping.gapPx` (the gap, in DIPs,

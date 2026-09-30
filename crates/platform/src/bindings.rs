@@ -5207,6 +5207,7 @@ pub struct IDWriteTextLayout_Vtbl {
     HitTestTextRange: usize,
 }
 impl windows_core::RuntimeName for IDWriteTextLayout {}
+pub const IDYES: i32 = 6;
 windows_core::imp::define_interface!(
     IDataObject,
     IDataObject_Vtbl,
@@ -13754,8 +13755,12 @@ pub struct MARGINS {
 pub const MA_ACTIVATE: i32 = 1;
 pub const MA_NOACTIVATE: i32 = 3;
 pub const MA_NOACTIVATEANDEAT: i32 = 4;
+pub const MB_DEFBUTTON2: i32 = 256;
 pub const MB_ICONERROR: i32 = 16;
+pub const MB_ICONWARNING: i32 = 48;
 pub const MB_OK: i32 = 0;
+pub const MB_SETFOREGROUND: i32 = 65536;
+pub const MB_YESNO: i32 = 4;
 pub const MDT_EFFECTIVE_DPI: MONITOR_DPI_TYPE = 0;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

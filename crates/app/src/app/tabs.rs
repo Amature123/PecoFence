@@ -11,6 +11,7 @@ impl App {
             .filter_map(|id| self.state.fence(id))
             .map(|f| TabView {
                 id: f.id,
+                folder: self.state.portal_path(f.id),
                 // A navigated portal's tab names the subfolder actually shown / dropped into.
                 title: self.state.display_title(f),
                 color: f.appearance.as_ref().and_then(|a| a.tint_rgb),

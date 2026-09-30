@@ -4,6 +4,9 @@ use crate::bindings::*;
 use crate::wide::to_wide;
 use windows_core::{Error, PCWSTR, Result};
 
+windows_core::link!("user32.dll" "system" fn GetMenuState(hmenu: HMENU, uid: u32, uflags: u32) -> u32);
+windows_core::link!("user32.dll" "system" fn GetMenuStringW(hmenu: HMENU, uiditem: u32, lpstring: windows_core::PWSTR, cchmax: i32, flags: u32) -> i32);
+
 /// Creates a 32-bit icon from premultiplied BGRA pixels.
 pub fn icon_from_bgra(width: i32, height: i32, bgra: &[u8]) -> Result<HICON> {
     // SAFETY: the pixel buffer matches width*height*4; GDI copies it.
@@ -54,35 +57,56 @@ pub fn destroy_icon(icon: HICON) {
     }
 }
 
-/// A notification-area icon; removed on drop.
+/// A notification-area icon; removed on drop. Keeps what it was added with, so it can be
+/// added again when Explorer restarts.
 pub struct TrayIcon {
     hwnd: HWND,
     id: u32,
+    callback_message: u32,
+    icon: HICON,
+    tip: String,
 }
 
 impl TrayIcon {
-    /// Adds the icon; notifications arrive as `callback_message` on `hwnd` (NOTIFYICON_VERSION_4:
-    /// `LOWORD(lParam)` = event such as `WM_CONTEXTMENU`/`NIN_SELECT`, x/y in wParam).
-    pub fn add(hwnd: HWND, id: u32, callback_message: u32, icon: HICON, tip: &str) -> Result<Self> {
+    /// An icon for `hwnd`, not in the notification area until [`Self::show`]. Notifications
+    /// arrive as `callback_message` on `hwnd` (NOTIFYICON_VERSION_4: `LOWORD(lParam)` = event
+    /// such as `WM_CONTEXTMENU`/`NIN_SELECT`, x/y in wParam). `icon` must outlive the tray icon.
+    pub fn new(hwnd: HWND, id: u32, callback_message: u32, icon: HICON, tip: &str) -> Self {
+        Self {
+            hwnd,
+            id,
+            callback_message,
+            icon,
+            tip: tip.to_string(),
+        }
+    }
+
+    /// Adds the icon to the notification area. Call it again on `TaskbarCreated`: a restarted
+    /// Explorer starts without anyone's icons. Already present (the message also comes on
+    /// other occasions) counts as success.
+    pub fn show(&self) -> Result<()> {
         let mut data = NOTIFYICONDATAW {
             cbSize: size_of::<NOTIFYICONDATAW>() as u32,
-            hWnd: hwnd,
-            uID: id,
+            hWnd: self.hwnd,
+            uID: self.id,
             uFlags: (NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP) as u32,
-            uCallbackMessage: callback_message,
-            hIcon: icon,
+            uCallbackMessage: self.callback_message,
+            hIcon: self.icon,
             ..Default::default()
         };
-        copy_tip(&mut data.szTip, tip);
+        copy_tip(&mut data.szTip, &self.tip);
         // SAFETY: fully initialized structure.
         unsafe {
             if !Shell_NotifyIconW(NIM_ADD as u32, &data).as_bool() {
-                return Err(Error::from_thread());
+                let err = Error::from_thread();
+                if !Shell_NotifyIconW(NIM_MODIFY as u32, &data).as_bool() {
+                    return Err(err);
+                }
             }
             data.Anonymous.uVersion = NOTIFYICON_VERSION_4 as u32;
             let _ = Shell_NotifyIconW(NIM_SETVERSION as u32, &data);
         }
-        Ok(Self { hwnd, id })
+        Ok(())
     }
 
     pub fn set_tip(&self, tip: &str) {
@@ -248,6 +272,59 @@ impl PopupMenu {
             );
         }
         self
+    }
+
+    /// Top-level labels in order, separators as `-` (test dumps).
+    pub fn labels(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for pos in 0..self.len() {
+            if self.is_separator(pos) {
+                out.push("-".to_string());
+                continue;
+            }
+            // SAFETY: plain FFI call on a menu we own; the buffer size is passed in chars.
+            unsafe {
+                let mut buf = [0u16; 256];
+                let n = GetMenuStringW(
+                    self.hmenu,
+                    pos,
+                    windows_core::PWSTR(buf.as_mut_ptr()),
+                    buf.len() as i32,
+                    MF_BYPOSITION as u32,
+                );
+                out.push(String::from_utf16_lossy(&buf[..n.max(0) as usize]));
+            }
+        }
+        out
+    }
+
+    fn is_separator(&self, pos: u32) -> bool {
+        // SAFETY: plain FFI call on a menu we own.
+        unsafe { GetMenuState(self.hmenu, pos, MF_BYPOSITION as u32) & MF_SEPARATOR as u32 != 0 }
+    }
+
+    /// Drops separators at either end and all but one of any run (left behind when items
+    /// between them were removed, e.g. filtered shell verbs).
+    pub fn tidy_separators(&self) {
+        let mut after_is_separator = true; // the end counts as one: trailing ones go
+        for pos in (0..self.len()).rev() {
+            if !self.is_separator(pos) {
+                after_is_separator = false;
+            } else if after_is_separator {
+                // SAFETY: plain FFI call on a menu we own; separators own no submenu.
+                unsafe {
+                    let _ = RemoveMenu(self.hmenu, pos, MF_BYPOSITION as u32);
+                }
+            } else {
+                after_is_separator = true;
+            }
+        }
+        if self.len() > 0 && self.is_separator(0) {
+            // SAFETY: as above.
+            unsafe {
+                let _ = RemoveMenu(self.hmenu, 0, MF_BYPOSITION as u32);
+            }
+        }
     }
 
     /// Shows the menu at screen coordinates and returns the chosen command id (0 = dismissed).

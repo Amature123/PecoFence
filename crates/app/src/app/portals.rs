@@ -19,6 +19,7 @@ impl App {
             is_portal && !f.hide_title_icon,
             is_portal && self.state.portal_navigated(active),
             is_portal && f.portal_navigate,
+            self.state.portal_path(active),
         );
         if let Some(h) = self.state.fence(host) {
             let title = if active == host {
@@ -170,6 +171,9 @@ impl App {
             if let Some(w) = self.fences.get(&host) {
                 w.show(false);
             }
+            return;
+        }
+        if !self.fence_room_or_notice() {
             return;
         }
         let rect = self.place_new_fence(4, 260.0, x, y, near);
