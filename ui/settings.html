@@ -753,16 +753,16 @@
   function inboxTitle() { const f = (state.fences || []).find(f => f.kind === 'inbox'); return f ? f.title : t("桌面"); }
   // A portal cannot hold routed items (the app routes such rules to the inbox), so it is shown as one.
   function fenceTitle(id) { const f = (state.fences || []).find(f => f.id === id); return !f ? t("已删除的栅栏") : f.kind === 'portal' ? inboxTitle() : f.title; }
-  function targetLabel(t) { return '“' + (t === 'inbox' ? inboxTitle() : (t && t.fence) ? fenceTitle(t.fence) : '?') + '”'; }
+  function targetLabel(target) { return tf("“{0}”", target === 'inbox' ? inboxTitle() : (target && target.fence) ? fenceTitle(target.fence) : '?'); }
   const OPS = () => ({contains:t("包含"),notContains:t("不包含"),startsWith:t("开头是"),endsWith:t("结尾是"),is:t("等于")});
   const WEEK = () => [t("周一"),t("周二"),t("周三"),t("周四"),t("周五"),t("周六"),t("周日")]; // 0 = Monday
   const hm = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
   function condLabel(c) {
     const v = c.value;
     switch (c.cond) {
-      case 'type': return t("类型：") + v.map(x => (CATS().find(k => k[0] === x) || [x, x])[1]).join('、');
-      case 'ext': return t("扩展名：") + v.join('、');
-      case 'exactName': return t("名称为：") + v.join('、');
+      case 'type': return t("类型：") + v.map(x => (CATS().find(k => k[0] === x) || [x, x])[1]).join(t("、"));
+      case 'ext': return t("扩展名：") + v.join(t("、"));
+      case 'exactName': return t("名称为：") + v.join(t("、"));
       case 'name': return tf("名称{0}“{1}”", OPS()[v.op] || v.op, v.value);
       case 'glob': return t("匹配 ") + v;
       case 'shortcutTarget': return tf("快捷方式目标{0}“{1}”", OPS()[v.op] || t("包含"), v.value);
@@ -770,7 +770,7 @@
       case 'filesOnly': return t("仅文件");
       case 'sizeMb': return t("大小") + (v.min != null ? ' ≥ ' + v.min + ' MB' : '') + (v.max != null ? ' ≤ ' + v.max + ' MB' : '');
       case 'createdTime': return t("创建时间 ") + hm(v.fromMin) + '–' + hm(v.toMin);
-      case 'createdWeekday': return t("创建于 ") + v.map(d => WEEK()[d] || d).join('、');
+      case 'createdWeekday': return t("创建于 ") + v.map(d => WEEK()[d] || d).join(t("、"));
       case 'origin': return t("来源：") + (v === 'publicDesktop' ? t("公共桌面") : t("用户桌面"));
       case 'idleDays': return tf("闲置 ≥ {0} 天", v.min);
       default: return c.cond;

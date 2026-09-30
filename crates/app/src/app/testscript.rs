@@ -24,6 +24,7 @@
 //! detach <title>             tear the tab out into its own fence (menu path)
 //! merge <title> <into-title> merge a fence into another one's tab strip
 //! delete <title>
+//! menu-delete <title>        the fence menu's 删除栅栏 (the same path, including its prompt)
 //! new-fence <x> <y> <w> <h>  physical px
 //! drop-desktop <title>       first item of the fence dropped on the bare desktop (inbox + rules)
 //! move <title> <into-title>  first item of the fence moved into another fence (drop minus OLE)
@@ -35,6 +36,13 @@
 //! cancel-rename              cancel the active inline editor
 //! rename-active <name>       submit a supplied name for the item being edited
 //! edit-item <title> <name>   open rename for an item whose display name contains <name>
+//! drop-files <title> <0|1> <path>  debug-only: the fence's OLE drop handler for a file from
+//!                            another program, no modifier keys; logs the effect DragEnter
+//!                            reports and (1) performs the drop
+//! item-menu <title>          log the right-click menu of the fence's first item (not shown)
+//! device-lost <n>            debug-only: every fence window reports a lost GPU device and the
+//!                            next <n> device rebuilds fail (a driver reset in progress)
+//! device-state               log how many fence windows still wait for a working device
 //! crash                      force an access violation (tests the crash logger)
 //! exit                       quit the process
 //! exit-if-file <path>        quit when a test harness creates a stop marker
@@ -123,6 +131,62 @@ impl App {
                     {
                         w.test_input(action, x, y);
                     }
+                }
+                #[cfg(debug_assertions)]
+                ["drop-files", title, perform, path] => {
+                    if let Some(id) = self.test_fence(title)
+                        && let Some(w) = self.fences.get(&self.state.host_of(id))
+                    {
+                        let path = std::path::PathBuf::from(path);
+                        match pecofence_platform::dragdrop::data_object_for_paths(&[path.as_path()])
+                        {
+                            Ok(data) => {
+                                let (entered, dropped) =
+                                    w.test_drop(&self.ctx, &data, 0, *perform == "1");
+                                tracing::info!(
+                                    target: "pecofence::test",
+                                    "drop-files {}: enter={entered:?} drop={dropped:?}",
+                                    path.display()
+                                );
+                            }
+                            Err(e) => tracing::warn!(
+                                target: "pecofence::test",
+                                error = %e,
+                                "drop-files: no data object for {}",
+                                path.display()
+                            ),
+                        }
+                    }
+                }
+                ["item-menu", title] => {
+                    if let Some(id) = self.test_fence(title)
+                        && let Some(f) = self.state.fence(id)
+                        && let Some(item) = self.state.items_of(f).first().map(|it| it.id)
+                    {
+                        let name = self.state.item(item).map(|it| it.display_name.clone());
+                        let labels = self.item_menu_labels(id, item);
+                        tracing::info!(
+                            target: "pecofence::test",
+                            "item-menu {name:?}: {}",
+                            labels.join(" | ")
+                        );
+                    }
+                }
+                #[cfg(debug_assertions)]
+                ["device-lost", n] => {
+                    super::motion::TEST_FAILING_RECOVERIES
+                        .store(n.parse().unwrap_or(0), std::sync::atomic::Ordering::Relaxed);
+                    for w in self.fences.values() {
+                        w.test_lose_device();
+                    }
+                }
+                ["device-state"] => {
+                    let lost = self.fences.values().filter(|w| w.device_lost()).count();
+                    tracing::info!(
+                        target: "pecofence::test",
+                        "device-state lost={lost}/{}",
+                        self.fences.len()
+                    );
                 }
                 ["reorder", title, index] => {
                     if let (Some(tab), Ok(to)) = (self.test_fence(title), index.parse()) {
@@ -260,6 +324,11 @@ impl App {
                 ["delete", title] => {
                     if let Some(id) = self.test_fence(title) {
                         self.queue.push(Command::DeleteFence(id));
+                    }
+                }
+                ["menu-delete", title] => {
+                    if let Some(id) = self.test_fence(title) {
+                        self.delete_fence_from_menu(id);
                     }
                 }
                 ["new-fence", x, y, w, h] => {

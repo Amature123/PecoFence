@@ -380,7 +380,7 @@ pub enum SettingsCmd {
     /// The whole Settings object, or one value at a dotted camelCase path
     #[command(after_help = "Example: pecofence-cli settings get peek.enabled")]
     Get {
-        /// Dotted path such as peek.enabled, quickHide.delayMs, iconSize
+        /// Dotted path such as peek.enabled, quickHide.enabled, iconSize
         path: Option<String>,
     },
     /// Set one value; the app applies it immediately

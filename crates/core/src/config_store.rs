@@ -5,9 +5,13 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// Fences per layout. Enforced where fences are created (`AppState::new_fence`, the IPC create
+/// paths) as well as here, so a save can never be refused for it.
 pub const MAX_FENCES: usize = 64;
-pub const MAX_ITEMS: usize = 5000;
 pub const DAILY_BACKUPS_KEPT: usize = 7;
+/// Unreadable primaries moved aside by [`ConfigStore::load_reporting`]; the oldest go first.
+pub const UNREADABLE_KEPT: usize = 5;
+const UNREADABLE_PREFIX: &str = "config.unreadable-";
 
 #[derive(Debug)]
 pub enum LoadOutcome {
@@ -95,9 +99,56 @@ impl ConfigStore {
 
     /// Loads with fallbacks: primary → .bak → newest daily backup → default.
     pub fn load(&self) -> LoadOutcome {
-        if let Some(c) = Self::parse(&self.primary_path()) {
-            return LoadOutcome::Primary(c);
+        self.load_reporting().0
+    }
+
+    /// [`Self::load`], plus where an unreadable primary was moved. A `config.json` that exists
+    /// but does not parse or validate (written by a newer version, or hand-edited) is renamed
+    /// to `config.unreadable-<date>-<secs>.json` first: the `.bak` rotation in [`Self::save`]
+    /// would otherwise turn it into `config.bak` and delete it on the next save.
+    pub fn load_reporting(&self) -> (LoadOutcome, Option<PathBuf>) {
+        let primary = self.primary_path();
+        let quarantined = match Self::parse_file(&primary) {
+            Ok(c) => return (LoadOutcome::Primary(c), None),
+            Err(_) if !primary.exists() => None,
+            Err(_) => self.quarantine(&primary),
+        };
+        (self.load_fallbacks(), quarantined)
+    }
+
+    fn quarantine(&self, primary: &Path) -> Option<PathBuf> {
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let to = self.dir.join(format!(
+            "{UNREADABLE_PREFIX}{}-{secs}.json",
+            today_yyyy_mm_dd()
+        ));
+        // A copy still protects it when the rename is refused (the save then rotates the
+        // original into .bak as before, but this copy is never touched).
+        if fs::rename(primary, &to).is_err() && fs::copy(primary, &to).is_err() {
+            return None;
         }
+        let mut kept: Vec<PathBuf> = fs::read_dir(&self.dir)
+            .map(|rd| {
+                rd.filter_map(|e| e.ok().map(|e| e.path()))
+                    .filter(|p| {
+                        p.file_name()
+                            .and_then(|n| n.to_str())
+                            .is_some_and(|n| n.starts_with(UNREADABLE_PREFIX))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        kept.sort();
+        while kept.len() > UNREADABLE_KEPT {
+            let _ = fs::remove_file(kept.remove(0));
+        }
+        Some(to)
+    }
+
+    fn load_fallbacks(&self) -> LoadOutcome {
         if let Some(c) = Self::parse(&self.bak_path()) {
             return LoadOutcome::Recovered(c, self.bak_path());
         }
@@ -166,9 +217,6 @@ impl ConfigStore {
 pub fn validate(cfg: &Config) -> Result<(), String> {
     if cfg.schema_version == 0 || cfg.schema_version > SCHEMA_VERSION {
         return Err(format!("unsupported schemaVersion {}", cfg.schema_version));
-    }
-    if cfg.items.len() > MAX_ITEMS {
-        return Err(format!("too many items: {}", cfg.items.len()));
     }
     for layout in &cfg.layouts {
         if layout.fences.len() > MAX_FENCES {
@@ -518,6 +566,23 @@ mod tests {
             });
             assert_eq!(validate(&c).is_ok(), ok, "opacity {opacity}");
         }
+    }
+
+    #[test]
+    fn unreadable_primary_survives_later_saves() {
+        // A config written by a newer version: this build cannot read it, falls back to the
+        // defaults and saves twice. The original text must still be on disk afterwards.
+        let store = ConfigStore::new(tmpdir("unreadable"));
+        fs::create_dir_all(store.dir()).unwrap();
+        let text = r#"{ "schemaVersion": 99, "marker": "users-layout" }"#;
+        fs::write(store.primary_path(), text).unwrap();
+        let (outcome, moved) = store.load_reporting();
+        assert!(matches!(outcome, LoadOutcome::Fresh(_)));
+        let moved = moved.expect("unreadable primary moved aside");
+        store.save(&sample()).unwrap();
+        store.save(&sample()).unwrap();
+        assert_eq!(fs::read_to_string(&moved).unwrap(), text);
+        assert!(matches!(store.load(), LoadOutcome::Primary(_)));
     }
 
     #[test]

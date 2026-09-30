@@ -258,6 +258,8 @@ impl ItemView {
 #[derive(Clone, Debug)]
 pub struct TabView {
     pub id: FenceId,
+    /// A portal tab's current folder (where files dropped on its pill land); None = desktop.
+    pub folder: Option<PathBuf>,
     pub title: String,
     pub color: Option<[u8; 3]>,
     pub title_size: u8,

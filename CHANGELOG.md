@@ -3,6 +3,20 @@
 ## Unreleased
 
 - 「显示标题栏」 per fence (fence options, `fence set <FENCE> titleOnHover default|hover|always`): each fence can fold its title row away until the pointer is over it, or always show it, whatever 「鼠标悬停时才显示标题栏」 says; fences left at 「跟随常规设置」 (`default`) keep following that setting. A fully transparent fence with a hover-only title shows nothing but its icons at rest.
+- The tray icon comes back after Explorer restarts or crashes. It used to stay gone until PecoFence was restarted, and every notification went with it; an icon that could not be added at logon is retried too.
+- A `config.json` this version cannot read (one written by a newer version, or a hand edit gone wrong) is kept as `config.unreadable-<date>-<n>.json` next to it, with a notification. It used to be rotated into `config.bak` and deleted by the second save.
+- Files dropped on a fence from another drive or a network share are copied, as in Explorer; from the same drive they are still moved. Shift forces a move, Ctrl a copy.
+- 「删除栅栏」 asks first when the fence still holds icons or rules point to it, saying how many icons go back to the 「桌面」 fence and how many rules are deleted (「否」 is the default). An empty fence without rules is still deleted at once.
+- Ctrl+dragging an icon of a multi-selection copies the whole selection, as in Explorer; a Ctrl-click without a drag still deselects the icon.
+- When a shutdown is cancelled (or another program refuses it), the real desktop icons are hidden again. They used to stay visible next to the fences.
+- The settings window fits small high-DPI screens (1366×768 at 125 %, 1080p at 175 %); its title bar could open above the top of the screen, where it could not be dragged back.
+- A fence dragged onto a monitor with a different scale stays under the cursor instead of jumping away from it.
+- After a graphics driver reset, fences that cannot get a new GPU device right away try again (after 1, 2, 4 … up to 30 seconds) instead of staying blank until PecoFence is restarted.
+- The icon menu no longer lists 「打开」 and 「删除」 twice (PecoFence's and Explorer's); 「打开」 is the bold default item.
+- Rule descriptions on the settings page use the interface language's list separator and quotation marks, and "AND" no longer runs into the word before it (`Installationspakete, Archive UND …`).
+- Creating more than 64 fences from the desktop, a menu or a template is refused with a notification; a 65th fence used to make every later save fail. Desktops with more than 5000 items no longer stop saving either.
+- pecofence-cli: restoring the oldest automatic snapshot works. The restore's own backup used to delete it first and report `snapshot_not_found`.
+- pecofence-cli: settings nothing acts on (`quickHide.delayMs`, `rollUp.hoverOpenMs`, `telemetry` and nine more) are no longer shown by `settings get` and `describe --schema`, and `settings set` refuses them (`invalid_path`). They stay in `config.json` so older versions can still read it.
 
 ## 0.1.2
 

@@ -9,6 +9,20 @@ pub(super) fn passed_drag_threshold(
     point.0.abs_diff(start.0) > threshold.0 as u32 || point.1.abs_diff(start.1) > threshold.1 as u32
 }
 
+/// A grab offset measured at `from_dpi`, for a window now at `to_dpi`: a drag onto a monitor
+/// with another scale resizes the window (WM_DPICHANGED), so the cursor keeps holding the same
+/// point of it only if the offset scales too. Unknown DPI (0) leaves it as it is.
+pub(super) fn grab_offset_for_dpi(offset: (i32, i32), from_dpi: u32, to_dpi: u32) -> (i32, i32) {
+    if from_dpi == 0 || to_dpi == 0 || from_dpi == to_dpi {
+        return offset;
+    }
+    let k = to_dpi as f32 / from_dpi as f32;
+    (
+        (offset.0 as f32 * k).round() as i32,
+        (offset.1 as f32 * k).round() as i32,
+    )
+}
+
 impl RemoteDrag {
     /// Keep only the newest sample. Mouse-up uses this too, so a fast gesture that
     /// finishes before the frame callback still reaches its final position.
@@ -60,7 +74,11 @@ pub(super) fn flush_window_drag(
         (
             drag.hwnd,
             point,
-            drag.offset,
+            grab_offset_for_dpi(
+                drag.offset,
+                drag.offset_dpi,
+                monitors::dpi_for_window(drag.hwnd),
+            ),
             v.behavior.snapping.get(),
             v.behavior.snap_gap_dip.get(),
             (drag.hwnd == controller).then_some(height).flatten(),

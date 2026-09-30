@@ -505,6 +505,10 @@ impl App {
                     .map(|w| ((w.left + w.right) / 2, (w.top + w.bottom) / 2))
             })
             .unwrap_or((0, 0));
+        if self.state.fence_limit_reached() {
+            self.settings_toast(&fence_limit_text());
+            return;
+        }
         let rect = self.place_new_fence(3, 200.0, x, y, inbox);
         match self.state.add_template(template, rect) {
             Ok(id) => {
@@ -541,6 +545,9 @@ impl App {
             .map(str::trim)
             .filter(|t| !t.is_empty())
             .unwrap_or_else(|| pecofence_core::i18n::text("新栅栏"));
+        if !self.fence_room_or_notice() {
+            return None;
+        }
         let id = self.state.new_fence(title, rect)?;
         self.resync_windows();
         if let Some(w) = self.fences.get(&id) {
@@ -548,6 +555,78 @@ impl App {
         }
         self.schedule_save();
         Some(id)
+    }
+
+    /// False (with a tray notice) when the layout already holds `MAX_FENCES`.
+    pub(super) fn fence_room_or_notice(&self) -> bool {
+        if !self.state.fence_limit_reached() {
+            return true;
+        }
+        tracing::warn!("fence limit reached; new fence refused");
+        if let Some(t) = &self.tray {
+            t.show_info("PecoFence", &fence_limit_text(), true);
+        }
+        false
+    }
+
+    /// The fence menu's 删除栅栏: asks first when icons or rules would go with the fence.
+    pub(super) fn delete_fence_from_menu(&mut self, fence: FenceId) {
+        if let Some(prompt) = self.delete_fence_prompt(fence) {
+            let owner = self
+                .window_for(fence)
+                .map(|w| w.hwnd())
+                .unwrap_or(self.control.hwnd());
+            if !window::confirm(owner, &prompt, pecofence_core::i18n::text("删除栅栏")) {
+                return;
+            }
+        }
+        self.delete_fence(fence);
+    }
+
+    /// What deleting `fence` takes with it, as a question; None when nothing would be lost (no
+    /// icons of its own, no rule pointing at it). A folder portal's items are the folder's
+    /// files and stay on disk, so only its rules count.
+    fn delete_fence_prompt(&self, fence: FenceId) -> Option<String> {
+        use pecofence_core::i18n;
+        let f = self.state.fence(fence)?;
+        let icons = if f.kind == FenceKind::FolderPortal {
+            0
+        } else {
+            self.state.items_of(f).len()
+        };
+        let rules = self
+            .state
+            .config
+            .rules
+            .list
+            .iter()
+            .filter(|r| r.target == Target::Fence(fence))
+            .count();
+        if icons == 0 && rules == 0 {
+            return None;
+        }
+        let mut text = i18n::format("要删除栅栏“{0}”吗？", std::slice::from_ref(&f.title));
+        if icons > 0 {
+            let inbox = self
+                .state
+                .inbox_id()
+                .and_then(|id| self.state.fence(id))
+                .map(|f| f.title.clone())
+                .unwrap_or_default();
+            text.push_str("\n\n");
+            text.push_str(&i18n::format(
+                "其中的 {0} 个图标会回到“{1}”栅栏，文件本身不受影响。",
+                &[icons.to_string(), inbox],
+            ));
+        }
+        if rules > 0 {
+            text.push_str("\n\n");
+            text.push_str(&i18n::format(
+                "指向它的 {0} 条规则也会一并删除。",
+                &[rules.to_string()],
+            ));
+        }
+        Some(text)
     }
 
     /// Deletes a fence (or a tab); a host's tabs become windows of their own again.
@@ -736,4 +815,11 @@ impl App {
             self.schedule_save();
         }
     }
+}
+
+fn fence_limit_text() -> String {
+    pecofence_core::i18n::format(
+        "最多只能有 {0} 个栅栏（含标签页），请先删除或合并一些。",
+        &[pecofence_core::config_store::MAX_FENCES.to_string()],
+    )
 }

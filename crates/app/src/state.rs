@@ -28,6 +28,8 @@ pub struct AppState {
     pub work_areas: Vec<WorkArea>,
     pub first_run: bool,
     pub recovered_from: Option<PathBuf>,
+    /// Where an unreadable `config.json` was moved at load (see `ConfigStore::load_reporting`).
+    pub unreadable_moved_to: Option<PathBuf>,
 }
 
 /// Summary of a desktop sync pass.
@@ -82,7 +84,8 @@ impl AppState {
         if store.dir() != directory {
             tracing::info!(path = %store.dir().display(), "reusing pre-rename configuration");
         }
-        let (config, first_run, recovered_from) = match store.load() {
+        let (outcome, unreadable_moved_to) = store.load_reporting();
+        let (config, first_run, recovered_from) = match outcome {
             LoadOutcome::Primary(c) => (c, false, None),
             LoadOutcome::Recovered(c, from) => (c, false, Some(from)),
             LoadOutcome::Fresh(c) => (c, true, None),
@@ -105,6 +108,7 @@ impl AppState {
             work_areas,
             first_run,
             recovered_from,
+            unreadable_moved_to,
         };
         state.rebuild_catalog();
         state.ensure_layout();
@@ -1630,7 +1634,16 @@ impl AppState {
         }
     }
 
+    /// The layout holds `MAX_FENCES` already: `new_fence` refuses, since a save would fail.
+    pub fn fence_limit_reached(&self) -> bool {
+        self.fences().len() >= pecofence_core::config_store::MAX_FENCES
+    }
+
+    /// None when there is no monitor to place it on or [`Self::fence_limit_reached`].
     pub fn new_fence(&mut self, title: &str, rect: RECT) -> Option<FenceId> {
+        if self.fence_limit_reached() {
+            return None;
+        }
         let px = PxRect {
             left: rect.left,
             top: rect.top,
@@ -1845,9 +1858,51 @@ mod tests {
             work_areas: vec![work],
             first_run: true,
             recovered_from: None,
+            unreadable_moved_to: None,
         };
         state.ensure_layout();
         state
+    }
+
+    #[test]
+    fn gui_fence_creation_never_makes_the_config_unsavable() {
+        // The GUI paths (marquee, menu, templates, tabs, portals) all go through new_fence.
+        let mut state = test_state();
+        let rect = RECT {
+            left: 100,
+            top: 100,
+            right: 340,
+            bottom: 300,
+        };
+        let mut created = 0;
+        for i in 0..80 {
+            if state.new_fence(&format!("F{i}"), rect).is_some() {
+                created += 1;
+            }
+        }
+        assert!(created > 0);
+        assert!(state.fences().len() <= pecofence_core::config_store::MAX_FENCES);
+        state
+            .store
+            .save(&state.config)
+            .expect("config must stay savable");
+    }
+
+    #[test]
+    fn many_desktop_items_never_make_the_config_unsavable() {
+        let mut state = test_state();
+        let inbox = state.inbox_id().unwrap();
+        for i in 0..5200 {
+            add_item(&mut state, inbox, &format!("file{i}"));
+        }
+        state
+            .store
+            .save(&state.config)
+            .expect("config must stay savable");
+        assert!(matches!(
+            state.store.load(),
+            pecofence_core::LoadOutcome::Primary(_)
+        ));
     }
 
     fn add_item(state: &mut AppState, fence: FenceId, name: &str) -> ItemId {

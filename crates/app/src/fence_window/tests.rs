@@ -1,12 +1,32 @@
 use super::*;
 use crate::drag_guides::GuideLine;
 
+/// A 600 px fence grabbed 500 px from its left edge on a 200 % monitor is dragged onto a 100 %
+/// one: WM_DPICHANGED halves it to 300 px, and the cursor must keep holding the same point of
+/// it (250 px in), not sit 200 px to the right of the window.
+#[test]
+fn grab_offset_follows_a_dpi_change_mid_drag() {
+    let offset = grab_offset_for_dpi((500, 18), 192, 96);
+    let (cursor_x, width) = (3000, 300);
+    let left = cursor_x - offset.0;
+    assert!(
+        cursor_x >= left && cursor_x < left + width,
+        "cursor {cursor_x} outside the dragged window {left}..{}",
+        left + width
+    );
+    assert_eq!(offset, (250, 9));
+    assert_eq!(grab_offset_for_dpi((500, 18), 96, 96), (500, 18));
+    assert_eq!(grab_offset_for_dpi((250, 9), 96, 144), (375, 14));
+    assert_eq!(grab_offset_for_dpi((40, 12), 0, 144), (40, 12));
+}
+
 #[test]
 fn window_drag_keeps_the_latest_sample_and_release_before_first_frame() {
     let mut drag = RemoteDrag {
         hwnd: HWND::default(),
         fence: FenceId::new_v4(),
         offset: (20, 10),
+        offset_dpi: 96,
         merge_target: 0,
         merge_x: i32::MIN,
         moved_once: false,
@@ -251,6 +271,34 @@ fn narrow_tab_strips_cannot_cover_the_chevron_or_count() {
 }
 /// Right-drag menu offers only what both the source and this target can do, in Explorer's
 /// order.
+/// Explorer: Ctrl+dragging one item of a multi-selection copies the whole selection; the
+/// Ctrl-press only deselects the item when the button comes up without a drag.
+#[test]
+fn ctrl_drag_carries_the_whole_selection() {
+    let mut selected: HashSet<usize> = [0, 1, 2].into_iter().collect();
+    let mut anchor = Some(0);
+    press_item(&mut selected, &mut anchor, 1, false, true);
+    drag_selection(&mut selected, 1);
+    let mut dragged: Vec<usize> = selected.iter().copied().collect();
+    dragged.sort();
+    assert_eq!(
+        dragged,
+        vec![0, 1, 2],
+        "Ctrl+drag lost the rest of the selection"
+    );
+    // A Ctrl-click without a drag still toggles the item off.
+    let mut selected: HashSet<usize> = [0, 1, 2].into_iter().collect();
+    let press2 = press_item(&mut selected, &mut anchor, 1, false, true);
+    release_item(&mut selected, 1, press2);
+    let mut left: Vec<usize> = selected.iter().copied().collect();
+    left.sort();
+    assert_eq!(left, vec![0, 2]);
+    // Ctrl on an unselected item adds it at once (it is dragged along too).
+    let mut selected: HashSet<usize> = [0].into_iter().collect();
+    press_item(&mut selected, &mut anchor, 3, false, true);
+    assert!(selected.contains(&3) && selected.contains(&0));
+}
+
 #[test]
 fn right_drag_choices_follow_source_and_target() {
     let all = [DropEffect::Move, DropEffect::Copy, DropEffect::Link];
@@ -271,14 +319,24 @@ fn right_drag_choices_follow_source_and_target() {
     assert_eq!(transfer_mode(DropEffect::None), None);
     // Modifier table clipped to the source mask.
     assert_eq!(
-        effect_for(dragdrop::MK_ALT, DropEffect::Copy.to_raw()),
+        effect_for(dragdrop::MK_ALT, DropEffect::Copy.to_raw(), true),
         DropEffect::Copy
     );
-    assert_eq!(effect_for(0, dragdrop::ALL_EFFECTS), DropEffect::Move);
+    assert_eq!(effect_for(0, dragdrop::ALL_EFFECTS, true), DropEffect::Move);
+    // From another drive a plain drag copies; Shift still moves.
+    assert_eq!(
+        effect_for(0, dragdrop::ALL_EFFECTS, false),
+        DropEffect::Copy
+    );
+    assert_eq!(
+        effect_for(dragdrop::MK_SHIFT, dragdrop::ALL_EFFECTS, false),
+        DropEffect::Move
+    );
     assert_eq!(
         effect_for(
             dragdrop::MK_CONTROL | dragdrop::MK_SHIFT,
-            dragdrop::ALL_EFFECTS
+            dragdrop::ALL_EFFECTS,
+            true
         ),
         DropEffect::Link
     );

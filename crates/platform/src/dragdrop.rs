@@ -59,8 +59,9 @@ pub const MK_CONTROL: u32 = 0x0008;
 pub const MK_ALT: u32 = 0x0020;
 
 /// Explorer's modifier table for a file drag: Ctrl = Copy, Alt or Ctrl+Shift = Link (create
-/// shortcut), Shift alone forces Move, no modifier = Move (the default the target prefers).
-pub fn modifier_effect(key_state: u32) -> DropEffect {
+/// shortcut), Shift alone forces Move. No modifier = Move within one volume, Copy from another
+/// drive or a network share (`same_volume`, see [`same_volume`]).
+pub fn modifier_effect(key_state: u32, same_volume: bool) -> DropEffect {
     let ctrl = key_state & MK_CONTROL != 0;
     let shift = key_state & MK_SHIFT != 0;
     let alt = key_state & MK_ALT != 0;
@@ -68,8 +69,39 @@ pub fn modifier_effect(key_state: u32) -> DropEffect {
         DropEffect::Link
     } else if ctrl {
         DropEffect::Copy
-    } else {
+    } else if shift || same_volume {
         DropEffect::Move
+    } else {
+        DropEffect::Copy
+    }
+}
+
+/// The volume part of `path` for Explorer's same-volume rule: the drive letter, or the
+/// `\\server\share` of a UNC path, lower-cased. None for a path without either.
+pub fn volume_of(path: &std::path::Path) -> Option<String> {
+    use std::path::{Component, Prefix};
+    let Some(Component::Prefix(prefix)) = path.components().next() else {
+        return None;
+    };
+    match prefix.kind() {
+        Prefix::Disk(d) | Prefix::VerbatimDisk(d) => {
+            Some(format!("{}:", (d as char).to_ascii_lowercase()))
+        }
+        Prefix::UNC(server, share) | Prefix::VerbatimUNC(server, share) => Some(format!(
+            r"\\{}\{}",
+            server.to_string_lossy().to_lowercase(),
+            share.to_string_lossy().to_lowercase()
+        )),
+        _ => None,
+    }
+}
+
+/// Whether a drop from `source` (a [`volume_of`] result) into `dest` stays on one volume.
+/// Unknown on either side counts as the same volume, which keeps the plain-drag Move.
+pub fn same_volume(source: Option<&str>, dest: Option<&std::path::Path>) -> bool {
+    match (source, dest.and_then(volume_of)) {
+        (Some(s), Some(d)) => s == d,
+        _ => true,
     }
 }
 
@@ -863,17 +895,43 @@ mod effect_tests {
     }
 
     /// Explorer's modifier table: Ctrl copy, Shift move, Alt or Ctrl+Shift link; the mouse
-    /// button bits do not take part.
+    /// button bits do not take part. A plain drag moves within a volume and copies across.
     #[test]
     fn modifier_table_matches_explorer() {
-        assert_eq!(modifier_effect(0), DropEffect::Move);
-        assert_eq!(modifier_effect(MK_SHIFT), DropEffect::Move);
-        assert_eq!(modifier_effect(MK_CONTROL), DropEffect::Copy);
-        assert_eq!(modifier_effect(MK_CONTROL | MK_SHIFT), DropEffect::Link);
-        assert_eq!(modifier_effect(MK_ALT), DropEffect::Link);
-        assert_eq!(modifier_effect(MK_ALT | MK_CONTROL), DropEffect::Link);
-        assert_eq!(modifier_effect(MK_RBUTTON | 0x0001), DropEffect::Move);
-        assert_eq!(modifier_effect(MK_RBUTTON | MK_CONTROL), DropEffect::Copy);
+        assert_eq!(modifier_effect(0, true), DropEffect::Move);
+        assert_eq!(modifier_effect(0, false), DropEffect::Copy);
+        assert_eq!(modifier_effect(MK_SHIFT, true), DropEffect::Move);
+        assert_eq!(modifier_effect(MK_SHIFT, false), DropEffect::Move);
+        assert_eq!(modifier_effect(MK_CONTROL, true), DropEffect::Copy);
+        assert_eq!(
+            modifier_effect(MK_CONTROL | MK_SHIFT, true),
+            DropEffect::Link
+        );
+        assert_eq!(modifier_effect(MK_ALT, false), DropEffect::Link);
+        assert_eq!(modifier_effect(MK_ALT | MK_CONTROL, true), DropEffect::Link);
+        assert_eq!(modifier_effect(MK_RBUTTON | 0x0001, true), DropEffect::Move);
+        assert_eq!(
+            modifier_effect(MK_RBUTTON | MK_CONTROL, true),
+            DropEffect::Copy
+        );
+    }
+
+    #[test]
+    fn volumes_compare_by_drive_or_share() {
+        use std::path::Path;
+        assert_eq!(volume_of(Path::new(r"C:\Users\me")).as_deref(), Some("c:"));
+        assert_eq!(volume_of(Path::new(r"\\?\D:\x")).as_deref(), Some("d:"));
+        assert_eq!(
+            volume_of(Path::new(r"\\NAS\Share\a.txt")).as_deref(),
+            Some(r"\\nas\share")
+        );
+        assert_eq!(volume_of(Path::new("relative")), None);
+        let desk = Path::new(r"C:\Users\me\Desktop");
+        assert!(same_volume(Some("c:"), Some(desk)));
+        assert!(!same_volume(Some("e:"), Some(desk)));
+        assert!(!same_volume(Some(r"\\nas\share"), Some(desk)));
+        assert!(same_volume(None, Some(desk)));
+        assert!(same_volume(Some("e:"), None));
     }
 
     #[test]

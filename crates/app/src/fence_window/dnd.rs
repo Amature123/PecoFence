@@ -47,17 +47,22 @@ pub(super) enum DropKind {
 /// or Ctrl+Shift link) clipped to what the source allows, so a COPY|LINK-only source (a zip
 /// folder, a browser's download shelf) gets Copy for a plain drag instead of a Move it never
 /// offered.
-pub(super) fn effect_for(key_state: u32, allowed: u32) -> DropEffect {
-    dragdrop::resolve(dragdrop::modifier_effect(key_state), allowed)
+pub(super) fn effect_for(key_state: u32, allowed: u32, same_volume: bool) -> DropEffect {
+    dragdrop::resolve(dragdrop::modifier_effect(key_state, same_volume), allowed)
 }
 
 /// The effect for a drop into `folder`: the modifiers decide, except over the Recycle Bin
 /// item, which only ever moves (recycles), as Explorer's own bin does.
-pub(super) fn folder_effect(folder: Option<&Path>, key_state: u32, allowed: u32) -> DropEffect {
+pub(super) fn folder_effect(
+    folder: Option<&Path>,
+    key_state: u32,
+    allowed: u32,
+    same_volume: bool,
+) -> DropEffect {
     if folder.is_some_and(pecofence_platform::shell::is_recycle_bin_path) {
         dragdrop::resolve(DropEffect::Move, allowed)
     } else {
-        effect_for(key_state, allowed)
+        effect_for(key_state, allowed, same_volume)
     }
 }
 
@@ -230,6 +235,10 @@ pub(super) struct FenceDropHandler {
     pub(super) right_button: bool,
     /// DragOver cadence of the hover in progress (diagnostics, logged at DragLeave / Drop).
     pub(super) over_stats: OverStats,
+    /// Volume of the first dragged file (`dragdrop::volume_of`) and the user's desktop folder,
+    /// read at DragEnter: a plain drag from another volume copies, as in Explorer.
+    pub(super) source_volume: Option<String>,
+    pub(super) desktop: Option<PathBuf>,
 }
 
 /// How smoothly the shell's drag image was fed while a drag hovered this window: OLE calls
@@ -343,7 +352,10 @@ impl FenceDropHandler {
                         .folder
                         .and_then(|i| v.items.get(i))
                         .map(|it| it.path.as_path());
-                    folder_effect(folder, key_state, allowed)
+                    let dest = v.drop_folder(&spot).or_else(|| self.desktop.clone());
+                    let same =
+                        dragdrop::same_volume(self.source_volume.as_deref(), dest.as_deref());
+                    folder_effect(folder, key_state, allowed, same)
                 }
             }
         };
@@ -410,6 +422,16 @@ impl DropHandler for FenceDropHandler {
         self.data = Some(data.clone());
         self.last_description = None;
         self.right_button = key_state & dragdrop::MK_RBUTTON != 0;
+        (self.source_volume, self.desktop) = if self.kind == DropKind::Files {
+            (
+                dragdrop::hdrop_paths(data)
+                    .first()
+                    .and_then(|p| dragdrop::volume_of(p)),
+                pecofence_platform::shell::user_desktop(),
+            )
+        } else {
+            (None, None)
+        };
         let fb = if self.kind == DropKind::None {
             // Nothing we take: no highlight, but the helper still tracks the image over us.
             let hwnd = self
@@ -483,12 +505,13 @@ impl DropHandler for FenceDropHandler {
                     .folder
                     .and_then(|i| v.items.get(i))
                     .map(|it| it.path.clone());
+                let dest = v.drop_folder(&spot);
                 v.drag_scroll = None;
                 if v.snap_scroll() {
                     let _ = v.redraw_content();
                 }
                 v.apply_drop_feedback(None);
-                (spot, v.active, tab_fence, folder, v.hwnd)
+                (spot, v.active, tab_fence, folder, v.hwnd, dest)
             })
         });
         self.forget_data(false);
@@ -506,9 +529,12 @@ impl DropHandler for FenceDropHandler {
             }
         };
         let effect = 'resolve: {
-            let Some((spot, active, tab_fence, folder, hwnd)) = resolved else {
+            let Some((spot, active, tab_fence, folder, hwnd, dest)) = resolved else {
                 break 'resolve DropEffect::None;
             };
+            let dest = dest.or_else(|| self.desktop.take());
+            let same_volume =
+                dragdrop::same_volume(self.source_volume.take().as_deref(), dest.as_deref());
             let to = tab_fence.unwrap_or(active);
             match kind {
                 DropKind::None => DropEffect::None,
@@ -542,7 +568,7 @@ impl DropHandler for FenceDropHandler {
                         // Only a folder target honours the modifiers (our own source offers
                         // every effect, so `allowed` never clips them).
                         let paths = filter_folder_paths(d.paths, &folder);
-                        let effect = folder_effect(Some(&folder), key_state, allowed);
+                        let effect = folder_effect(Some(&folder), key_state, allowed, same_volume);
                         let (Some(mode), false) = (transfer_mode(effect), paths.is_empty()) else {
                             break 'resolve DropEffect::None;
                         };
@@ -573,7 +599,8 @@ impl DropHandler for FenceDropHandler {
                     if paths.is_empty() {
                         break 'resolve DropEffect::None;
                     }
-                    let mut effect = folder_effect(folder.as_deref(), key_state, allowed);
+                    let mut effect =
+                        folder_effect(folder.as_deref(), key_state, allowed, same_volume);
                     if effect == DropEffect::None {
                         // The source offers nothing we can do with files (LINK-only, say).
                         break 'resolve DropEffect::None;
@@ -628,6 +655,18 @@ impl DropHandler for FenceDropHandler {
 }
 
 impl FenceViewState {
+    /// The folder files dropped on `spot` land in: the folder item, else the target tab's or
+    /// the shown fence's portal folder. None = the desktop (a virtual fence's files live there).
+    pub(super) fn drop_folder(&self, spot: &DropSpot) -> Option<PathBuf> {
+        if let Some(i) = spot.folder {
+            return self.items.get(i).map(|it| it.path.clone());
+        }
+        match spot.tab.and_then(|i| self.tabs.get(i)) {
+            Some(t) if t.id != self.active => t.folder.clone(),
+            _ => self.portal_folder.clone(),
+        }
+    }
+
     /// Insertion index for reordering at a client-pixel point: only in a 手动-sorted virtual
     /// fence and only inside the item area.
     pub(super) fn insertion_at(&self, x_px: i32, y_px: i32) -> Option<usize> {

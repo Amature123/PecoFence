@@ -418,5 +418,12 @@
   "配置文件": "Configuration file",
   "吸附与对齐": "Snapping and alignment",
   "Windows 桌面图标": "Windows desktop icons",
-  "Apache 2.0 许可": "Apache License 2.0"
+  "Apache 2.0 许可": "Apache License 2.0",
+  "、": ", ",
+  "“{0}”": "“{0}”",
+  "配置文件无法读取（可能由更新版本的 PecoFence 写入），已原样保留为 {0}。": "The configuration file could not be read (it may have been written by a newer PecoFence). It was kept unchanged as {0}.",
+  "最多只能有 {0} 个栅栏（含标签页），请先删除或合并一些。": "You can have at most {0} fences (tabs included). Delete or merge some first.",
+  "要删除栅栏“{0}”吗？": "Delete the fence “{0}”?",
+  "其中的 {0} 个图标会回到“{1}”栅栏，文件本身不受影响。": "Its icons ({0}) go back to the “{1}” fence. The files themselves are not affected.",
+  "指向它的 {0} 条规则也会一并删除。": "Rules that point to it ({0}) are deleted too."
 }

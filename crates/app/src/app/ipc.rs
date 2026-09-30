@@ -252,6 +252,21 @@ fn invalid_path(root: &Value, path: &str) -> IpcError {
 
 /// Pure: `current` with the value at the dotted camelCase `path` replaced (`""` = the whole
 /// object), re-validated as a `Settings`.
+/// `settings get` / `settings.patch` output: the Settings JSON without
+/// `pecofence_core::UNUSED_SETTINGS` (the file keeps them for older versions; nothing reads them).
+pub(super) fn visible_settings_json(settings: &Settings) -> std::result::Result<Value, IpcError> {
+    let mut root = to_json(settings)?;
+    for path in pecofence_core::UNUSED_SETTINGS {
+        let pointer = dotted_to_pointer(path);
+        if let Some((parent, key)) = pointer.rsplit_once('/')
+            && let Some(obj) = root.pointer_mut(parent).and_then(Value::as_object_mut)
+        {
+            obj.remove(key);
+        }
+    }
+    Ok(root)
+}
+
 pub(super) fn patch_settings_path(
     current: &Settings,
     path: &str,
@@ -259,6 +274,11 @@ pub(super) fn patch_settings_path(
 ) -> std::result::Result<Settings, IpcError> {
     let mut root = to_json(current)?;
     let pointer = dotted_to_pointer(path);
+    // An unused setting is not a setting: same error as any unknown path, listing real keys.
+    let visible = visible_settings_json(current)?;
+    if !pointer.is_empty() && visible.pointer(&pointer).is_none() {
+        return Err(invalid_path(&visible, path));
+    }
     if pointer.is_empty() {
         if !value.is_object() {
             return Err(IpcError::new(
@@ -295,15 +315,24 @@ pub(super) fn patch_settings_path(
 }
 
 /// Keeps the newest `keep` `auto-cli-*` snapshots (the list is chronological); returns the ids
-/// removed.
-pub(super) fn prune_auto_snapshots(snapshots: &mut Vec<Snapshot>, keep: usize) -> Vec<Uuid> {
+/// removed. `protect` is never evicted (the snapshot a restore is about to apply); the next
+/// oldest goes in its place.
+pub(super) fn prune_auto_snapshots(
+    snapshots: &mut Vec<Snapshot>,
+    keep: usize,
+    protect: Option<Uuid>,
+) -> Vec<Uuid> {
     let auto: Vec<Uuid> = snapshots
         .iter()
         .filter(|s| s.name.starts_with(AUTO_SNAPSHOT_PREFIX))
         .map(|s| s.id)
         .collect();
     let excess = auto.len().saturating_sub(keep);
-    let evict: Vec<Uuid> = auto.into_iter().take(excess).collect();
+    let evict: Vec<Uuid> = auto
+        .into_iter()
+        .filter(|id| Some(*id) != protect)
+        .take(excess)
+        .collect();
     if !evict.is_empty() {
         snapshots.retain(|s| !evict.contains(&s.id));
     }
@@ -320,9 +349,10 @@ fn auto_snapshot_name() -> String {
 /// Pure half of [`App::auto_snapshot`]: prunes `auto-cli-*` entries down to
 /// `AUTO_SNAPSHOTS_KEPT - 1` (making room for the one about to be taken) and reports whether
 /// a slot under `MAX_SNAPSHOTS` is free. `false` means the list is full of snapshots the user
-/// saved, which an automatic one must never evict.
-pub(super) fn auto_snapshot_slot(snapshots: &mut Vec<Snapshot>) -> bool {
-    prune_auto_snapshots(snapshots, AUTO_SNAPSHOTS_KEPT.saturating_sub(1));
+/// saved, which an automatic one must never evict. `protect` survives the pruning (see
+/// [`prune_auto_snapshots`]).
+pub(super) fn auto_snapshot_slot(snapshots: &mut Vec<Snapshot>, protect: Option<Uuid>) -> bool {
+    prune_auto_snapshots(snapshots, AUTO_SNAPSHOTS_KEPT.saturating_sub(1), protect);
     snapshots.len() < pecofence_core::MAX_SNAPSHOTS
 }
 
@@ -524,7 +554,7 @@ impl App {
                 to_json(&self.item_dtos(only))
             }
             Method::SettingsGet { path } => {
-                let root = to_json(&self.state.config.settings)?;
+                let root = visible_settings_json(&self.state.config.settings)?;
                 let path = path.as_deref().unwrap_or("");
                 let pointer = dotted_to_pointer(path);
                 if pointer.is_empty() {
@@ -681,7 +711,7 @@ impl App {
                 Ok(mutation(
                     changed,
                     None,
-                    json!({ "settings": to_json(&self.state.config.settings)? }),
+                    json!({ "settings": visible_settings_json(&self.state.config.settings)? }),
                 ))
             }
             Method::RulesSet { rules } => {
@@ -792,7 +822,7 @@ impl App {
                 // The backup the existing mechanism takes is this call's auto snapshot; when
                 // the list is full of the user's snapshots the layout is restored without one
                 // (warned) rather than evicting theirs.
-                let backup = if auto_snapshot_slot(&mut self.state.config.snapshots) {
+                let backup = if auto_snapshot_slot(&mut self.state.config.snapshots, Some(target)) {
                     Some(
                         self.state
                             .restore_snapshot_with_backup(target, &auto_snapshot_name())
@@ -1479,7 +1509,7 @@ impl App {
     /// few. Older auto snapshots make room first; when the list is still full of the user's own
     /// snapshots none is taken (a warning is queued) rather than evicting one of theirs.
     fn auto_snapshot(&mut self) -> Option<Uuid> {
-        if !auto_snapshot_slot(&mut self.state.config.snapshots) {
+        if !auto_snapshot_slot(&mut self.state.config.snapshots, None) {
             self.ipc_warnings.push(SNAPSHOT_LIMIT_WARNING.to_string());
             return None;
         }

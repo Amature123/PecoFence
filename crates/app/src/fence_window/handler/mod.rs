@@ -99,6 +99,9 @@ pub(super) struct HandlerCtx {
     /// system would otherwise keep adding mouse deltas to the *snapped* rect and the window
     /// would trail the cursor by the snap distance for the rest of the drag).
     pub(super) grab_offset: Cell<(i32, i32)>,
+    /// DPI of the window when `grab_offset` was measured: crossing onto a monitor with another
+    /// scale resizes the window (WM_DPICHANGED), and the offset has to scale with it.
+    pub(super) grab_dpi: Cell<u32>,
     pub(super) merge_target: Cell<isize>,
     /// Pointer screen x last reported with the merge hint (the target strip opens its
     /// insertion gap at that slot; re-sent only when the slot could have changed).
@@ -128,6 +131,7 @@ impl FenceWindow {
             rect_at_enter: Cell::new(RECT::default()),
             move_start: Cell::new(None),
             grab_offset: Cell::new((0, 0)),
+            grab_dpi: Cell::new(96),
             merge_target: Cell::new(0isize),
             merge_x: Cell::new(i32::MIN),
             group: RefCell::new(Vec::new()),

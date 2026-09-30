@@ -291,7 +291,7 @@
   "创建时间 ": "Erstellt um: ",
   "创建于 ": "Erstellt am: ",
   "→ 放入": "→ Verschieben nach",
-  "，且 ": "UND ",
+  "，且 ": " UND ",
   "（桌面）": " (Desktop)",
   "（文件夹）": " (Ordner)",
   "（{0} 的标签页）": " (Tab in {0})",
@@ -418,5 +418,12 @@
   "配置文件": "Konfigurationsdatei",
   "吸附与对齐": "Einrasten und Ausrichten",
   "Windows 桌面图标": "Windows-Desktopsymbole",
-  "Apache 2.0 许可": "Apache-2.0-Lizenz"
+  "Apache 2.0 许可": "Apache-2.0-Lizenz",
+  "、": ", ",
+  "“{0}”": "„{0}“",
+  "配置文件无法读取（可能由更新版本的 PecoFence 写入），已原样保留为 {0}。": "Die Konfigurationsdatei konnte nicht gelesen werden (vielleicht von einer neueren PecoFence-Version geschrieben). Sie wurde unverändert als {0} aufbewahrt.",
+  "最多只能有 {0} 个栅栏（含标签页），请先删除或合并一些。": "Es sind höchstens {0} Bereiche möglich (Tabs eingeschlossen). Löschen oder verbinden Sie zuerst einige.",
+  "要删除栅栏“{0}”吗？": "Bereich „{0}“ löschen?",
+  "其中的 {0} 个图标会回到“{1}”栅栏，文件本身不受影响。": "Seine Symbole ({0}) kommen in den Bereich „{1}“ zurück. Die Dateien selbst bleiben unverändert.",
+  "指向它的 {0} 条规则也会一并删除。": "Regeln, die auf ihn verweisen ({0}), werden ebenfalls gelöscht."
 }

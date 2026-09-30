@@ -428,6 +428,24 @@ pub fn track_mouse_leave(hwnd: HWND) {
     }
 }
 
+/// Modal Yes / No warning box owned by `owner`; true only for Yes. No is the default button,
+/// so a stray Enter keeps things as they are. Pumps messages like any modal loop: call it
+/// with no `RefCell` borrow of window state held.
+pub fn confirm(owner: HWND, text: &str, caption: &str) -> bool {
+    let text = to_wide(text);
+    let caption = to_wide(caption);
+    let flags = MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_SETFOREGROUND;
+    // SAFETY: both strings are NUL-terminated and outlive the call.
+    unsafe {
+        MessageBoxW(
+            Some(owner),
+            PCWSTR(text.as_ptr()),
+            PCWSTR(caption.as_ptr()),
+            flags as u32,
+        ) == IDYES
+    }
+}
+
 /// Is the given virtual key currently down?
 pub fn key_down(vk: u32) -> bool {
     // SAFETY: plain FFI call.

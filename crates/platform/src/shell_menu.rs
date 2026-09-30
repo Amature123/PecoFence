@@ -92,6 +92,28 @@ impl ShellContextMenu {
         Ok(count)
     }
 
+    /// Removes the shell's top-level items whose canonical verb is one of `verbs` (ASCII case
+    /// insensitive): commands the host menu already offers under its own label. Returns how
+    /// many went; tidy the separators afterwards.
+    pub fn remove_verbs(&self, hmenu: HMENU, verbs: &[&str]) -> u32 {
+        let mut removed = 0;
+        // SAFETY: plain FFI calls on the caller's menu; positions are walked from the end, so
+        // removing one never shifts a position still to be visited.
+        unsafe {
+            for pos in (0..GetMenuItemCount(Some(hmenu)).max(0)).rev() {
+                let id = GetMenuItemID(hmenu, pos);
+                if self
+                    .verb(id)
+                    .is_some_and(|v| verbs.iter().any(|w| v.eq_ignore_ascii_case(w)))
+                {
+                    let _ = RemoveMenu(hmenu, pos as u32, MF_BYPOSITION as u32);
+                    removed += 1;
+                }
+            }
+        }
+        removed
+    }
+
     /// True when `cmd` (as returned by `TrackPopupMenuEx`) belongs to the shell's range.
     pub fn contains(&self, cmd: u32) -> bool {
         self.end > self.first && cmd >= self.first && cmd < self.end

@@ -161,6 +161,7 @@ impl FenceWindow {
             click_pending: None,
             suppress_dblclk: false,
             navigate_folders: false,
+            portal_folder: None,
             layout: ViewLayout::Icons,
             sort: SortMode::Manual,
             sort_reverse: false,
@@ -291,6 +292,8 @@ impl FenceWindow {
                 last_description: None,
                 right_button: false,
                 over_stats: Default::default(),
+                source_volume: None,
+                desktop: None,
             }),
         )
         .map_err(|e| tracing::warn!(error = %e, "RegisterDragDrop failed"))
@@ -408,6 +411,54 @@ impl FenceWindow {
             v.plate_alpha,
             v.mouse_inside,
         )
+    }
+
+    /// Debug-only: this window's next draw found its GPU device gone (what a failed surface
+    /// draw reports), which queues the app's device recovery.
+    #[cfg(debug_assertions)]
+    pub fn test_lose_device(&self) {
+        self.with_view(|v| v.note_draw_result(false));
+    }
+
+    /// Debug-only drop regression hook: runs this window's OLE drop handler for `data` at the
+    /// window centre with `key_state`, as a drag from another program would, without the
+    /// drag image. Returns what DragEnter reported and, when `perform`, what Drop returned.
+    #[cfg(debug_assertions)]
+    pub fn test_drop(
+        &self,
+        ctx: &FenceContext,
+        data: &dragdrop::IDataObject,
+        key_state: u32,
+        perform: bool,
+    ) -> (DropEffect, Option<DropEffect>) {
+        use pecofence_platform::dragdrop::DropHandler;
+        let r = self.rect();
+        let pt = dragdrop::DragPoint {
+            x: (r.left + r.right) / 2,
+            y: (r.top + r.bottom) / 2,
+        };
+        let allowed =
+            DropEffect::Copy.to_raw() | DropEffect::Move.to_raw() | DropEffect::Link.to_raw();
+        let mut handler = FenceDropHandler {
+            queue: ctx.queue.clone(),
+            view: self.view.clone(),
+            kind: DropKind::None,
+            behavior: ctx.behavior.clone(),
+            helper: None,
+            data: None,
+            last_description: None,
+            right_button: false,
+            over_stats: Default::default(),
+            source_volume: None,
+            desktop: None,
+        };
+        let entered = handler.drag_enter(data, key_state, pt, allowed);
+        if !perform {
+            handler.drag_leave();
+            return (entered, None);
+        }
+        let dropped = handler.drop(data, key_state, pt, allowed);
+        (entered, Some(dropped))
     }
 
     /// Opt-in native regression input; never compiled into a release build.
@@ -865,6 +916,7 @@ impl FenceWindow {
                 hwnd,
                 fence: change.tab,
                 offset: (pt.x - r.left, pt.y - r.top),
+                offset_dpi: monitors::dpi_for_window(hwnd),
                 merge_target: 0,
                 merge_x: i32::MIN,
                 moved_once: false,
@@ -940,6 +992,7 @@ impl FenceWindow {
         folder_icon: bool,
         up_button: bool,
         navigate_folders: bool,
+        portal_folder: Option<PathBuf>,
     ) {
         self.with_view(|v| {
             let deco = TitleDeco {
@@ -950,6 +1003,7 @@ impl FenceWindow {
             let portal_changed = v.is_portal != is_portal;
             v.deco = deco;
             v.navigate_folders = navigate_folders;
+            v.portal_folder = portal_folder;
             v.is_portal = is_portal;
             if !up_button {
                 v.up_hovered = false;

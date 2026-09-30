@@ -291,7 +291,7 @@
   "创建时间 ": "Criado às: ",
   "创建于 ": "Criado em: ",
   "→ 放入": "→ Mover para",
-  "，且 ": "E ",
+  "，且 ": " E ",
   "（桌面）": " (Área de trabalho)",
   "（文件夹）": " (Pasta)",
   "（{0} 的标签页）": " (aba de {0})",
@@ -418,5 +418,12 @@
   "配置文件": "Arquivo de configuração",
   "吸附与对齐": "Encaixe e alinhamento",
   "Windows 桌面图标": "Ícones da área de trabalho do Windows",
-  "Apache 2.0 许可": "Licença Apache 2.0"
+  "Apache 2.0 许可": "Licença Apache 2.0",
+  "、": ", ",
+  "“{0}”": "“{0}”",
+  "配置文件无法读取（可能由更新版本的 PecoFence 写入），已原样保留为 {0}。": "Não foi possível ler o arquivo de configuração (talvez tenha sido gravado por uma versão mais recente do PecoFence). Ele foi mantido sem alterações como {0}.",
+  "最多只能有 {0} 个栅栏（含标签页），请先删除或合并一些。": "É possível ter no máximo {0} grupos (abas incluídas). Exclua ou mescle alguns primeiro.",
+  "要删除栅栏“{0}”吗？": "Excluir o grupo “{0}”?",
+  "其中的 {0} 个图标会回到“{1}”栅栏，文件本身不受影响。": "Seus ícones ({0}) voltam para o grupo “{1}”. Os arquivos em si não são afetados.",
+  "指向它的 {0} 条规则也会一并删除。": "As regras que apontam para ele ({0}) também são excluídas."
 }

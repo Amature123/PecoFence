@@ -105,6 +105,8 @@ pub struct FenceViewState {
     pub(super) suppress_dblclk: bool,
     /// Double-click on a folder item navigates inside the portal instead of launching it.
     pub(super) navigate_folders: bool,
+    /// The folder the shown fence's drops land in when it is a portal (its current folder).
+    pub(super) portal_folder: Option<PathBuf>,
     /// Icons grid, compact list or details rows (FenceView.layout).
     pub(super) layout: ViewLayout,
     /// Current sort, for the details header indicator.

@@ -216,10 +216,7 @@ pub(super) fn on_mousemove(
         v.press_inside = false;
         v.cancel_pending_rename();
         v.hide_tip();
-        if !v.selected.contains(&item) {
-            v.selected.clear();
-            v.selected.insert(item);
-        }
+        drag_selection(&mut v.selected, item);
         let ids = v.selected_ids();
         // A Recycle Bin dragged together with files would empty the CF_HDROP for every target.
         let paths = pecofence_platform::shell::paths_for_shell(v.selected_paths());
