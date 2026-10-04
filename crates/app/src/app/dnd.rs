@@ -161,6 +161,32 @@ impl App {
         }
     }
 
+    /// The shell's folder drop target took a drop onto `to` (Outlook mail, a Start-menu app): a
+    /// portal or folder target only needs its listing refreshed; for a virtual fence what the
+    /// shell put on the desktop (`landed`) goes straight into `to` (a PendingRoute bypasses the
+    /// rules and waits for files the shell is still copying).
+    pub(super) fn shell_drop_landed(&mut self, to: FenceId, landed: Vec<PathBuf>) {
+        tracing::info!(%to, landed = landed.len(), "shell drop finished");
+        if landed.is_empty() {
+            self.refresh_portals();
+            return;
+        }
+        for path in landed {
+            self.pending_routes.push(PendingRoute {
+                fence: to,
+                path,
+                since: Instant::now(),
+                rename: false,
+            });
+        }
+        let report = self.sync_desktop_if_available("shell drop");
+        self.route_pending_creation();
+        if report.changed() {
+            self.refresh_all();
+            self.schedule_save();
+        }
+    }
+
     /// Browser link dropped on a fence: write the Internet Shortcut Explorer would write and file
     /// it into `to` (desktop items route through a PendingRoute; a portal's folder shows it).
     pub(super) fn create_url_shortcut(&mut self, url: String, name: Option<String>, to: FenceId) {

@@ -1375,6 +1375,7 @@ impl App {
                 }
             }
             Command::ExternalUrlDrop { url, name, to } => self.create_url_shortcut(url, name, to),
+            Command::ShellDrop { to, landed } => self.shell_drop_landed(to, landed),
             Command::FenceMenu { fence, x, y } => self.show_fence_menu(fence, x, y),
             Command::HeaderMenu { fence, x, y } => self.show_header_menu(fence, x, y),
             Command::ItemMenu { fence, items, x, y } => self.show_item_menu(fence, items, x, y),

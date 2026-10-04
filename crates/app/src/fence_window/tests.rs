@@ -299,6 +299,77 @@ fn ctrl_drag_carries_the_whole_selection() {
     assert!(selected.contains(&3) && selected.contains(&0));
 }
 
+/// Real file paths stay ours; Outlook mail, a Start-menu app (its `CF_HDROP` holds a
+/// known-folder-relative "path") and other shell-only items go to the shell; our own fences'
+/// drags and browser links keep their paths.
+#[test]
+fn drop_kind_routes_non_file_items_to_the_shell() {
+    let kind = |internal, hdrop: Option<&[PathBuf]>, url, shell| {
+        classify_drop(internal, hdrop, || url, || shell)
+    };
+    let files = [PathBuf::from(r"C:\Users\me\Desktop\a.txt")];
+    let unc = [PathBuf::from(r"\\server\share\b.txt")];
+    let start_menu = [PathBuf::from(
+        r"{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}\Steam\steam.exe",
+    )];
+    let bin = [PathBuf::from("::{645FF040-5081-101B-9F08-00AA002F954E}")];
+    assert_eq!(kind(false, Some(&files), false, true), DropKind::Files);
+    // A plain Explorer file drag never queries the data object any further.
+    assert_eq!(
+        classify_drop(false, Some(&files), || unreachable!(), || unreachable!()),
+        DropKind::Files
+    );
+    assert_eq!(kind(false, Some(&unc), false, true), DropKind::Files);
+    assert_eq!(kind(false, Some(&start_menu), false, true), DropKind::Shell);
+    // Outlook: virtual files only.
+    assert_eq!(kind(false, None, false, true), DropKind::Shell);
+    // Nothing the shell could take apart either: the paths are all we have.
+    assert_eq!(
+        kind(false, Some(&start_menu), false, false),
+        DropKind::Files
+    );
+    // Our own drag of the Recycle Bin stays a membership move.
+    assert_eq!(kind(true, Some(&bin), false, true), DropKind::Files);
+    assert_eq!(kind(true, None, false, true), DropKind::None);
+    // A browser link keeps becoming a .url even though it describes a virtual file.
+    assert_eq!(kind(false, None, true, true), DropKind::Url);
+    assert_eq!(kind(false, None, false, false), DropKind::None);
+    // Shown effect: Copy for a plain drag, Link when that is all the Start menu offers.
+    assert_eq!(shell_effect(0, dragdrop::ALL_EFFECTS), DropEffect::Copy);
+    assert_eq!(
+        shell_effect(dragdrop::MK_SHIFT, dragdrop::ALL_EFFECTS),
+        DropEffect::Move
+    );
+    assert_eq!(shell_effect(0, DropEffect::Link.to_raw()), DropEffect::Link);
+}
+
+/// A shell drop onto a virtual fence files the new desktop entries plus the described virtual
+/// files that were not there before (still copying), each once, never a pre-existing entry.
+#[test]
+fn shell_drop_landed_lists_new_desktop_entries() {
+    let dir = Path::new(r"C:\Desk");
+    let before: HashSet<PathBuf> = [dir.join("old.txt"), dir.join("Report.msg")]
+        .into_iter()
+        .collect();
+    let mut after = before.clone();
+    after.insert(dir.join("Steam.lnk"));
+    let names = vec![
+        "Report.msg".to_string(),
+        "Budget.msg".to_string(),
+        r"Photos\a.jpg".to_string(),
+        r"Photos\b.jpg".to_string(),
+    ];
+    assert_eq!(
+        shell_drop_landed(dir, &before, &after, &names),
+        vec![
+            dir.join("Steam.lnk"),
+            dir.join("Budget.msg"),
+            dir.join("Photos")
+        ]
+    );
+    assert!(shell_drop_landed(dir, &before, &before, &[]).is_empty());
+}
+
 #[test]
 fn right_drag_choices_follow_source_and_target() {
     let all = [DropEffect::Move, DropEffect::Copy, DropEffect::Link];
