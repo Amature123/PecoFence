@@ -41,6 +41,18 @@ pub fn ipc_pipe_name(instance: Option<&str>) -> String {
     format!(r"\\.\pipe\PecoFence{}", instance_suffix(instance))
 }
 
+/// [`log_file_name`] suffixes: this run's log, the previous run's, and the shareable log (only
+/// what may be sent with feedback) of this and the previous run.
+pub const LOG: &str = "";
+pub const PREVIOUS_LOG: &str = ".prev";
+pub const SHARE_LOG: &str = ".share";
+pub const PREVIOUS_SHARE_LOG: &str = ".share.prev";
+
+/// Log file in `%LOCALAPPDATA%\PecoFence`: `pecofence[.name]<suffix>.log`, one set per instance.
+pub fn log_file_name(instance: Option<&str>, suffix: &str) -> String {
+    format!("pecofence{}{suffix}.log", instance_suffix(instance))
+}
+
 /// `.name` for a named (test) instance, empty for the main one; whitespace-only = main.
 fn instance_suffix(instance: Option<&str>) -> String {
     instance
@@ -93,5 +105,19 @@ mod tests {
         assert_eq!(ipc_pipe_name(None), r"\\.\pipe\PecoFence");
         assert_eq!(ipc_pipe_name(Some(" ")), r"\\.\pipe\PecoFence");
         assert_eq!(ipc_pipe_name(Some(" test ")), r"\\.\pipe\PecoFence.test");
+    }
+
+    #[test]
+    fn log_names_follow_the_instance_suffix() {
+        assert_eq!(log_file_name(None, LOG), "pecofence.log");
+        assert_eq!(log_file_name(Some(" "), PREVIOUS_LOG), "pecofence.prev.log");
+        assert_eq!(
+            log_file_name(Some("test"), SHARE_LOG),
+            "pecofence.test.share.log"
+        );
+        assert_eq!(
+            log_file_name(Some("test"), PREVIOUS_SHARE_LOG),
+            "pecofence.test.share.prev.log"
+        );
     }
 }

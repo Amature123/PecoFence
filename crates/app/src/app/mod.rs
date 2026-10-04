@@ -48,6 +48,7 @@ use windows_core::Result;
 
 mod arrange;
 mod dnd;
+mod feedback;
 mod fence_options;
 mod fences;
 mod fileops;
@@ -212,6 +213,8 @@ pub struct App {
     settings: Option<SettingsHost>,
     /// Fence to select on the settings page once it reports `ready` (opened via 栅栏选项…).
     settings_focus_fence: Option<FenceId>,
+    /// The 「反馈」 page: pending focus and the crash offer (see `feedback.rs`).
+    feedback: feedback::FeedbackState,
     web_env: Option<WebEnvironment>,
     settings_class: WindowClass,
     theme_mode: ThemeMode,
@@ -406,6 +409,17 @@ impl App {
                                 && let Some(app) = guard.as_mut()
                             {
                                 app.toggle_all_fences();
+                            } else if ev.event == tray::TRAY_EVENT_BALLOONUSERCLICK
+                                && let Ok(mut guard) = cell.try_borrow_mut()
+                                && let Some(app) = guard.as_mut()
+                            {
+                                app.on_balloon_click();
+                            } else if (ev.event == tray::TRAY_EVENT_BALLOONTIMEOUT
+                                || ev.event == tray::TRAY_EVENT_BALLOONHIDE)
+                                && let Ok(mut guard) = cell.try_borrow_mut()
+                                && let Some(app) = guard.as_mut()
+                            {
+                                app.on_balloon_gone();
                             }
                             Some(0)
                         }
@@ -865,6 +879,7 @@ impl App {
             instance: args.instance.clone(),
             settings: None,
             settings_focus_fence: None,
+            feedback: Default::default(),
             web_env: None,
             settings_class,
             theme_mode,
@@ -1039,6 +1054,8 @@ impl App {
         // Close the gap between the startup snapshot and installing the registry watchers.
         window::post_message(app.control.hwnd(), WM_APP_WALLPAPER, 0, 0);
 
+        // Last of the startup balloons, so it is the one left showing.
+        app.offer_crash_feedback();
         if args.open_settings {
             app.queue.push(Command::OpenSettings);
         }
@@ -1051,7 +1068,7 @@ impl App {
         }
         if args.dump_stats {
             match pecofence_platform::memstats::MemoryStats::current() {
-                Ok(m) => tracing::info!("startup memory: {}", m.summary()),
+                Ok(m) => tracing::info!(memory = %m.summary(), "startup memory"),
                 Err(e) => tracing::warn!(error = %e, "memstats failed"),
             }
         }

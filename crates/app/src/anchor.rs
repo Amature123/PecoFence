@@ -368,7 +368,7 @@ impl DesktopAnchor {
     }
 
     /// Re-resolves the icon host and re-inserts every fence (and the sentinel) above it.
-    pub fn reanchor(&mut self, reason: &str) {
+    pub fn reanchor(&mut self, reason: &'static str) {
         if self.peeking {
             // Fences live in the topmost band during Peek; insert_above / send_to_bottom would
             // strip WS_EX_TOPMOST and drop them behind the dimmer. Re-apply the peek band
@@ -581,7 +581,7 @@ impl DesktopAnchor {
     }
 
     /// Re-anchors only if the host changed or our block is no longer directly above it.
-    fn ensure_anchored(&mut self, reason: &str) {
+    fn ensure_anchored(&mut self, reason: &'static str) {
         if self.peeking {
             return;
         }

@@ -64,14 +64,23 @@ impl Paths {
             "backupsDir": self.backups_dir(),
             "log": self.log,
             "logExists": self.log.is_file(),
+            "previousLog": self.sibling_log(brand::PREVIOUS_LOG),
+            "shareLog": self.sibling_log(brand::SHARE_LOG),
             "logDir": self.log_dir,
             "crashDumps": self.crash_dumps(),
         })
     }
+
+    /// Another log of the same instance: the previous run's, or the shareable log (what the
+    /// feedback page may send).
+    fn sibling_log(&self, suffix: &str) -> PathBuf {
+        self.log_dir
+            .join(brand::log_file_name(self.instance.as_deref(), suffix))
+    }
 }
 
 /// Pure: the default locations from the two profile folders and the instance name (the app's
-/// `log_file_path` / `ConfigStore::with_legacy` rules, without touching the disk for the config).
+/// `log_dir` / `ConfigStore::with_legacy` rules, without touching the disk for the config).
 pub fn default_paths(
     local_appdata: Option<&Path>,
     appdata: Option<&Path>,
@@ -85,10 +94,7 @@ pub fn default_paths(
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
     let log_dir = local.join(brand::NAME);
-    let log_name = match instance.map(str::trim).filter(|s| !s.is_empty()) {
-        Some(n) => format!("pecofence.{n}.log"),
-        None => "pecofence.log".to_string(),
-    };
+    let log_name = brand::log_file_name(instance, brand::LOG);
     let preferred = roaming.join(brand::NAME);
     let legacy = roaming.join(brand::LEGACY_DATA_DIR);
     let config_dir = if !legacy_config_exists(&preferred) && legacy_config_exists(&legacy) {

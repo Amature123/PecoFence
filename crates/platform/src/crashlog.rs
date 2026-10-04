@@ -76,8 +76,8 @@ unsafe extern "system" fn filter(info: *const EXCEPTION_POINTERS) -> i32 {
         code = format_args!("{code:#010x}"),
         at = %locate(address),
         dump = ?dump,
-        "CRASH (unhandled exception)\n{}",
-        frames.join("\n")
+        stack = %frames.join("\n"),
+        "CRASH (unhandled exception)"
     );
     EXCEPTION_CONTINUE_SEARCH
 }

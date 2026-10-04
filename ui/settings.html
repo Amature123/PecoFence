@@ -18,7 +18,7 @@
     --control-alt: #0000001a; --control-alt-hover: #ffffff0b;
     --subtle: #ffffff0f; --subtle-pressed: #ffffff0a; --scroll-thumb: #ffffff5c;
     --accent: #60cdff; --accent-hover: #60cdffe6; --on-accent: #000000;
-    --ok: #6ccb5f; --ok-bg: #393d1b; --error: #ff99a4; --error-bg: #442726;
+    --ok: #6ccb5f; --ok-bg: #393d1b; --error: #ff99a4; --error-bg: #442726; --caution: #fce100; --caution-bg: #433519;
     --shadow: 0 8px 16px #00000042; --brand: #8098f2;
     --r-card: 4px; --r-control: 4px; --glass-highlight: transparent;
     --wall: radial-gradient(120% 110% at 12% 0%, #6f93d8 0%, transparent 58%), radial-gradient(90% 110% at 100% 100%, #c98a78 0%, transparent 55%), linear-gradient(160deg, #34467a, #1f2744);
@@ -33,7 +33,7 @@
     --control-alt: #00000006; --control-alt-hover: #0000000f;
     --subtle: #00000009; --subtle-pressed: #00000006; --scroll-thumb: #0000005c;
     --accent: #005fb8; --accent-hover: #005fb8e6; --on-accent: #ffffff;
-    --ok: #0f7b0f; --ok-bg: #dff6dd; --error: #c42b1c; --error-bg: #fde7e9;
+    --ok: #0f7b0f; --ok-bg: #dff6dd; --error: #c42b1c; --error-bg: #fde7e9; --caution: #9d5d00; --caution-bg: #fff4ce;
     --shadow: 0 8px 16px #00000024; --brand: #4768de;
     --wall: radial-gradient(120% 110% at 12% 0%, #a9c3f3 0%, transparent 58%), radial-gradient(90% 110% at 100% 100%, #f1c3b3 0%, transparent 55%), linear-gradient(160deg, #c3d3f5, #e9eefb);
     --mini-panel: #f3f3f3b8; --mini-stroke: #ffffff8c; --glass-panel: #ffffff02; --glass-label-shadow: 0 1px 2px #ffffffa0;
@@ -48,7 +48,7 @@
   html, body { margin: 0; height: 100%; color: var(--text); background: transparent;
     font: 14px/20px "Segoe UI Variable Text", "Segoe UI", var(--font-cjk), sans-serif; user-select: none; }
   html.no-mica body { background: var(--sheet); }
-  button, select, input { font: inherit; color: inherit; }
+  button, select, input, textarea { font: inherit; color: inherit; }
   button, select, .toggle, .tile, summary { cursor: pointer; }
   button:disabled, select:disabled { cursor: default; }
   button, a, select, input, .tile, summary { transition: background-color .15s, border-color .15s, color .15s; }
@@ -118,13 +118,15 @@
   .disabled .toggle::after { background: var(--text-disabled); }
   .disabled .switch-label { color: var(--text-disabled); }
 
-  input[type=time], input[type=text], input[type=number], select, button { height: 32px; border-radius: var(--r-control); background: var(--control);
+  input[type=time], input[type=text], input[type=number], input[type=email], select, button { height: 32px; border-radius: var(--r-control); background: var(--control);
     border: 1px solid var(--control-stroke); border-bottom-color: var(--control-stroke-bottom); font-size: 14px; max-width: 100%; }
   select { appearance: none; padding: 0 32px 0 11px; min-width: 160px; background-image: var(--chevron); background-repeat: no-repeat; background-position: right 10px center; }
   select:hover, button:hover { background-color: var(--control-hover); }
   select option { background: var(--card); color: var(--text); }
-  input[type=text], input[type=time], input[type=number] { padding: 0 11px; min-width: 160px; user-select: text; }
-  input[type=text]:focus, input[type=time]:focus, input[type=number]:focus { outline: none; border-bottom: 2px solid var(--accent); background-color: var(--card); }
+  input[type=text], input[type=time], input[type=number], input[type=email] { padding: 0 11px; min-width: 160px; user-select: text; }
+  textarea { display: block; min-height: 96px; height: 96px; padding: 6px 11px; resize: vertical; border-radius: var(--r-control); background: var(--control);
+    border: 1px solid var(--control-stroke); border-bottom-color: var(--control-stroke-bottom); font-size: 14px; line-height: 20px; user-select: text; }
+  input[type=text]:focus, input[type=time]:focus, input[type=number]:focus, input[type=email]:focus, textarea:focus { outline: none; border-bottom: 2px solid var(--accent); background-color: var(--card); }
   input::placeholder { color: var(--text3); }
   button { padding: 0 12px; min-width: 96px; }
   button:active, select:active { background-color: var(--control-pressed); color: var(--text2); }
@@ -213,6 +215,22 @@
   .picker-count { margin-left: auto; color: var(--text3); font-size: 12px; }
   .picker-note { margin: 0 2px 20px; color: var(--text2); font-size: 12px; line-height: 16px; }
 
+  /* Feedback page. */
+  .page-lede { margin: -4px 2px 16px; color: var(--text2); }
+  .fb-note { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; margin-bottom: 4px; border-radius: var(--r-card); background: var(--caution-bg); border: 1px solid var(--card-stroke); }
+  .fb-note .ic { color: var(--caution); font-size: 16px; line-height: 20px; }
+  .fb-note[hidden], .fb-preview-box[hidden] { display: none; }
+  .fb-form { gap: 12px; }
+  .fb-kinds { display: flex; flex-wrap: wrap; gap: 8px 24px; padding-left: 40px; }
+  .fb-kinds label { display: flex; align-items: center; gap: 8px; }
+  .fb-kinds input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+  .fb-field { display: flex; flex-direction: column; gap: 6px; padding-left: 40px; color: var(--text2); font-size: 12px; line-height: 16px; }
+  .fb-field > textarea, .fb-field > input { width: 100%; min-width: 0; color: var(--text); }
+  .fb-count { align-self: flex-end; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .fb-preview { margin: 0; padding: 12px 16px 16px 56px; max-height: 280px; overflow: auto; white-space: pre-wrap; font: 12px/16px "Cascadia Mono", Consolas, monospace; color: var(--text2); user-select: text; }
+  .fb-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin: 16px 2px 0; }
+  .fb-foot .s { color: var(--text2); font-size: 12px; line-height: 16px; }
+  #fbSend { min-width: 120px; } #fbSend .busy, #fbSend.sending .idle { display: none; } #fbSend.sending .busy { display: inline; }
   .about-head { display: flex; align-items: center; gap: 20px; padding: 4px 2px 20px; }
   .about-head .brand-mark { width: 56px; height: 56px; }
   .about-head .name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 20px; line-height: 28px; font-weight: 600; }
@@ -239,7 +257,7 @@
     .brand { justify-content: center; padding: 8px 0 16px; }
     .brand-name, .nav-text, .nav-footer { display: none; } nav a { justify-content: center; padding: 8px 0; }
     main { padding: 16px 12px 24px; } .card { padding: 12px; } .card.child, .rows > .card { padding-left: 12px; }
-    .style-tiles, .chips { padding-left: 0; } .newrule { padding-left: 12px; }
+    .style-tiles, .chips, .fb-kinds, .fb-field { padding-left: 0; } .newrule, .fb-preview { padding-left: 12px; }
     .about-head { gap: 14px; } .about-head .brand-mark { width: 44px; height: 44px; }
   }
   /* Liquid Glass keeps the Fluent sheet (an opaque window has nothing to refract); only the
@@ -276,6 +294,7 @@
     <a href="#fences" data-page="fences" aria-label="栅栏" title="栅栏"><span class="ic">&#xE71D;</span><span class="nav-text">栅栏</span></a>
     <a href="#rules" data-page="rules" aria-label="整理规则" title="整理规则"><span class="ic">&#xE8FD;</span><span class="nav-text">整理规则</span></a>
     <a href="#layout" data-page="layout" aria-label="布局与备份" title="布局与备份"><span class="ic">&#xE7F4;</span><span class="nav-text">布局与备份</span></a>
+    <a href="#feedback" data-page="feedback" aria-label="反馈" title="反馈"><span class="ic">&#xED15;</span><span class="nav-text">反馈</span></a>
     <a href="#about" data-page="about" aria-label="关于" title="关于"><span class="ic">&#xE946;</span><span class="nav-text">关于</span></a>
     <div class="nav-footer"><p id="workspaceSummary">正在连接桌面…</p></div>
   </nav>
@@ -428,6 +447,30 @@
       </div>
     </section>
 
+    <section class="page" id="page-feedback">
+      <header class="page-header"><h2>反馈</h2></header>
+      <p class="page-lede">遇到问题或有什么想法，写在这里发给开发者，每条都会看。</p>
+      <div class="fb-note" id="fbCrashNote" role="note" hidden><span class="ic">&#xE7BA;</span><span>PecoFence 上次意外关闭了，那次的日志会一起发送。如果还记得当时在做什么，请写在下面。</span></div>
+      <div class="card stack fb-form">
+        <div class="l"><span class="ic">&#xED15;</span><div><div class="t" id="fbKindTitle">类型</div></div></div>
+        <div class="fb-kinds" role="radiogroup" aria-labelledby="fbKindTitle">
+          <label><input type="radio" name="fbKind" value="bug" checked>问题</label>
+          <label><input type="radio" name="fbKind" value="idea">建议</label>
+          <label><input type="radio" name="fbKind" value="other">其他</label>
+        </div>
+        <label class="fb-field">内容<textarea id="fbMessage" maxlength="5000" placeholder="说说遇到了什么情况，或者希望怎么改进"></textarea><span class="fb-count" id="fbCount" aria-hidden="true">0 / 5000</span></label>
+        <label class="fb-field">邮箱（选填，需要回复时填写）<input type="email" id="fbEmail" maxlength="254" placeholder="name@example.com" autocomplete="email"></label>
+      </div>
+      <div class="card"><div class="l"><span class="ic">&#xE9D9;</span><div><div class="t" id="fbAttachTitle">附带诊断日志（不含个人信息）</div><div class="s" id="fbAttachHelp">包括版本号、Windows 版本、缩放比例、语言和运行日志，不包含文件名、路径和栅栏名称</div></div></div>
+        <div class="toggle on" role="switch" tabindex="0" aria-checked="true" aria-labelledby="fbAttachTitle" aria-describedby="fbAttachHelp" id="fbAttach"></div></div>
+      <details class="card fb-preview-box" id="fbPreviewBox">
+        <summary><div class="l"><span class="ic">&#xE7B3;</span><div><div class="t">查看要发送的内容</div></div></div><span class="ic chev">&#xE70D;</span></summary>
+        <pre class="fb-preview" id="fbPreview"></pre>
+      </details>
+      <div class="fb-foot"><div class="s">反馈只会发给 PecoFence 开发者。</div>
+        <button type="button" class="accent" id="fbSend"><span class="idle">发送</span><span class="busy">正在发送…</span></button></div>
+    </section>
+
     <section class="page" id="page-about">
       <header class="page-header"><h2>关于</h2></header>
       <div class="about-head">
@@ -576,6 +619,7 @@
     a.setAttribute('aria-current', 'page');
     document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + name));
     document.querySelector('main').scrollTop = 0;
+    if (name === 'feedback') requestFeedbackInfo();
   }
   document.querySelectorAll('nav a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); showPage(a.dataset.page); }));
 
@@ -963,6 +1007,63 @@
       : t("Windows 桌面图标已显示。点击“重新隐藏桌面图标”可回到只在栅栏中显示的状态。");
   }
 
+  // 「反馈」 page: the host supplies what may go along with the user's text (system facts and
+  // the shareable log, which holds no personal data); the page posts the report itself and
+  // tells the host the outcome.
+  let fbInfo = null, fbCrash = false;
+  const fbMessage = document.getElementById('fbMessage'), fbEmail = document.getElementById('fbEmail');
+  const fbAttach = document.getElementById('fbAttach'), fbSend = document.getElementById('fbSend');
+  function requestFeedbackInfo() { send({ type: 'action', name: 'feedbackInfo' }); }
+  const fbAttached = () => fbAttach.classList.contains('on');
+  function renderFeedback() {
+    document.getElementById('fbCrashNote').hidden = !fbCrash;
+    document.getElementById('fbPreviewBox').hidden = !fbAttached();
+    document.getElementById('fbCount').textContent = fbMessage.value.length + ' / 5000';
+    const preview = document.getElementById('fbPreview');
+    if (!fbInfo) { preview.textContent = t("正在读取…"); return; }
+    const facts = Object.entries(fbInfo.system || {}).map(([k, v]) => k + ': ' + v).join('\n');
+    preview.textContent = facts + '\n\n' + (fbInfo.log || t("（暂无日志）"));
+  }
+  function showFeedback(crash) {
+    if (crash) { fbCrash = true; document.querySelector('input[name=fbKind][value=bug]').checked = true; }
+    showPage('feedback');
+    requestFeedbackInfo();
+    renderFeedback();
+    fbMessage.focus({ preventScroll: true });
+  }
+  fbMessage.addEventListener('input', renderFeedback);
+  fbMessage.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); fbSend.click(); } });
+  fbAttach.onclick = () => { const on = !fbAttached(); fbAttach.classList.toggle('on', on); fbAttach.setAttribute('aria-checked', String(on)); renderFeedback(); };
+  keyToggle(fbAttach);
+  fbSend.onclick = async () => {
+    if (fbSend.classList.contains('sending')) return;
+    const message = fbMessage.value.trim(), email = fbEmail.value.trim();
+    if (!message) { toast(t("请先填写内容"), true); fbMessage.focus(); return; }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast(t("邮箱格式不正确"), true); fbEmail.focus(); return; }
+    if (!fbInfo) { requestFeedbackInfo(); toast(t("日志还在准备中，请稍后再发送"), true); return; }
+    const attach = fbAttached();
+    const report = {
+      kind: document.querySelector('input[name=fbKind]:checked')?.value || 'other',
+      message, email: email || null, app: fbInfo.app, crash: fbCrash,
+      language: attach ? fbInfo.language : null, system: attach ? fbInfo.system : null, log: attach ? fbInfo.log : null,
+    };
+    fbSend.classList.add('sending'); fbSend.disabled = true;
+    let status = 0;
+    try {
+      const response = await fetch(fbInfo.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(report), signal: AbortSignal.timeout(20000) });
+      status = response.status;
+    } catch (_) { status = 0; }
+    send({ type: 'action', name: 'feedbackResult', status });
+    fbSend.classList.remove('sending'); fbSend.disabled = false;
+    if (status >= 200 && status < 300) {
+      toast(t("已发送，感谢反馈！"));
+      fbMessage.value = ''; fbCrash = false; renderFeedback();
+    } else if (status === 429) toast(t("发送太频繁，请过几分钟再试"), true);
+    else if (status === 0) toast(t("连不上服务器，请检查网络后重试"), true);
+    else toast(tf("发送失败（{0}），请稍后重试", status), true);
+  };
+  renderFeedback();
+
   let toastTimer;
   function toast(t, error = false) { const el = document.getElementById('toast'); document.getElementById('toastText').textContent = t; el.classList.toggle('error', error); el.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), error ? 5000 : 2400); }
 
@@ -1005,6 +1106,8 @@
       state.itemCount = m.itemCount;
       renderWorkspaceSummary(m.fenceCount, m.itemCount);
     } else if (m.type === 'showFence') showFence(m.id);
+    else if (m.type === 'feedbackInfo') { fbInfo = m; fbCrash ||= !!m.crashed; renderFeedback(); }
+    else if (m.type === 'showFeedback') showFeedback(!!m.crash);
     else if (m.type === 'toast') toast(m.text, !!m.error);
   });
   send({ type: 'ready' });

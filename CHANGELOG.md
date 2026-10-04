@@ -5,6 +5,11 @@
 - Outlook mail dragged onto a folder portal, onto a folder icon inside a fence, or onto any fence is saved as in Explorer: each message becomes `<subject>.msg` with its contents and attachments, and attachments dragged on their own become files. On a fence whose icons live on the desktop, the file lands on the desktop and joins that fence. Files dragged out of a zip archive work the same way. PecoFence hands drops that carry no plain files to the folder's own Explorer drop handler, so name collisions, progress and the right-button menu are Explorer's.
 - Apps dragged from the Start menu onto a fence become working shortcuts, as on the desktop. They used to point to a made-up path such as `C:\{7C5A40EF-…}\Steam\steam.exe`, and opening one showed 「Windows 正在查找 steam.exe」; shortcuts made that way before have to be dragged in again.
 - Fences no longer float over other windows while a program running as administrator (an elevated VS Code or terminal, a screenshot tool) is the lowest window above the desktop. Windows refused to put a fence below such a window, so fences that had just started, or come back from Peek, stayed on top of every app.
+- 「反馈」 in Settings (and 「发送反馈…」 in the tray menu) sends a problem report or an idea straight to the developer, with an optional email for a reply. It is filed as an issue in a private repository; nothing else in PecoFence uses the network.
+- 「附带诊断日志（不含个人信息）」, on by default, adds the version, Windows build, scaling, language and the shareable log. That log is written beside the normal one and holds only the app's own fixed messages, numbers and error codes: file and folder names, paths and fence names never reach it (a source scan in the tests enforces this). 「查看要发送的内容」 shows exactly what goes out.
+- After a crash, the next start shows a notification; clicking it opens the feedback page with the crashed run's log attached.
+- The previous run's log is kept as `pecofence.prev.log`. Starting PecoFence while it is already running no longer empties the running instance's log.
+- pecofence-cli: `paths` also lists `previousLog` and `shareLog`.
 
 ## 0.1.3
 

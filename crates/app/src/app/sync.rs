@@ -92,7 +92,10 @@ impl App {
 
     /// Reconciles the item table with the desktop — unless the desktop folder is unreachable
     /// (removable / network drive), in which case nothing is orphaned and we retry later.
-    pub(super) fn sync_desktop_if_available(&mut self, reason: &str) -> crate::state::SyncReport {
+    pub(super) fn sync_desktop_if_available(
+        &mut self,
+        reason: &'static str,
+    ) -> crate::state::SyncReport {
         if !shell::desktop_available() {
             if !self.desktop_unavailable {
                 tracing::warn!(reason, "desktop folder unavailable; keeping item records");

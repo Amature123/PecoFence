@@ -280,6 +280,7 @@ impl App {
                 if let Some(fence) = self.settings_focus_fence.take() {
                     self.post_show_fence(fence);
                 }
+                self.show_pending_feedback();
             }
             Some("setFence") => self.on_set_fence(&v),
             Some("patchSettings") => {
@@ -391,6 +392,9 @@ impl App {
                             self.restore_from_file(&path, pecofence_core::i18n::text("恢复备份"));
                         }
                     }
+                }
+                Some(name @ ("feedbackInfo" | "feedbackResult")) => {
+                    self.on_feedback_action(name, &v);
                 }
                 Some("repairIcons") => self.set_desktop_icons_hidden(false),
                 Some("hideDesktopIcons") => self.set_desktop_icons_hidden(true),

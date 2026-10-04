@@ -17,6 +17,7 @@ mod peek;
 mod rename;
 mod settings_host;
 mod shadow;
+mod share_log;
 mod state;
 
 use pecofence_platform::com::OleGuard;
@@ -47,25 +48,36 @@ fn parse_args() -> app::Args {
     }
 }
 
-/// Log file next to the config: `%LOCALAPPDATA%\PecoFence\pecofence.log` (truncated per run).
-fn log_file_path() -> Option<std::path::PathBuf> {
+/// `%LOCALAPPDATA%\PecoFence`: the logs (see `pecofence_core::brand::log_file_name`) and crash
+/// dumps.
+pub(crate) fn log_dir() -> Option<std::path::PathBuf> {
     let base = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from)?;
     let dir = base.join("PecoFence");
     std::fs::create_dir_all(&dir).ok()?;
-    // A second instance (PECOFENCE_INSTANCE) logs to its own file instead of truncating the
-    // main one.
-    let name = match pecofence_core::brand::var("PECOFENCE_INSTANCE") {
-        Ok(n) if !n.trim().is_empty() => format!("pecofence.{}.log", n.trim()),
-        _ => "pecofence.log".to_string(),
-    };
-    Some(dir.join(name))
+    Some(dir)
+}
+
+/// Starts this run's `current` log file, keeping the last run's as `previous` (a crash report
+/// needs the log of the run that crashed). A second instance (PECOFENCE_INSTANCE) keeps its own
+/// files.
+fn start_log(
+    dir: &std::path::Path,
+    instance: Option<&str>,
+    current: &str,
+    previous: &str,
+) -> Option<std::fs::File> {
+    use pecofence_core::brand::log_file_name;
+    let path = dir.join(log_file_name(instance, current));
+    let _ = std::fs::rename(&path, dir.join(log_file_name(instance, previous)));
+    std::fs::File::create(path).ok()
 }
 
 /// `RUST_LOG` takes `level` and `target=level` directives, e.g. `pecofence=debug` (default
 /// `info`). `Targets` instead of `EnvFilter` keeps the regex engine out of the binary; span and
 /// field filters are not supported. Output goes to the log file and to stderr; the latter only
-/// shows up when a console is attached.
-fn init_logging() {
+/// shows up when a console is attached. The shareable log (`share_log`) runs beside them.
+fn init_logging(instance: Option<&str>) {
+    use pecofence_core::brand;
     use tracing_subscriber::filter::Targets;
     use tracing_subscriber::fmt::writer::MakeWriterExt;
     use tracing_subscriber::prelude::*;
@@ -74,7 +86,14 @@ fn init_logging() {
         .filter(|s| !s.trim().is_empty())
         .and_then(|s| s.parse::<Targets>().ok())
         .unwrap_or_else(|| Targets::new().with_default(tracing::Level::INFO));
-    let file = log_file_path().and_then(|p| std::fs::File::create(p).ok());
+    let dir = log_dir();
+    let file = dir
+        .as_deref()
+        .and_then(|d| start_log(d, instance, brand::LOG, brand::PREVIOUS_LOG));
+    let share = dir
+        .as_deref()
+        .and_then(|d| start_log(d, instance, brand::SHARE_LOG, brand::PREVIOUS_SHARE_LOG))
+        .map(share_log::ShareLayer::new);
     match file {
         Some(file) => {
             let file = std::sync::Mutex::new(file);
@@ -84,12 +103,14 @@ fn init_logging() {
                         .with_ansi(false)
                         .with_writer(file.and(std::io::stderr)),
                 )
+                .with(share)
                 .with(filter)
                 .init();
         }
         None => {
             tracing_subscriber::registry()
                 .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+                .with(share)
                 .with(filter)
                 .init();
         }
@@ -104,31 +125,25 @@ fn install_panic_hook() {
             .location()
             .map(|l| format!("{}:{}", l.file(), l.line()))
             .unwrap_or_default();
+        // A literal panic message is code text; a formatted one may hold data, so it stays in
+        // `detail`, which the shareable log omits.
+        let payload = info
+            .payload()
+            .downcast_ref::<&'static str>()
+            .copied()
+            .unwrap_or("(formatted message)");
         let bt = std::backtrace::Backtrace::force_capture();
-        tracing::error!(%location, "PANIC: {info}
-{bt}");
+        tracing::error!(%location, payload, detail = %info, backtrace = %bt, "PANIC");
     }));
 }
 
 fn main() -> Result<()> {
-    init_logging();
-    install_panic_hook();
-    if let Some(dir) = log_file_path().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
-        let instance =
-            pecofence_core::brand::var("PECOFENCE_INSTANCE").unwrap_or_else(|_| "main".into());
-        pecofence_platform::crashlog::install(dir, instance.trim());
-    }
-
-    let mut args = parse_args();
-    let exit_after = args.exit_after_ms;
-
-    window::set_process_dpi_awareness_v2();
-    let _ole = OleGuard::init()?;
-
     // `PECOFENCE_INSTANCE=<name>` runs a second, independent instance (developer testing with
-    // `--portable`); the default name keeps one PecoFence per session.
+    // `--portable`); the default name keeps one PecoFence per session. Checked before logging
+    // starts: a second launch must leave the running instance's log files alone (it used to
+    // truncate the log on its way out).
     let instance_name = pecofence_core::brand::var("PECOFENCE_INSTANCE").ok();
-    args.instance = instance_name
+    let instance = instance_name
         .as_deref()
         .map(str::trim)
         .filter(|n| !n.is_empty())
@@ -136,13 +151,25 @@ fn main() -> Result<()> {
     let [current_name, legacy_name] =
         pecofence_core::brand::instance_mutex_names(instance_name.as_deref());
     let Some(_instance) = window::SingleInstance::acquire(&current_name) else {
-        tracing::warn!("another PecoFence instance is running; exiting");
         return Ok(());
     };
+    // A pre-rename instance is running: exit it before starting PecoFence.
     let Some(_legacy_instance) = window::SingleInstance::acquire(&legacy_name) else {
-        tracing::warn!("a pre-rename instance is running; exit it before starting PecoFence");
         return Ok(());
     };
+
+    init_logging(instance.as_deref());
+    install_panic_hook();
+    if let Some(dir) = log_dir() {
+        pecofence_platform::crashlog::install(dir, instance.as_deref().unwrap_or("main"));
+    }
+
+    let mut args = parse_args();
+    args.instance = instance;
+    let exit_after = args.exit_after_ms;
+
+    window::set_process_dpi_awareness_v2();
+    let _ole = OleGuard::init()?;
 
     let cell = app::App::create(args)?;
     if let Some(ms) = exit_after {

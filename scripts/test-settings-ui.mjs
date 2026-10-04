@@ -86,6 +86,13 @@ function bridge() {
           else if (message.prop !== 'dockTop') fence[message.prop] = message.value;
         }
         window.testShowFence = (id) => receive({ data: { type: 'showFence', id } });
+        window.testShowFeedback = (crash) => receive({ data: { type: 'showFeedback', crash } });
+        if (message.name === 'feedbackInfo') {
+          // Mirror the host: what may be sent besides the user's text.
+          setTimeout(() => receive({ data: { type: 'feedbackInfo', url: 'https://feedback.test/feedback', app: '0.1.4', language: state.locale,
+            crashed: !!state.crashed, system: { app: 'PecoFence 0.1.4 (ZIP / winget)', windows: 'build 26200' },
+            log: 'INFO pecofence::app: config loaded fences=4' } }), 0);
+        }
         if (message.name === 'deleteSnapshot') state.snapshots = state.snapshots.filter(s => s.id !== message.id);
         if (['ready', 'patchSettings', 'setRules', 'setFence'].includes(message.type) || message.type === 'action') {
           setTimeout(window.testRefresh, 0);
@@ -155,7 +162,7 @@ async function runTests() {
   });
   await test('Every page fits the minimum settings window width', async () => {
     frame.style.width = '704px';
-    for (const page of ['general', 'fences', 'rules', 'layout', 'about']) {
+    for (const page of ['general', 'fences', 'rules', 'layout', 'feedback', 'about']) {
       doc.querySelector(`[data-page=${page}]`).click();
       await settle();
       const main = doc.querySelector('main');
@@ -497,7 +504,7 @@ async function runTests() {
       for (const mode of ['dark', 'light']) {
         current().themeMode = mode;
         frame.contentWindow.testRefresh();
-        for (const page of ['general', 'fences', 'rules', 'layout', 'about']) {
+        for (const page of ['general', 'fences', 'rules', 'layout', 'feedback', 'about']) {
           doc.querySelector(`[data-page=${page}]`).click();
           await settle();
           const main = doc.querySelector('main');
@@ -612,6 +619,89 @@ async function runTests() {
     assert(current().desktopIconsHidden, 'Idempotent hide request was ignored');
   });
 
+  // The page posts with fetch; the stub records each request and answers with `status`
+  // (a thrown error stands for no connection).
+  const stubFetch = (status) => {
+    const requests = [];
+    frame.contentWindow.fetch = async (url, init) => {
+      requests.push({ url, init, body: JSON.parse(init.body) });
+      if (status instanceof Error) throw status;
+      return new frame.contentWindow.Response(null, { status });
+    };
+    return requests;
+  };
+  const feedbackPage = async doc => { doc.querySelector('[data-page=feedback]').click(); await settle(); };
+  const feedbackOutcomes = () => frame.contentWindow.testMessages.filter(m => m.name === 'feedbackResult').map(m => m.status);
+
+  await test('Feedback page shows what will be sent and posts the report', async () => {
+    doc = await reset();
+    await feedbackPage(doc);
+    assert(doc.getElementById('page-feedback').classList.contains('on'), 'Feedback page not shown');
+    assert(frame.contentWindow.testMessages.some(m => m.name === 'feedbackInfo'), 'Diagnostics were not requested');
+    const preview = doc.getElementById('fbPreview').textContent;
+    assert(preview.includes('windows: build 26200') && preview.includes('config loaded fences=4'), 'Preview misses the diagnostics: ' + preview);
+    assert(doc.getElementById('fbCrashNote').hidden, 'Crash note shown without a crash');
+    const requests = stubFetch(201);
+    doc.getElementById('fbSend').click(); await settle();
+    assert(errorShown(doc) && !requests.length, 'An empty message was sent');
+    doc.getElementById('fbMessage').value = '  Fences vanish after sleep  ';
+    doc.getElementById('fbEmail').value = 'not-an-email';
+    doc.getElementById('fbSend').click(); await settle();
+    assert(errorShown(doc) && !requests.length, 'An invalid email was accepted');
+    doc.getElementById('fbEmail').value = 'jane@example.com';
+    doc.querySelector('input[name=fbKind][value=idea]').checked = true;
+    doc.getElementById('fbSend').click(); await settle();
+    assert(requests.length === 1, 'Report not posted');
+    const { url, init, body } = requests[0];
+    assert(url === 'https://feedback.test/feedback' && init.method === 'POST' && init.headers['Content-Type'] === 'application/json', 'Wrong request');
+    assert(body.kind === 'idea' && body.message === 'Fences vanish after sleep' && body.email === 'jane@example.com', 'Wrong report: ' + init.body);
+    assert(body.app === '0.1.4' && body.language === 'zh-CN' && body.crash === false, 'Wrong facts: ' + init.body);
+    assert(body.system.windows === 'build 26200' && body.log.includes('config loaded'), 'Diagnostics missing');
+    assert(feedbackOutcomes().at(-1) === 201, 'Outcome not reported to the host');
+    assert(!errorShown(doc) && doc.getElementById('fbMessage').value === '', 'Sent message was not cleared');
+  });
+  await test('Turning the diagnostic log off sends only the message and version', async () => {
+    doc = await reset();
+    await feedbackPage(doc);
+    doc.getElementById('fbAttach').click(); await settle();
+    assert(doc.getElementById('fbAttach').getAttribute('aria-checked') === 'false', 'Switch state not announced');
+    assert(doc.getElementById('fbPreviewBox').hidden, 'Preview still offered with the log off');
+    const requests = stubFetch(201);
+    doc.getElementById('fbMessage').value = 'Just an idea';
+    doc.getElementById('fbSend').click(); await settle();
+    const body = requests[0].body;
+    assert(body.system === null && body.log === null && body.language === null && body.email === null, 'Diagnostics sent with the log off: ' + requests[0].init.body);
+    assert(body.app === '0.1.4', 'Version missing');
+  });
+  await test('Failed sends keep the message and say why', async () => {
+    doc = await reset();
+    await feedbackPage(doc);
+    doc.getElementById('fbMessage').value = 'Keep me';
+    for (const [status, text] of [[429, '频繁'], [502, '502'], [new Error('offline'), '网络']]) {
+      stubFetch(status);
+      doc.getElementById('fbSend').click(); await settle();
+      assert(errorShown(doc) && doc.getElementById('toastText').textContent.includes(text), 'Unexpected message for ' + status + ': ' + doc.getElementById('toastText').textContent);
+      assert(doc.getElementById('fbMessage').value === 'Keep me', 'Message lost after ' + status);
+      assert(!doc.getElementById('fbSend').disabled, 'Send stays disabled after ' + status);
+    }
+    assert(feedbackOutcomes().join() === '429,502,0', 'Outcomes not reported: ' + feedbackOutcomes().join());
+  });
+  await test('A crash report opens the feedback page with Problem selected and the crash note', async () => {
+    doc = await reset();
+    current().crashed = true;
+    frame.contentWindow.testShowFeedback(true); await settle();
+    assert(doc.getElementById('page-feedback').classList.contains('on'), 'Feedback page not shown');
+    assert(doc.querySelector('input[name=fbKind][value=bug]').checked, 'Problem not selected');
+    assert(!doc.getElementById('fbCrashNote').hidden, 'Crash note hidden');
+    assert(doc.activeElement === doc.getElementById('fbMessage'), 'Message field not focused');
+    const requests = stubFetch(201);
+    doc.getElementById('fbMessage').value = 'It crashed while dragging';
+    doc.getElementById('fbSend').click(); await settle();
+    assert(requests[0].body.crash === true, 'Crash flag not sent');
+    assert(doc.getElementById('fbCrashNote').hidden, 'Crash note stays after the report went out');
+    current().crashed = false;
+  });
+
   await test('All ten languages switch live without changing user names or draft inputs', async () => {
     doc = await reset();
     const win = frame.contentWindow;
@@ -632,7 +722,7 @@ async function runTests() {
       assert(current().fences[0].title === '名称' && current().rules.list[0].name === '保存快照' && current().snapshots[0].name === '桌面 {1}', 'User data changed: ' + language);
       assert(doc.querySelector('#ruleList .t').textContent === '保存快照', 'User rule name translated: ' + language);
       assert(win.PecoFenceI18n.format('{0} 个栅栏', 'title {1}').includes('title {1}'), 'User placeholder was reinterpreted');
-      for (const page of ['general', 'fences', 'rules', 'layout', 'about']) {
+      for (const page of ['general', 'fences', 'rules', 'layout', 'feedback', 'about']) {
         doc.querySelector(`[data-page=${page}]`).click();
         const main = doc.querySelector('main');
         assert(main.scrollWidth <= main.clientWidth + 1, language + '/' + page + ' overflows');

@@ -52,8 +52,16 @@ impl WebEnvironment {
                     .as_deref(),
             ));
         let _ = std::fs::create_dir_all(&user_data);
-        let options =
+        let mut options =
             EnvironmentOptions::new().user_data_folder(user_data.to_string_lossy().to_string());
+        // Debug builds: `PECOFENCE_WEBVIEW_ARGS=--remote-debugging-port=9352` lets a test drive
+        // the page (the options always pass browser arguments, so WebView2's own
+        // WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS is not honoured).
+        if cfg!(debug_assertions)
+            && let Ok(args) = pecofence_core::brand::var("PECOFENCE_WEBVIEW_ARGS")
+        {
+            options = options.additional_browser_arguments(args);
+        }
         tracing::debug!("settings: creating WebView2 environment");
         let env = Environment::with_options(&options)?;
         tracing::debug!("settings: WebView2 environment ready");
