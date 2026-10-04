@@ -1142,6 +1142,23 @@ impl FenceWindow {
         });
     }
 
+    /// Height of the window when only the title bar shows.
+    pub fn collapsed_height_px(&self) -> i32 {
+        self.view
+            .borrow()
+            .as_ref()
+            .map(|v| v.title_h_px())
+            .unwrap_or(0)
+    }
+
+    /// Rolled up and settled: no roll in flight and no hover peek holding it open.
+    pub fn is_collapsed_at_rest(&self) -> bool {
+        self.view
+            .borrow()
+            .as_ref()
+            .is_some_and(|v| v.rolled_up && !v.peeking && v.roll_anim.is_none())
+    }
+
     pub fn expanded_height_px(&self) -> i32 {
         self.view
             .borrow()

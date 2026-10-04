@@ -59,6 +59,7 @@ mod menus;
 mod motion;
 mod peek;
 mod portals;
+mod push;
 mod settings;
 mod sync;
 mod tabs;
@@ -224,6 +225,8 @@ pub struct App {
     pending_routes: Vec<PendingRoute>,
     /// Previous frame's timestamp while an animation runs (frame-gap diagnostics).
     frame_prev: Option<Instant>,
+    /// Fences slid down out of an expanded neighbour's way (see `push.rs`).
+    pushed: push::PushState,
     /// Cadence statistics of the animation run in progress.
     frame_run: FrameRun,
     /// `--no-hide-icons`: keep Explorer's icons visible this run without persisting the choice.
@@ -887,6 +890,7 @@ impl App {
             wallpaper_override: args.wallpaper_override.clone(),
             pending_routes: Vec::new(),
             frame_prev: None,
+            pushed: push::PushState::default(),
             frame_run: FrameRun::default(),
             no_hide_icons: args.no_hide_icons,
             theme_override: if args.light {
@@ -1160,6 +1164,7 @@ impl App {
         for _ in 0..8 {
             let cmds = self.queue.drain();
             if cmds.is_empty() {
+                self.reflow_pushed();
                 return;
             }
             for cmd in cmds {
@@ -1184,6 +1189,7 @@ impl App {
     fn handle(&mut self, cmd: Command) {
         match cmd {
             Command::FenceBoundsChanged { fence, rect } => {
+                let rect = self.pushed.resting_rect(fence, rect);
                 let (rolled, expanded) = self
                     .fences
                     .get(&fence)

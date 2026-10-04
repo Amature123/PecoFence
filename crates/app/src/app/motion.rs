@@ -139,6 +139,7 @@ impl App {
         for w in self.fences.values().chain(self.dying.iter()) {
             more |= w.on_frame(now);
         }
+        more |= self.reflow_pushed();
         // Peek dimmer: a layered window, so its alpha is a client tween ticked here. The last
         // frame writes the clear alpha before the windows are torn down.
         let mut peek_done = false;

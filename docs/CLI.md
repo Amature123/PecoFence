@@ -212,7 +212,8 @@ is rejected with `invalid_value` and the hint to re-save it (`| Set-Content -Enc
 `settings set` paths are dotted camelCase keys of the Settings object, e.g. `iconSize`, `theme`,
 `themeStyle`, `hideRealIcons`, `autostart`, `peek.enabled`, `quickHide.enabled`,
 `titleAlign` (left/center/right: the title and tab strip in every title row),
-`rollUp.hoverPeek`, `rollUp.clickToExpand`, `rollUp.titleOnHover` (the title row folds away until the
+`rollUp.hoverPeek`, `rollUp.clickToExpand`, `rollUp.pushNeighbors` (an expanded fence pushes the fences stacked
+below it down and they slide back when it rolls up; nothing is saved, default on), `rollUp.titleOnHover` (the title row folds away until the
 pointer is over the fence; for every fence whose `titleOnHover` is `default`), `snapping.enabled`, `snapping.gapPx` (the gap, in DIPs,
 fences keep to each other and the screen edges while snapping; 0 to 64, default 8),
 `snapping.sizeToCells` (resizing keeps whole icon columns and rows), `snapping.guideLines`
