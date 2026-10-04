@@ -255,8 +255,17 @@ pub fn has_visible_surface(hwnd: HWND) -> bool {
         && rect.bottom > rect.top
 }
 
+/// `HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED)`: what `SetWindowPos` reports when UIPI refuses it.
+const E_ACCESS_DENIED: windows_core::HRESULT = windows_core::HRESULT(0x8007_0005_u32 as i32);
+
 /// Inserts `hwnd` directly above `host` in the z-order (or at the very bottom if `host` is
 /// already the bottom-most window).
+///
+/// Placing a window below one of an elevated process (an app run as administrator, lowest
+/// above the desktop) is refused by UIPI, which would leave `hwnd` wherever it is — over every
+/// app. When `host` is the bottom-most window (Progman on current Windows), `hwnd` then goes to
+/// the bottom and `host` back under it, which references no foreign window; `hwnd` spends well
+/// under a millisecond behind the desktop.
 pub fn insert_above(hwnd: HWND, host: HWND) -> Result<()> {
     // SAFETY: plain FFI calls on caller-supplied handles.
     unsafe {
@@ -274,7 +283,20 @@ pub fn insert_above(hwnd: HWND, host: HWND) -> Result<()> {
         } else {
             above
         };
-        SetWindowPos(hwnd, Some(insert_after), 0, 0, 0, 0, ANCHOR_FLAGS).ok()
+        match SetWindowPos(hwnd, Some(insert_after), 0, 0, 0, 0, ANCHOR_FLAGS).ok() {
+            Err(e)
+                if e.code() == E_ACCESS_DENIED
+                    && GetWindow(host, GW_HWNDNEXT as u32).0.is_null() =>
+            {
+                tracing::debug!(
+                    ?above,
+                    "placement under an elevated window refused; anchoring from the bottom"
+                );
+                SetWindowPos(hwnd, Some(HWND_BOTTOM), 0, 0, 0, 0, ANCHOR_FLAGS).ok()?;
+                SetWindowPos(host, Some(HWND_BOTTOM), 0, 0, 0, 0, ANCHOR_FLAGS).ok()
+            }
+            placed => placed,
+        }
     }
 }
 
