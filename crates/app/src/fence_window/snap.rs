@@ -245,7 +245,7 @@ impl Cells {
 /// How a fence window may be resized (device px).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct SizeRules {
-    /// Whole icon columns / rows (「调整大小时保持为整数个图标」); None = any size.
+    /// Whole icon columns / rows (「调整大小时按整行整列对齐」); None = any size.
     pub cols: Option<Cells>,
     pub rows: Option<Cells>,
     pub min_w: i32,

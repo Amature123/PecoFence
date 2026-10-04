@@ -12,9 +12,32 @@ pub(super) fn snap_gap_dip(snapping: &pecofence_core::SnappingSettings) -> i32 {
     snapping.gap_px.clamp(0, MAX_SNAP_GAP_DIP)
 }
 
+/// Where a wholesale configuration came from: names its toast and the undo snapshot.
+#[derive(Clone, Copy)]
+pub(super) enum ConfigSource {
+    Import,
+    Backup,
+}
+
+impl ConfigSource {
+    fn done(self) -> &'static str {
+        match self {
+            Self::Import => pecofence_core::i18n::text("已导入配置"),
+            Self::Backup => pecofence_core::i18n::text("已恢复备份"),
+        }
+    }
+
+    fn before(self) -> &'static str {
+        match self {
+            Self::Import => pecofence_core::i18n::text("导入配置前"),
+            Self::Backup => pecofence_core::i18n::text("恢复备份前"),
+        }
+    }
+}
+
 impl App {
     /// Replaces the configuration wholesale (import / backup) and rebuilds everything.
-    pub(super) fn adopt_config(&mut self, cfg: pecofence_core::Config, what: &str) {
+    pub(super) fn adopt_config(&mut self, cfg: pecofence_core::Config, source: ConfigSource) {
         self.end_peek_now();
         let old_settings = self.state.config.settings.clone();
         self.state.replace_config(cfg);
@@ -37,7 +60,7 @@ impl App {
         self.refresh_visuals(true);
         self.state.save_if_dirty();
         self.push_settings_state();
-        self.settings_toast(&pecofence_core::i18n::format("已{0}", &[what.to_string()]));
+        self.settings_toast(source.done());
     }
 
     pub(super) fn export_config(&mut self) {
@@ -78,7 +101,7 @@ impl App {
             owner,
             pecofence_core::i18n::text("导入 PecoFence 配置"),
         ) {
-            Ok(Some(path)) => self.restore_from_file(&path, pecofence_core::i18n::text("导入配置")),
+            Ok(Some(path)) => self.restore_from_file(&path, ConfigSource::Import),
             Ok(None) => {}
             Err(e) => self.settings_error(&pecofence_core::i18n::format(
                 "无法打开文件对话框：{0}",
@@ -87,16 +110,15 @@ impl App {
         }
     }
 
-    pub(super) fn restore_from_file(&mut self, path: &std::path::Path, what: &str) {
+    pub(super) fn restore_from_file(&mut self, path: &std::path::Path, source: ConfigSource) {
         match pecofence_core::ConfigStore::parse_file(path) {
             Ok(cfg) => {
                 // Keep a snapshot of what we are replacing so the step can be undone.
-                self.state
-                    .save_snapshot(&pecofence_core::i18n::format("{0}前", &[what.to_string()]));
-                self.adopt_config(cfg, what);
+                self.state.save_snapshot(source.before());
+                self.adopt_config(cfg, source);
             }
             Err(e) => self.settings_error(&pecofence_core::i18n::format(
-                "文件无法使用：{0}",
+                "无法使用此文件：{0}",
                 std::slice::from_ref(&e),
             )),
         }
@@ -342,7 +364,10 @@ impl App {
                         // (the target is looked up before the backup can evict it).
                         if self
                             .state
-                            .restore_snapshot_with_backup(id, pecofence_core::i18n::text("恢复前"))
+                            .restore_snapshot_with_backup(
+                                id,
+                                pecofence_core::i18n::text("恢复快照前"),
+                            )
                             .is_some()
                         {
                             self.end_peek_now();
@@ -389,7 +414,7 @@ impl App {
                         let path = PathBuf::from(p);
                         // Only files from our own backups folder.
                         if self.state.backup_files().contains(&path) {
-                            self.restore_from_file(&path, pecofence_core::i18n::text("恢复备份"));
+                            self.restore_from_file(&path, ConfigSource::Backup);
                         }
                     }
                 }
@@ -537,7 +562,7 @@ impl App {
             .behavior
             .hide_inactive_scrollbar
             .set(new.roll_up.hide_inactive_scrollbar);
-        // The rows fill the height only with 「调整大小时保持为整数个图标」 on: relay them out.
+        // The rows fill the height only with 「调整大小时按整行整列对齐」 on: relay them out.
         let chrome_changed = new.roll_up.title_on_hover != old.roll_up.title_on_hover
             || new.title_align != old.title_align
             || new.roll_up.hide_inactive_scrollbar != old.roll_up.hide_inactive_scrollbar
@@ -555,7 +580,7 @@ impl App {
             || new.theme_style != old.theme_style
             || new.backdrop != old.backdrop;
         let icons_changed = new.icons != old.icons;
-        // 「调整大小时保持为整数个图标」 switched on keeps every rectangle: the rows fill any
+        // 「调整大小时按整行整列对齐」 switched on keeps every rectangle: the rows fill any
         // height with whole icons (redrawn above), and rounding would undo fences lined up.
         self.state.config.settings = new;
         self.refresh_language();

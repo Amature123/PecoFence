@@ -35,6 +35,14 @@ Numbered placeholders (`{0}`, `{1}`, etc.) may be reordered for grammar but must
 be preserved. `%1` is a Windows drag-description insertion marker and must also
 remain intact. Arguments are substituted once; braces inside a filename are literal.
 
+Put a count, name or value inside its whole message (`tf("{0} 个栅栏", n)`) rather
+than joining translated fragments, so every language controls word order and
+inflection. When the same Chinese text needs two translations, prefix the key with a
+context and U+0004, as in gettext: `"新建\x04文件夹"` is the singular New ▸ Folder
+command, while `"文件夹"` stays the plural default fence name. Simplified Chinese
+shows only the text after the separator. Non-Chinese source text in the settings
+page, such as a unit, names its message with `data-i18n="MB"`.
+
 The page captures only its original static text for translation. Dynamic strings
 must explicitly use `t()` or `tf()`. Do not translate arbitrary DOM text, user
 filenames, rule names, snapshot names or fence titles.

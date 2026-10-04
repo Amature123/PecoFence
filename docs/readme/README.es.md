@@ -2,13 +2,13 @@ https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
   <strong>Una alternativa gratuita y de código abierto a Stardock Fences para Windows 11.</strong><br>
-  Agrupa archivos en paneles de cristal, cambia de proyecto con pestañas y deja que tu agente de IA configure la distribución, la apariencia y las reglas de clasificación con la CLI integrada.
+  Agrupa archivos en paneles de cristal, cambia de proyecto con pestañas y deja que tu agente de IA configure la distribución, la apariencia y las reglas de organización con la CLI integrada.
 </p>
 
 <p align="center">
   <a href="https://pecofence.jiang.jp/es/"><strong>Sitio web</strong></a>
   &nbsp;·&nbsp; <a href="#descarga-pecofence"><strong>Descarga PecoFence →</strong></a>
-  &nbsp;·&nbsp; <a href="#tu-escritorio-configurado-por-tu-ia"><strong>AI + CLI</strong></a>
+  &nbsp;·&nbsp; <a href="#tu-escritorio-configurado-por-tu-ia"><strong>IA + CLI</strong></a>
   &nbsp;·&nbsp; <a href="#míralo-en-acción">Míralo en acción</a>
   &nbsp;·&nbsp; <a href="../README.md">Documentación</a>
 </p>
@@ -37,16 +37,16 @@ https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 Dile a tu agente de IA cómo quieres usar tu escritorio. Con `pecofence-cli`, incluida en la aplicación, Claude Code, Codex y Cursor pueden leer tu configuración actual y aplicar cambios directamente en PecoFence.
 
 - **Configura con tus propias palabras.** Cambia temas, transparencia, tamaño de los iconos y ajustes globales, o modifica todos los grupos a la vez.
-- **Organiza una vez y mantén el orden.** Crea grupos por proyecto, distribuye los iconos y añade reglas que clasifiquen los archivos nuevos automáticamente.
+- **Organiza una vez y mantén el orden.** Crea grupos por proyecto, distribuye los iconos y agrega reglas que clasifiquen los archivos nuevos automáticamente.
 - **Guarda tu configuración favorita.** Usa instantáneas para la distribución de los grupos y la exportación e importación de configuración para ajustes, reglas y distribuciones.
 
 **Pruébalo con tu agente de IA**
 
 Abre PecoFence y pega esta petición en tu agente de programación con IA:
 
-> Configura mi escritorio con pecofence-cli. Primero lee pecofence-cli skill y pecofence-cli describe y revisa mis ajustes y grupos actuales. Haz una copia de mi configuración antes de cambiarla. Activa el modo oscuro y haz todos los grupos más transparentes.
+> Configura mi escritorio con pecofence-cli. Primero lee la salida de pecofence-cli skill y pecofence-cli describe; luego revisa mis ajustes y grupos actuales. Haz una copia de mi configuración antes de cambiarla. Activa el modo oscuro y haz todos los grupos más transparentes.
 
-La CLI está incluida. La edición de Microsoft Store añade `pecofence-cli` al PATH. Con el ZIP portátil, indica a tu agente la ruta completa de `pecofence-cli.exe`.
+La CLI está incluida. La edición de Microsoft Store agrega `pecofence-cli` al PATH. Con el ZIP portátil, indica a tu agente la ruta completa de `pecofence-cli.exe`.
 
 <details>
 <summary><strong>Conversación de ejemplo con un agente de programación</strong></summary>
@@ -71,12 +71,12 @@ Para agentes y scripts: `describe` ofrece el catálogo de comandos y los esquema
 
 ## Dale un lugar a cada cosa
 
-Proyectos, capturas de pantalla, cosas para leer más tarde: guárdalas en sus propios grupos,
-ordenadas como tú trabajas. PecoFence añade la estructura justa para que tu escritorio vuelva
+Proyectos, capturas de pantalla, cosas para leer más tarde: guárdalo todo en sus propios grupos,
+organizado a tu manera. PecoFence aporta la estructura justa para que tu escritorio vuelva
 a ser útil.
 
 <p align="center">
-  <img src="../assets/hero-es.png" alt="PecoFence — Carpetas de proyecto, un PDF real y diseños originales en paneles nativos de Liquid Glass." width="1280">
+  <img src="../assets/hero-es.png" alt="PecoFence — Carpetas de proyecto, un PDF real y diseños originales en grupos nativos de Liquid Glass." width="1280">
 </p>
 
 | **Agrupa tu trabajo** | **Ten tus carpetas a mano** | **Despeja el espacio** |
@@ -88,33 +88,33 @@ a ser útil.
 ### Una ventana. Varios espacios de trabajo.
 
 Mantén juntos los grupos relacionados como pestañas. Pasa de Work a Art con un clic y,
-cuando necesites más sitio, arrastra una pestaña fuera para convertirla en su propio grupo.
+cuando necesites más espacio, arrastra una pestaña fuera para convertirla en su propio grupo.
 
 ![Cambio entre Work y Art y separación de una pestaña en un grupo independiente.](../assets/tabs.gif)
 
 ### Tu escritorio, a un atajo de distancia.
 
-Pulsa **Ctrl + Alt + Espacio** para traer tus grupos por encima de la aplicación actual.
-Toma lo que necesites y pulsa **Esc** para volver.
+Presiona **Ctrl + Alt + Espacio** y la vista rápida trae tus grupos por encima de la aplicación actual.
+Toma lo que necesites y presiona **Esc** para volver.
 
 ![La vista rápida muestra los grupos del escritorio sobre una aplicación; Esc devuelve a la aplicación.](../assets/peek.gif)
 
 <sub>Grabado en PecoFence con archivos de demostración y el tema Fluent. Los GIF se repiten automáticamente.</sub>
 
-## Pequeños detalles, mejor día a día
+## Pequeños detalles que mejoran el día a día
 
 | Experiencia | Qué obtienes |
 | :--- | :--- |
-| **AI + CLI** | `pecofence-cli` — **Configura con tus propias palabras.** Cambia temas, transparencia, tamaño de los iconos y ajustes globales, o modifica todos los grupos a la vez. |
-| **Menos ordenar** | Reglas por tipo de archivo, extensión, nombre, comodines, destino del acceso directo, hora y tamaño. Los archivos nuevos encuentran su grupo solos. |
+| **IA + CLI** | `pecofence-cli` — **Configura con tus propias palabras.** Cambia temas, transparencia, tamaño de los iconos y ajustes globales, o modifica todos los grupos a la vez. |
+| **Menos tiempo ordenando** | Reglas por tipo de archivo, extensión, nombre, comodines, destino del acceso directo, hora y tamaño. Los archivos nuevos encuentran su grupo solos. |
 | **Cristal a la medida de tu escritorio** | Temas Fluent y Liquid Glass, modos claro y oscuro, colores por grupo, opacidad y tinte de iconos. |
-| **Archivos como siempre** | Menús contextuales del Explorador, arrastrar y soltar, copiar y pegar, selección múltiple, miniaturas y vistas de iconos, lista y detalles. |
+| **Archivos como siempre** | Menús contextuales del Explorador de archivos, arrastrar y soltar, copiar y pegar, selección múltiple, miniaturas y vistas de iconos, lista y detalles. |
 | **Espacio cuando lo necesitas** | Contrae un grupo hasta su título. Pasa el cursor para expandirlo. Bloquea la distribución que te gusta. |
-| **Un camino de vuelta** | Instantáneas de distribución, copias de seguridad diarias, importación y exportación de la configuración e intercambio entre pantallas. |
+| **Siempre puedes volver atrás** | Instantáneas de distribución, copias de seguridad diarias, importación y exportación de la configuración e intercambio entre pantallas. |
 | **Huella mínima** | Una aplicación nativa escrita en Rust; el panel de Configuración en WebView2 se carga solo cuando hace falta. |
 
 Las reglas de organización automática dejan los archivos en su ubicación original. Los movimientos
-que inicias tú funcionan igual que en el Explorador.
+que inicias tú funcionan igual que en el Explorador de archivos.
 
 [Explora la lista completa de funciones →](../FEATURES.md)
 
@@ -123,7 +123,7 @@ que inicias tú funcionan igual que en el Explorador.
 **Español · English · 简体中文 · 繁體中文 · 日本語**  
 **한국어 · Deutsch · Français · Português (Brasil) · Русский**
 
-Cámbialo al instante en **Configuración → General → Idioma de la interfaz** o deja que siga a Windows.
+Cambia de idioma al instante en **Configuración → General → Idioma de la interfaz** o usa el idioma de Windows.
 Todas las traducciones vienen incluidas y funcionan sin conexión. Tus nombres de archivo y los
 nombres que pongas tú se conservan.
 
@@ -135,30 +135,30 @@ La versión de Microsoft Store está firmada por Microsoft, se actualiza sola y 
 
 1. Abre la página de **Releases** de este repositorio y descarga `pecofence-<versión>-x64.zip`.
 2. Extrae el **ZIP completo** en una carpeta y ejecuta `pecofence.exe`.
-3. Empieza a organizar. Haz clic derecho en el icono de la bandeja cuando necesites la Configuración
-   o quieras salir.
+3. Empieza a organizar. Haz clic con el botón derecho en el icono de la bandeja cuando necesites
+   la Configuración o quieras salir.
 
 ¿Prefieres un gestor de paquetes? `winget install DayuanJiang.PecoFence` instala la misma versión portátil y evita el aviso de SmartScreen.
 
 **Windows 11 x64 · ZIP portátil · Sin cuenta · Licencia Apache 2.0**
 
-El primer inicio crea los grupos Programas, Carpetas, Archivos y documentos y Escritorio
+El primer inicio crea los grupos «Programas», «Carpetas», «Archivos y documentos» y «Escritorio»
 en el idioma que elijas. Los iconos del escritorio de Windows se restauran al salir.
 
 <details>
 <summary><strong>Requisitos, configuración y algunas notas útiles</strong></summary>
 
-- Diseñado para Windows 11 22H2 y posteriores. La mayor parte de las pruebas nativas se ha hecho
-  en 25H2; la matriz completa de versiones anteriores y hardware multipantalla sigue en curso.
+- Diseñado para Windows 11 22H2 y posteriores. La mayoría de las pruebas se hicieron en 25H2;
+  todavía faltan pruebas completas en versiones anteriores y con varias pantallas.
 - La Configuración necesita Microsoft Edge WebView2 Runtime. Mantén `WebView2Loader.dll` y
   `pecofence-watchdog.exe`, incluidos en el ZIP, junto a la aplicación.
-- La configuración se guarda en `%APPDATA%\PecoFence\config.json`. Inicia con `--portable`
-  para guardarla en una carpeta `config` junto al ejecutable.
+- La configuración se guarda en `%APPDATA%\PecoFence\config.json`. Ejecuta la aplicación con
+  `--portable` para guardarla en una carpeta `config` junto al ejecutable.
 - Las instalaciones existentes conservan su directorio de configuración anterior.
   Consulta la [guía de actualización](../UPGRADING.md).
 - El cristal usa el fondo de pantalla estático. No refracta otras aplicaciones ni fondos
-  de vídeo en directo.
-- Los cuadros de diálogo propios de Windows y las entradas de terceros en el menú del Explorador
+  de pantalla animados.
+- Los cuadros de diálogo propios de Windows y las entradas de terceros en el menú del Explorador de archivos
   siguen el idioma de Windows.
 - Las versiones portátiles no están firmadas. Si Windows SmartScreen aparece en el primer inicio, elige
   **Más información → Ejecutar de todas formas**. Instalar desde Microsoft Store o con winget evita el aviso.
@@ -192,7 +192,8 @@ Crea un ZIP portátil listo para distribuir:
 
 El espacio de trabajo se organiza en `crates/` para la aplicación nativa, `ui/` para la
 Configuración, `locales/` para las traducciones y `scripts/` para verificación y empaquetado.
-El proyecto de vídeo opcional en `extras/` es independiente de la compilación de la aplicación.
+El sitio web del producto está en `site/`, y el proyecto de vídeo opcional en `extras/`
+es independiente de la compilación de la aplicación.
 
 [Instrucciones de publicación](../RELEASING.md) · [Estructura del código](../DEVELOPMENT.md#architecture)
 

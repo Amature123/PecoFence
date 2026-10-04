@@ -653,7 +653,7 @@ pub(super) fn on_syscommand(
 
 pub(super) fn on_sizing(h: &HandlerCtx, hwnd: HWND, wparam: usize, lparam: isize) -> Option<isize> {
     let HandlerCtx { view, behavior, .. } = h;
-    // 「调整大小时保持为整数个图标」 (snapping.sizeToCells, Fences' "sized to even multiples of
+    // 「调整大小时按整行整列对齐」 (snapping.sizeToCells, Fences' "sized to even multiples of
     // icons"): the width takes whole icon columns and the height whole rows, except where an
     // edge lines up with another fence (the rows and columns then share the rest). Off, sizes
     // are free (one column / one row at least).

@@ -1,7 +1,9 @@
 // Shared catalog keys match crates/core/src/i18n.rs. No network requests at runtime.
 (() => {
   let locale = 'zh-CN', messages = {};
-  const text = source => locale === 'zh-CN' ? source : (messages[source] ?? source);
+  // A key may start with a gettext-style context ending in U+0004 (see crates/core/src/i18n.rs).
+  const bare = source => source.slice(source.indexOf('\x04') + 1);
+  const text = source => locale === 'zh-CN' ? bare(source) : (messages[source] ?? bare(source));
   const format = (source, ...args) => text(source).replace(/\{(\d+)\}/g,
     (match, index) => index < args.length ? String(args[index]) : match);
   const set = (tag, catalog) => {
@@ -23,6 +25,10 @@
       if (!/[\u3400-\u9fff]/.test(source)) continue;
       const target = node;
       bindings.push(() => { target.nodeValue = original.replace(source, text(source)); });
+    }
+    // Non-Chinese source text such as units names its message explicitly.
+    for (const el of root.querySelectorAll('[data-i18n]')) {
+      bindings.push(() => { el.textContent = text(el.dataset.i18n); });
     }
     for (const el of root.querySelectorAll('[title],[placeholder],[aria-label]')) {
       for (const attr of ['title', 'placeholder', 'aria-label']) {

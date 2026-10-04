@@ -220,7 +220,7 @@ impl App {
         }
     }
 
-    /// 「调整大小时保持为整数个图标」 (`snapping.sizeToCells`, Fences' "sized to even
+    /// 「调整大小时按整行整列对齐」 (`snapping.sizeToCells`, Fences' "sized to even
     /// multiples of icons"): the width becomes whole icon columns and a fixed height whole rows.
     /// Interactive resizing snaps in WM_SIZING; this applies the same rule to the explicit
     /// changes of the cell size (icon size, spacing, layout, label lines). Other sizes still
@@ -402,7 +402,7 @@ impl App {
         self.relayout_from_state();
         self.schedule_save();
         self.settings_toast(&pecofence_core::i18n::format(
-            "已交换 {0} 个栅栏的显示器",
+            "已在两个显示器之间交换 {0} 个栅栏",
             &[n.to_string()],
         ));
     }

@@ -1,7 +1,7 @@
 https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
-  <strong>免费、开源的 Windows 11 桌面整理工具，Stardock Fences 的另一种选择。</strong><br>
+  <strong>免费、开源的 Windows 11 桌面整理工具，可以替代 Stardock Fences。</strong><br>
   用玻璃栅栏收好文件，用标签页切换项目，还能让 AI 助手通过内置 CLI，直接调整布局、外观和自动整理规则。
 </p>
 
@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 把你想要的桌面告诉 AI 助手。PecoFence 自带 `pecofence-cli`，Claude Code、Codex、Cursor 可以读取当前配置，并直接在 PecoFence 中执行修改。
 
-- **说出需求，直接改配置。** 切换主题、透明度、图标大小和全局设置，也能一次调整所有栅栏。
+- **说出需求，直接改配置。** 切换主题，调整透明度、图标大小和全局设置，也能一次改好所有栅栏。
 - **整理一次，以后自动归位。** 创建项目栅栏、整理图标，再添加规则，让新文件自动进入对应栅栏。
 - **喜欢的配置，保存下来。** 用快照保存栅栏布局，用配置导入导出保存和恢复设置、规则与布局。
 
@@ -65,17 +65,17 @@ pecofence-cli fence set --all opacity clear
 
 </details>
 
-为 AI 和脚本提供清晰接口：`describe` 输出命令目录与 JSON Schema，`skill` 输出使用指南。JSON 结果报告实际改动，结构化的应用错误帮助助手决定下一步。
+为 AI 和脚本设计：`describe` 输出命令目录和 JSON Schema，`skill` 输出使用指南。每次执行都用 JSON 说明改了什么；出错时返回结构化错误，助手可以据此决定下一步。
 
 [查看 CLI 上手指南 →](../CLI.md#start-with-your-ai-agent)
 
-## 给每件事，留一个位置
+## 给每件事留一个位置
 
 正在做的项目、刚存下的截图、准备晚点看的资料——各自放进一个栅栏，
 按你的习惯摆好。桌面上的东西依然顺手，也终于有了秩序。
 
 <p align="center">
-  <img src="../assets/hero-zh-CN.png" alt="PecoFence — 项目文件夹、PDF 和设计海报，收在原生 Liquid Glass 栅栏中。" width="1280">
+  <img src="../assets/hero-zh-CN.png" alt="PecoFence — 项目文件夹、PDF 和设计海报，收在 Liquid Glass 栅栏里。" width="1280">
 </p>
 
 | **按项目收好** | **把文件夹放在手边** | **随时让出空间** |
@@ -84,31 +84,31 @@ pecofence-cli fence set --all opacity clear
 
 ## 看看它怎么用
 
-### 一个窗口，几种工作状态
+### 一个栅栏，切换多个项目
 
 把相关栅栏合成标签页，点一下就能从 Work 切到 Art。
-需要同时看两组文件时，把标签拖出来，就变回两个独立栅栏。
+需要同时看两组文件时，把标签页拖出来，就变回两个独立栅栏。
 
 ![在 Work 与 Art 标签之间切换，再拖出标签，拆成独立栅栏。](../assets/tabs.gif)
 
 ### 文件就在当前应用前面
 
-按 **Ctrl + Alt + 空格**，所有栅栏浮现在当前应用上方。
+按 **Ctrl + Alt + 空格** 速览栅栏，所有栅栏显示在当前应用上方。
 取用需要的文件后，按 **Esc** 回去接着工作。
 
-![用快捷键让栅栏浮现在应用上方，再按 Esc 返回应用。](../assets/peek.gif)
+![用快捷键速览栅栏，栅栏显示在应用上方，再按 Esc 返回应用。](../assets/peek.gif)
 
-<sub>以上为 PecoFence 的实际操作录制，使用演示文件和 Fluent 主题。动图会自动循环。</sub>
+<sub>以上为 PecoFence 的实际操作录屏，使用演示文件和 Fluent 主题。动图会自动循环播放。</sub>
 
 ## 日常好用，藏在这些细节里
 
 | 体验 | 能做什么 |
 | :--- | :--- |
-| **AI + CLI** | `pecofence-cli` — **说出需求，直接改配置。** 切换主题、透明度、图标大小和全局设置，也能一次调整所有栅栏。 |
+| **AI + CLI** | `pecofence-cli` — **说出需求，直接改配置。** 切换主题，调整透明度、图标大小和全局设置，也能一次改好所有栅栏。 |
 | **少一点手动整理** | 按类型、扩展名、名称、通配符、快捷方式目标、时间和大小设置规则，新文件自动找到位置。 |
-| **配得上你的壁纸** | Fluent 与 Liquid Glass 两种风格，支持深浅色、单独色调、不透明度和图标着色。 |
+| **配得上你的壁纸** | Fluent 与 Liquid Glass 两种风格，支持深浅色；每个栅栏可单独设置色调和不透明度，还能给图标着色。 |
 | **熟悉的文件操作** | 资源管理器右键菜单、拖放、复制粘贴、多选、缩略图，以及图标／列表／详细信息视图。 |
-| **用时展开，闲时收好** | 把栅栏卷成标题条，鼠标悬停即可展开；也可以锁定已经摆好的位置。 |
+| **用时展开，闲时收好** | 把栅栏收起成一条标题栏，鼠标悬停即可展开；也可以锁定已经摆好的位置和大小。 |
 | **喜欢的布局，留得住** | 保存布局快照、每日自动备份、导入导出配置、交换两个显示器上的栅栏。 |
 | **轻巧地待在桌面上** | Rust 编写的原生应用，WebView2 设置面板按需加载。 |
 
@@ -145,14 +145,14 @@ Microsoft Store 版由微软签名，自动更新，不会出现 SmartScreen 提
 <details>
 <summary><strong>系统要求、配置位置与使用说明</strong></summary>
 
-- 面向 Windows 11 22H2 及以上版本，目前主要在 25H2 上完成原生验证；
-  旧版本 Windows 和多显示器硬件组合的完整回归仍在进行。
+- 支持 Windows 11 22H2 及以上版本。目前主要在 25H2 上测试，
+  旧版 Windows 和各种多显示器组合还在陆续测试。
 - 设置面板需要 Microsoft Edge WebView2 Runtime。
   请将压缩包里的 `WebView2Loader.dll`、`pecofence-watchdog.exe` 与主程序放在一起。
 - 配置保存在 `%APPDATA%\PecoFence\config.json`。
   用 `--portable` 启动，可改为保存在程序旁的 `config` 文件夹。
-- 已有安装会继续使用旧配置目录，保留布局、规则和备份。详见[升级说明](../UPGRADING.md)。
-- 玻璃效果采样静态桌面壁纸，不会折射其他应用窗口或视频壁纸。
+- 从旧版升级会沿用原来的配置目录，布局、规则和备份都在。详见[升级说明](../UPGRADING.md)。
+- 玻璃效果只取自静态桌面壁纸，不会透出其他应用窗口，也不支持视频壁纸。
 - Windows 自带对话框和第三方资源管理器菜单仍使用系统语言。
 - 便携版未做代码签名。首次运行若出现 Windows SmartScreen 提示，点击**更多信息 → 仍要运行**。通过 Microsoft Store 或 winget 安装不会出现该提示。
 

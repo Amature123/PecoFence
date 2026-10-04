@@ -106,10 +106,10 @@ impl App {
             CMD_PEEK,
             &match self.peek_hotkey {
                 Some(h) => pecofence_core::i18n::format(
-                    "浮现所有栅栏\t{0}",
+                    "速览所有栅栏\t{0}",
                     &[peek_hotkey_label(h).to_string()],
                 ),
-                None => pecofence_core::i18n::text("浮现所有栅栏").to_string(),
+                None => pecofence_core::i18n::text("速览所有栅栏").to_string(),
             },
             false,
             false,
@@ -135,7 +135,7 @@ impl App {
             )
             .item(
                 CMD_REPAIR_ICONS,
-                pecofence_core::i18n::text("修复桌面图标（显示真实图标）"),
+                pecofence_core::i18n::text("修复桌面图标（图标消失时使用）"),
                 false,
                 false,
             )
@@ -329,12 +329,12 @@ impl App {
             .map(|(i, f)| {
                 let label = if self.state.portal_path(f.id).is_some() {
                     pecofence_core::i18n::format(
-                        "{0}（移动文件到该文件夹）",
+                        "{0}（文件会移到此文件夹）",
                         &[self.state.display_title(f).to_string()],
                     )
                 } else if from_portal {
                     pecofence_core::i18n::format(
-                        "{0}（移动文件到桌面）",
+                        "{0}（文件会移到桌面）",
                         std::slice::from_ref(&f.title),
                     )
                 } else {
@@ -352,7 +352,7 @@ impl App {
             if self.state.portal_path(fence).is_some() {
                 pecofence_core::i18n::text("移出到桌面（移动文件）")
             } else {
-                pecofence_core::i18n::text("移出栅栏（放回「桌面」）")
+                pecofence_core::i18n::text("移出栅栏（放回“桌面”）")
             },
             false,
             inbox == Some(fence),
@@ -412,7 +412,7 @@ impl App {
             if rolled {
                 pecofence_core::i18n::text("展开")
             } else {
-                pecofence_core::i18n::text("卷起")
+                pecofence_core::i18n::text("收起")
             },
             false,
             false,
@@ -476,7 +476,7 @@ impl App {
             )
             .item(
                 CMD_FENCE_ICON_48,
-                pecofence_core::i18n::text("中图标"),
+                pecofence_core::i18n::text("中等图标"),
                 f.view.icon_size == 48,
                 false,
             )
@@ -550,7 +550,7 @@ impl App {
         new_menu
             .item(
                 CMD_FENCE_NEW_FOLDER,
-                pecofence_core::i18n::text("文件夹"),
+                pecofence_core::i18n::text("新建\x04文件夹"),
                 false,
                 false,
             )
@@ -563,7 +563,7 @@ impl App {
             .separator()
             .item(
                 CMD_TAB_NEW,
-                pecofence_core::i18n::text("标签页"),
+                pecofence_core::i18n::text("新建\x04标签页"),
                 false,
                 false,
             );

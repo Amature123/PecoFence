@@ -26,6 +26,8 @@ class StaticMessages(HTMLParser):
             value = attrs.get(name, "")
             if CJK.search(value):
                 self.keys.add(value)
+        if attrs.get("data-i18n"):
+            self.keys.add(attrs["data-i18n"])
 
     def handle_endtag(self, tag):
         for index in range(len(self.stack) - 1, -1, -1):

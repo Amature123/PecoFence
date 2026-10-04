@@ -448,6 +448,7 @@ impl App {
                 FenceKind::FolderPortal => "portal",
             },
             "host": (host_id != f.id).then(|| self.state.fence(host_id).map(|h| h.title.clone())),
+            "tabbed": self.state.tabs_of(host_id).len() > 1,
             "iconSize": f.view.icon_size,
             "spacing": spacing,
             "autoHeight": h.view.auto_height,

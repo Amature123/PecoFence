@@ -985,7 +985,7 @@ impl App {
                 format!("{} is not a file", source.display()),
             ));
         }
-        self.ipc_adopt_file(&source, "imported", "导入配置")
+        self.ipc_adopt_file(&source, "imported", super::settings::ConfigSource::Import)
     }
 
     /// `backups.restore`: only files the app itself wrote (the same guard as the settings page).
@@ -1006,7 +1006,7 @@ impl App {
                 "allowed": backups.iter().map(|p| p.to_string_lossy()).collect::<Vec<_>>()
             })));
         };
-        self.ipc_adopt_file(&source, "restored", "恢复备份")
+        self.ipc_adopt_file(&source, "restored", super::settings::ConfigSource::Backup)
     }
 
     /// Shared tail of import and backup restore: validate the file, snapshot the current
@@ -1015,7 +1015,7 @@ impl App {
         &mut self,
         source: &std::path::Path,
         key: &str,
-        what_key: &'static str,
+        origin: super::settings::ConfigSource,
     ) -> IpcResult {
         let cfg = pecofence_core::ConfigStore::parse_file(source).map_err(|e| {
             IpcError::new(
@@ -1027,7 +1027,7 @@ impl App {
             )
         })?;
         let snapshot = self.auto_snapshot();
-        self.adopt_config(cfg, pecofence_core::i18n::text(what_key));
+        self.adopt_config(cfg, origin);
         Ok(mutation(
             true,
             snapshot,
