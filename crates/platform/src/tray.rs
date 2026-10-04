@@ -192,6 +192,10 @@ pub const TRAY_EVENT_CONTEXTMENU: u32 = WM_CONTEXTMENU as u32;
 pub const TRAY_EVENT_SELECT: u32 = NIN_SELECT as u32;
 pub const TRAY_EVENT_KEYSELECT: u32 = NIN_KEYSELECT as u32;
 pub const TRAY_EVENT_LBUTTONDBLCLK: u32 = WM_LBUTTONDBLCLK as u32;
+/// The `show_info` balloon was clicked / went away unclicked (timed out or replaced).
+pub const TRAY_EVENT_BALLOONUSERCLICK: u32 = NIN_BALLOONUSERCLICK as u32;
+pub const TRAY_EVENT_BALLOONTIMEOUT: u32 = NIN_BALLOONTIMEOUT as u32;
+pub const TRAY_EVENT_BALLOONHIDE: u32 = NIN_BALLOONHIDE as u32;
 
 /// A popup menu built from items; destroyed on drop.
 pub struct PopupMenu {

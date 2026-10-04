@@ -132,7 +132,7 @@ impl App {
                 self.refresh_portals_in(&dirs);
             }
             FileOpThen::ToDesktop { routed, copy, what } => match result {
-                Ok(true) => tracing::info!(count = routed.len(), copy, "{what}"),
+                Ok(true) => tracing::info!(count = routed.len(), copy, what, "files transferred"),
                 Ok(false) => {
                     tracing::info!("move to desktop cancelled by user");
                     self.pending_routes.retain(|r| !routed.contains(&r.path));

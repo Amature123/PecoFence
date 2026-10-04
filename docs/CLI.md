@@ -273,10 +273,13 @@ Everything talks to the running app except `describe`, `skill`, `paths`, `log` a
 - `paths` prints where the files are: `config` (from the running instance when one answers,
   `"source": "status"`; else the default `%APPDATA%\PecoFence\config.json`, `"source": "default"`),
   `configDir`, `backupsDir`, `log` (`%LOCALAPPDATA%\PecoFence\pecofence[.<instance>].log`),
-  `logDir`, and the `crashDumps` (`crash-*.dmp`) found there.
+  `previousLog` (the last run's, `pecofence[.<instance>].prev.log`), `shareLog` (what the
+  feedback page may send, `pecofence[.<instance>].share.log`), `logDir`, and the `crashDumps`
+  (`crash-*.dmp`) found there.
 - `log [-n N] [-f]` prints the last `N` lines of that log as plain text (the one command whose
   stdout is not JSON) and, with `-f`, follows it like `tail -f` until Ctrl+C. A restarted app
-  truncates the file; `-f` starts over from the top when that happens.
+  starts a new file (the old one becomes `previousLog`); `-f` starts over from the top when
+  that happens.
 - `config check [FILE]` parses and validates a `config.json` or `config export` file exactly like
   the app would (exit 1 with `validation_failed` when the app would refuse it), then lints what
   loads but will not work: rules whose target fence exists in no layout, rules targeting a folder

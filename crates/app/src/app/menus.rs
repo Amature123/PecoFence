@@ -9,6 +9,7 @@ const CMD_APPLY_RULES: u32 = 3;
 const CMD_SETTINGS: u32 = 4;
 const CMD_REPAIR_ICONS: u32 = 5;
 const CMD_HIDE_ICONS_AGAIN: u32 = 6;
+const CMD_FEEDBACK: u32 = 7;
 const CMD_EXIT: u32 = 9;
 const CMD_PEEK: u32 = 10;
 /// Tray 「在桌面显示文件夹」 entries: 11..=14 (see `App::show_folder_submenu`).
@@ -139,6 +140,12 @@ impl App {
                 false,
             )
             .item(
+                CMD_FEEDBACK,
+                pecofence_core::i18n::text("发送反馈…"),
+                false,
+                false,
+            )
+            .item(
                 CMD_SETTINGS,
                 pecofence_core::i18n::text("设置…"),
                 false,
@@ -166,6 +173,7 @@ impl App {
                     !pecofence_platform::shell_icons::desktop_icons_hidden(),
                 );
             }
+            CMD_FEEDBACK => self.open_feedback(false),
             CMD_SETTINGS => self.queue.push(Command::OpenSettings),
             CMD_EXIT => self.queue.push(Command::Quit),
             _ => {}

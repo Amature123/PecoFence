@@ -339,7 +339,7 @@ impl OverStats {
     }
 
     /// Logs the hover's cadence (info when it stuttered) and resets.
-    fn report(&mut self, what: &str) {
+    fn report(&mut self, what: &'static str) {
         let ms = |d: Duration| (d.as_secs_f32() * 1000.0 * 10.0).round() / 10.0;
         if self.calls > 0 {
             if self.max_gap > Duration::from_millis(100)
