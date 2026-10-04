@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Outlook mail dragged onto a folder portal, onto a folder icon inside a fence, or onto any fence is saved as in Explorer: each message becomes `<subject>.msg` with its contents and attachments, and attachments dragged on their own become files. On a fence whose icons live on the desktop, the file lands on the desktop and joins that fence. Files dragged out of a zip archive work the same way. PecoFence hands drops that carry no plain files to the folder's own Explorer drop handler, so name collisions, progress and the right-button menu are Explorer's.
+- Apps dragged from the Start menu onto a fence become working shortcuts, as on the desktop. They used to point to a made-up path such as `C:\{7C5A40EF-…}\Steam\steam.exe`, and opening one showed 「Windows 正在查找 steam.exe」; shortcuts made that way before have to be dragged in again.
+
 ## 0.1.3
 
 - 「显示标题栏」 per fence (fence options, `fence set <FENCE> titleOnHover default|hover|always`): each fence can fold its title row away until the pointer is over it, or always show it, whatever 「鼠标悬停时才显示标题栏」 says; fences left at 「跟随常规设置」 (`default`) keep following that setting. A fully transparent fence with a hover-only title shows nothing but its icons at rest.

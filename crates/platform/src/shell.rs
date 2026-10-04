@@ -703,8 +703,12 @@ pub fn shortcut_info(path: &Path) -> Option<(String, Option<String>)> {
 
 /// Creates the `.lnk` Explorer writes for "在当前位置创建快捷方式": `<name> - 快捷方式.lnk` in
 /// `dir` pointing at `target` (a file or a folder), with a ` (2)` … suffix on collision. Returns
-/// the shortcut's path.
+/// the shortcut's path. A target that is no absolute file-system path (the Start menu's
+/// `{known-folder GUID}\Steam\steam.exe`) is refused: `SetPath` would write a link to nowhere.
 pub fn create_shortcut(target: &Path, dir: &Path) -> Result<PathBuf> {
+    if !target.is_absolute() && !is_namespace_path(target) {
+        return Err(windows_core::Error::from_hresult(E_INVALIDARG));
+    }
     let name = target
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -838,6 +842,10 @@ mod move_tests {
         std::fs::create_dir_all(&folder).unwrap();
         let flnk = create_shortcut(&folder, &base).expect("folder shortcut");
         assert_eq!(flnk, base.join("sub.dir - 快捷方式.lnk"));
+        // The Start menu's known-folder-relative app path is no file: no link to nowhere.
+        let start_menu = Path::new(r"{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}\Steam\steam.exe");
+        assert!(create_shortcut(start_menu, &base).is_err());
+        assert!(!base.join("steam - 快捷方式.lnk").exists());
         let _ = std::fs::remove_dir_all(&base);
     }
 }

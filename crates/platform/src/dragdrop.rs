@@ -53,6 +53,7 @@ pub const ALL_EFFECTS: u32 =
     DROPEFFECT_MOVE as u32 | DROPEFFECT_COPY as u32 | DROPEFFECT_LINK as u32;
 
 /// `grfKeyState` bits of OLE drag/drop (same values as the `MK_*` mouse-message flags).
+pub const MK_LBUTTON: u32 = 0x0001;
 pub const MK_RBUTTON: u32 = 0x0002;
 pub const MK_SHIFT: u32 = 0x0004;
 pub const MK_CONTROL: u32 = 0x0008;
@@ -425,6 +426,8 @@ pub(crate) fn registered_format(name: &'static str, slot: &'static OnceLock<u16>
 
 static INET_URL_FORMAT: OnceLock<u16> = OnceLock::new();
 static FILE_GROUP_FORMAT: OnceLock<u16> = OnceLock::new();
+static FILE_GROUP_FORMAT_A: OnceLock<u16> = OnceLock::new();
+static SHELL_IDLIST_FORMAT: OnceLock<u16> = OnceLock::new();
 
 /// `CFSTR_INETURLW`: the link a browser is dragging.
 fn inet_url_format() -> FORMATETC {
@@ -454,11 +457,10 @@ pub(crate) fn hglobal_bytes(data: &IDataObject, fmt: &FORMATETC) -> Option<Vec<u
     }
 }
 
-/// Does the data object carry a browser link (`UniformResourceLocatorW`)?
+/// Does the data object carry a browser link (`UniformResourceLocatorW`)? Read, not just
+/// queried: a zip folder's items answer `QueryGetData` for it and then fail `GetData`.
 pub fn has_inet_url(data: &IDataObject) -> bool {
-    let fmt = inet_url_format();
-    // SAFETY: COM call with a fully initialized FORMATETC.
-    unsafe { data.QueryGetData(&fmt).is_ok() }
+    inet_url(data).is_some()
 }
 
 /// The dragged link, if it is an http(s) / ftp / file URL.
@@ -479,28 +481,132 @@ pub fn inet_url(data: &IDataObject) -> Option<String> {
         .then_some(s)
 }
 
+fn file_group_format() -> FORMATETC {
+    hglobal_format(registered_format(
+        "FileGroupDescriptorW",
+        &FILE_GROUP_FORMAT,
+    ))
+}
+
 /// The file name a browser suggests for a dragged link (`FileGroupDescriptorW`, first entry;
 /// usually `<page title>.url`).
 pub fn file_group_descriptor_name(data: &IDataObject) -> Option<String> {
-    let fmt = hglobal_format(registered_format(
-        "FileGroupDescriptorW",
-        &FILE_GROUP_FORMAT,
-    ));
-    let bytes = hglobal_bytes(data, &fmt)?;
-    if bytes.len() < std::mem::size_of::<FILEGROUPDESCRIPTORW>() {
-        return None;
+    file_group_descriptor_names(data).into_iter().next()
+}
+
+/// The names of the virtual files a source offers (`FileGroupDescriptorW`: an Outlook mail's
+/// `<subject>.msg`, an attachment, a browser link's `.url`). Entries may be relative paths
+/// (`folder\file.txt`) when a whole tree is dragged.
+pub fn file_group_descriptor_names(data: &IDataObject) -> Vec<String> {
+    let Some(bytes) = hglobal_bytes(data, &file_group_format()) else {
+        return Vec::new();
+    };
+    let header = std::mem::offset_of!(FILEGROUPDESCRIPTORW, fgd);
+    let size = std::mem::size_of::<FILEDESCRIPTORW>();
+    let Some(count) = bytes
+        .get(..header)
+        .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize)
+    else {
+        return Vec::new();
+    };
+    (0..count)
+        .map_while(|i| {
+            let start = header + i * size;
+            let entry = bytes.get(start..start + size)?;
+            // SAFETY: `entry` is exactly one FILEDESCRIPTORW long; the struct is plain packed
+            // data, so an unaligned read of a copy is fine.
+            let desc: FILEDESCRIPTORW =
+                unsafe { std::ptr::read_unaligned(entry.as_ptr() as *const FILEDESCRIPTORW) };
+            let name: [u16; 260] = desc.cFileName;
+            let n = name.iter().position(|&c| c == 0).unwrap_or(name.len());
+            Some(String::from_utf16_lossy(&name[..n]))
+        })
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Does the data object carry items only the shell's own folder drop target takes apart:
+/// virtual files (`FileGroupDescriptorW` / `FileGroupDescriptor` + `FileContents`, as Outlook
+/// drags mail and attachments) or a shell id list (`Shell IDList Array`: Start-menu apps,
+/// Control Panel items, a phone's files)?
+pub fn has_shell_items(data: &IDataObject) -> bool {
+    [
+        file_group_format(),
+        hglobal_format(registered_format(
+            "FileGroupDescriptor",
+            &FILE_GROUP_FORMAT_A,
+        )),
+        hglobal_format(registered_format(
+            "Shell IDList Array",
+            &SHELL_IDLIST_FORMAT,
+        )),
+    ]
+    .iter()
+    // SAFETY: COM call with a fully initialized FORMATETC.
+    .any(|fmt| unsafe { data.QueryGetData(fmt).is_ok() })
+}
+
+/// Hands a drop to the shell's own drop target for `folder` — what dropping onto that folder's
+/// icon in Explorer runs — for data we do not take apart ourselves (see [`has_shell_items`]):
+/// the shell writes the mail as `.msg`, creates the Start-menu app's shortcut, asks about name
+/// collisions and, after a right-button drag (`right_button`), shows its own Move / Copy /
+/// Shortcut menu. `key_state` holds the modifiers at the drop, `allowed` the source's mask.
+/// Returns the effect the shell performed (what the source must be told).
+///
+/// **Runs the shell's modal UI** (progress, conflict dialog, drop menu): the caller must hold
+/// no `RefCell` borrow.
+pub fn shell_folder_drop(
+    folder: &Path,
+    data: &IDataObject,
+    key_state: u32,
+    right_button: bool,
+    pt: DragPoint,
+    allowed: u32,
+) -> Result<DropEffect> {
+    let w = to_wide(&folder.to_string_lossy());
+    let pt = POINTL { x: pt.x, y: pt.y };
+    let modifiers = key_state & !(MK_LBUTTON | MK_RBUTTON);
+    // The button that carried the drag: the target remembers it from DragEnter / DragOver and
+    // decides on its menu in Drop, when no button is down any more.
+    let held = modifiers | if right_button { MK_RBUTTON } else { MK_LBUTTON };
+    // SAFETY: standard IDropTarget protocol on the UI (STA) thread; every DragEnter is
+    // balanced by a Drop or a DragLeave; the strings outlive the calls.
+    unsafe {
+        let item: IShellItem = SHCreateItemFromParsingName(PCWSTR(w.as_ptr()), None)?;
+        let target: IDropTarget = item.BindToHandler(None, &BHID_SFUIObject)?;
+        let mut effect = allowed;
+        target.DragEnter(data, held, pt, &mut effect).ok()?;
+        effect = allowed;
+        let over = target.DragOver(held, pt, &mut effect);
+        if over.is_err() || effect == 0 {
+            let _ = target.DragLeave();
+            over.ok()?;
+            return Ok(DropEffect::None);
+        }
+        effect = allowed;
+        target.Drop(data, modifiers, pt, &mut effect).ok()?;
+        Ok(DropEffect::from_raw(effect))
     }
-    // SAFETY: the buffer is at least one FILEGROUPDESCRIPTORW long (checked above); the struct
-    // is plain data, so an unaligned read of a copy is fine.
-    let desc: FILEGROUPDESCRIPTORW =
-        unsafe { std::ptr::read_unaligned(bytes.as_ptr() as *const FILEGROUPDESCRIPTORW) };
-    if desc.cItems == 0 {
-        return None;
+}
+
+/// Test hook: a data object another process marshaled into `bytes` (`CoMarshalInterface`,
+/// table-strong) — a cross-process source like Outlook's drag, without moving the mouse.
+#[cfg(debug_assertions)]
+pub fn unmarshal_data_object(bytes: &[u8]) -> Result<IDataObject> {
+    windows_core::link!("shlwapi.dll" "system" fn SHCreateMemStream(pinit: *const u8, cbinit: u32) -> *mut core::ffi::c_void);
+    windows_core::link!("ole32.dll" "system" fn CoUnmarshalInterface(pstm: *mut core::ffi::c_void, riid: *const GUID, ppv: *mut *mut core::ffi::c_void) -> HRESULT);
+    // SAFETY: the memory stream copies `bytes` and is owned by `stream`; the unmarshaled
+    // pointer carries one reference, handed to the wrapper.
+    unsafe {
+        let raw = SHCreateMemStream(bytes.as_ptr(), bytes.len() as u32);
+        if raw.is_null() {
+            return Err(windows_core::Error::from_hresult(E_FAIL));
+        }
+        let stream = IStream::from_raw(raw);
+        let mut out = core::ptr::null_mut();
+        CoUnmarshalInterface(stream.as_raw(), &IDataObject::IID, &mut out).ok()?;
+        Ok(IDataObject::from_raw(out))
     }
-    let name: [u16; 260] = desc.fgd[0].cFileName;
-    let n = name.iter().position(|&c| c == 0).unwrap_or(name.len());
-    let s = String::from_utf16_lossy(&name[..n]);
-    (!s.is_empty()).then_some(s)
 }
 
 /// The shell's own data object for a set of file-system paths (`CF_HDROP`, shell id lists,

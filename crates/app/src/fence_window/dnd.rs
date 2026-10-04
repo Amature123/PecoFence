@@ -41,6 +41,77 @@ pub(super) enum DropKind {
     Files,
     /// A browser link (`UniformResourceLocatorW`): becomes an Internet Shortcut.
     Url,
+    /// Items only the shell's folder drop target takes apart (`dragdrop::has_shell_items`):
+    /// Outlook mail and attachments, a Start-menu app (whose `CF_HDROP` "path" is no file),
+    /// a zip's contents. The drop is handed to the destination folder's own target.
+    Shell,
+}
+
+/// The kind of a drag, from what its data object offers. Our own fences' drags keep the plain
+/// file path; a foreign `CF_HDROP` whose paths are not all real file paths (the Start menu's
+/// `{known-folder GUID}\Steam\steam.exe`) goes to the shell when it can take the items apart.
+/// `url` / `shell_items` query the (often cross-process) data object, so they only run when the
+/// file list does not decide.
+pub(super) fn classify_drop(
+    internal: bool,
+    hdrop: Option<&[PathBuf]>,
+    url: impl FnOnce() -> bool,
+    shell_items: impl FnOnce() -> bool,
+) -> DropKind {
+    let shell_items = std::cell::LazyCell::new(shell_items);
+    match hdrop {
+        Some(paths)
+            if internal
+                || (!paths.is_empty() && paths.iter().all(|p| p.is_absolute()))
+                || !*shell_items =>
+        {
+            DropKind::Files
+        }
+        _ if url() => DropKind::Url,
+        _ if !internal && *shell_items => DropKind::Shell,
+        _ => DropKind::None,
+    }
+}
+
+/// The effect to show for a shell drop: Explorer's modifiers for a copy from elsewhere (plain
+/// = Copy, Shift = Move, Alt = Link), clipped to the source (the Start menu offers Link only).
+/// The shell's own target decides the effect at the drop.
+pub(super) fn shell_effect(key_state: u32, allowed: u32) -> DropEffect {
+    dragdrop::resolve(dragdrop::modifier_effect(key_state, false), allowed)
+}
+
+/// The entries directly in `dir` (the desktop, before and after a shell drop).
+fn dir_entries(dir: &Path) -> HashSet<PathBuf> {
+    std::fs::read_dir(dir)
+        .map(|rd| rd.flatten().map(|e| e.path()).collect())
+        .unwrap_or_default()
+}
+
+/// What a shell drop onto a virtual fence put on the desktop (`dir`): the entries new since
+/// `before`, plus the top-level names of the virtual files the source described that were not
+/// there before — the shell may still be copying them (a `folder\file.txt` entry lands as
+/// `folder`).
+pub(super) fn shell_drop_landed(
+    dir: &Path,
+    before: &HashSet<PathBuf>,
+    after: &HashSet<PathBuf>,
+    descriptor_names: &[String],
+) -> Vec<PathBuf> {
+    let mut landed: Vec<PathBuf> = after.difference(before).cloned().collect();
+    landed.sort();
+    for name in descriptor_names {
+        let Some(top) = Path::new(name).components().find_map(|c| match c {
+            std::path::Component::Normal(s) => Some(s),
+            _ => None,
+        }) else {
+            continue;
+        };
+        let path = dir.join(top);
+        if !before.contains(&path) && !landed.contains(&path) {
+            landed.push(path);
+        }
+    }
+    landed
 }
 
 /// The effect to report for a file drag: Explorer's modifier table (Ctrl copy, Shift move, Alt
@@ -339,6 +410,18 @@ impl FenceDropHandler {
             DropKind::None => DropEffect::None,
             // A browser usually offers COPY|LINK: Link when it may, else the best it allows.
             DropKind::Url => dragdrop::resolve(DropEffect::Link, allowed),
+            DropKind::Shell => {
+                let on_bin = spot
+                    .folder
+                    .and_then(|i| v.items.get(i))
+                    .is_some_and(|it| pecofence_platform::shell::is_recycle_bin_path(&it.path));
+                if on_bin {
+                    // A mail or a Start-menu app cannot be recycled.
+                    DropEffect::None
+                } else {
+                    shell_effect(key_state, allowed)
+                }
+            }
             DropKind::Files => {
                 if spot.self_drop {
                     // Same-folder drag: Explorer shows "not allowed" too.
@@ -412,25 +495,26 @@ impl DropHandler for FenceDropHandler {
         pt: DragPoint,
         allowed: u32,
     ) -> DropEffect {
-        self.kind = if dragdrop::has_hdrop(data) {
-            DropKind::Files
-        } else if dragdrop::has_inet_url(data) {
-            DropKind::Url
-        } else {
-            DropKind::None
-        };
+        let hdrop = dragdrop::has_hdrop(data).then(|| dragdrop::hdrop_paths(data));
+        self.kind = classify_drop(
+            Self::internal().is_some(),
+            hdrop.as_deref(),
+            || dragdrop::has_inet_url(data),
+            || dragdrop::has_shell_items(data),
+        );
         self.data = Some(data.clone());
         self.last_description = None;
         self.right_button = key_state & dragdrop::MK_RBUTTON != 0;
-        (self.source_volume, self.desktop) = if self.kind == DropKind::Files {
-            (
-                dragdrop::hdrop_paths(data)
-                    .first()
+        (self.source_volume, self.desktop) = match self.kind {
+            DropKind::Files => (
+                hdrop
+                    .as_ref()
+                    .and_then(|p| p.first())
                     .and_then(|p| dragdrop::volume_of(p)),
                 pecofence_platform::shell::user_desktop(),
-            )
-        } else {
-            (None, None)
+            ),
+            DropKind::Shell => (None, pecofence_platform::shell::user_desktop()),
+            DropKind::Url | DropKind::None => (None, None),
         };
         let fb = if self.kind == DropKind::None {
             // Nothing we take: no highlight, but the helper still tracks the image over us.
@@ -532,6 +616,8 @@ impl DropHandler for FenceDropHandler {
             let Some((spot, active, tab_fence, folder, hwnd, dest)) = resolved else {
                 break 'resolve DropEffect::None;
             };
+            // No folder from the view: a virtual fence, whose files live on the desktop.
+            let on_desktop = dest.is_none();
             let dest = dest.or_else(|| self.desktop.take());
             let same_volume =
                 dragdrop::same_volume(self.source_volume.take().as_deref(), dest.as_deref());
@@ -555,6 +641,42 @@ impl DropHandler for FenceDropHandler {
                     }
                     let name = dragdrop::file_group_descriptor_name(data);
                     self.queue.push(Command::ExternalUrlDrop { url, name, to });
+                    effect
+                }
+                DropKind::Shell => {
+                    let (Some(dest), false) = (
+                        dest,
+                        folder
+                            .as_deref()
+                            .is_some_and(pecofence_platform::shell::is_recycle_bin_path),
+                    ) else {
+                        break 'resolve DropEffect::None;
+                    };
+                    // What the shell puts on the desktop for a virtual fence is filed into it:
+                    // found by comparing the desktop before and after (the shell may still be
+                    // copying a large mail, so the names it described count too).
+                    let before = on_desktop.then(|| dir_entries(&dest));
+                    let names = if on_desktop {
+                        dragdrop::file_group_descriptor_names(data)
+                    } else {
+                        Vec::new()
+                    };
+                    // The image goes before the shell's progress / conflict / menu UI.
+                    drop_image(shell_effect(key_state, allowed));
+                    let effect = dragdrop::shell_folder_drop(
+                        &dest, data, key_state, right, pt, allowed,
+                    )
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(error = %e, folder = %dest.display(), "shell drop failed");
+                        DropEffect::None
+                    });
+                    tracing::info!(?effect, folder = %dest.display(), "drop handed to the shell");
+                    if effect != DropEffect::None {
+                        let landed = before
+                            .map(|b| shell_drop_landed(&dest, &b, &dir_entries(&dest), &names))
+                            .unwrap_or_default();
+                        self.queue.push(Command::ShellDrop { to, landed });
+                    }
                     effect
                 }
                 DropKind::Files if internal.is_some() => {

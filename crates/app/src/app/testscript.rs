@@ -38,7 +38,13 @@
 //! edit-item <title> <name>   open rename for an item whose display name contains <name>
 //! drop-files <title> <0|1> <path>  debug-only: the fence's OLE drop handler for a file from
 //!                            another program, no modifier keys; logs the effect DragEnter
-//!                            reports and (1) performs the drop
+//!                            reports and (1) performs the drop; a trailing `<name>` drops
+//!                            onto the item whose name contains it instead of the centre;
+//!                            `<path>` may be any shell parsing name (`shell:AppsFolder\…`)
+//!                            (`allowed=link`, `allowed=copy+link`: the source's effects)
+//! drop-marshaled <title> <0|1> <file> [<name>]  debug-only: the same for a data object another
+//!                            process marshaled into <file> (.cache/vdrop: an Outlook-like
+//!                            virtual-file source)
 //! item-menu <title>          log the right-click menu of the fence's first item (not shown)
 //! device-lost <n>            debug-only: every fence window reports a lost GPU device and the
 //!                            next <n> device rebuilds fail (a driver reset in progress)
@@ -133,7 +139,7 @@ impl App {
                     }
                 }
                 #[cfg(debug_assertions)]
-                ["drop-files", title, perform, path] => {
+                ["drop-files", title, perform, path, at @ ..] => {
                     if let Some(id) = self.test_fence(title)
                         && let Some(w) = self.fences.get(&self.state.host_of(id))
                     {
@@ -141,8 +147,9 @@ impl App {
                         match pecofence_platform::dragdrop::data_object_for_paths(&[path.as_path()])
                         {
                             Ok(data) => {
+                                let (at, allowed) = test_drop_options(at);
                                 let (entered, dropped) =
-                                    w.test_drop(&self.ctx, &data, 0, *perform == "1");
+                                    w.test_drop(&self.ctx, &data, 0, *perform == "1", at, allowed);
                                 tracing::info!(
                                     target: "pecofence::test",
                                     "drop-files {}: enter={entered:?} drop={dropped:?}",
@@ -154,6 +161,34 @@ impl App {
                                 error = %e,
                                 "drop-files: no data object for {}",
                                 path.display()
+                            ),
+                        }
+                    }
+                }
+                #[cfg(debug_assertions)]
+                ["drop-marshaled", title, perform, file, at @ ..] => {
+                    if let Some(id) = self.test_fence(title)
+                        && let Some(w) = self.fences.get(&self.state.host_of(id))
+                    {
+                        match std::fs::read(file)
+                            .map_err(|e| e.to_string())
+                            .and_then(|b| {
+                                pecofence_platform::dragdrop::unmarshal_data_object(&b)
+                                    .map_err(|e| e.to_string())
+                            }) {
+                            Ok(data) => {
+                                let (at, allowed) = test_drop_options(at);
+                                let (entered, dropped) =
+                                    w.test_drop(&self.ctx, &data, 0, *perform == "1", at, allowed);
+                                tracing::info!(
+                                    target: "pecofence::test",
+                                    "drop-marshaled {file}: enter={entered:?} drop={dropped:?}"
+                                );
+                            }
+                            Err(e) => tracing::warn!(
+                                target: "pecofence::test",
+                                error = %e,
+                                "drop-marshaled: no data object in {file}"
                             ),
                         }
                     }
@@ -607,4 +642,29 @@ impl App {
             self.fences.len(), self.dying.len(), self.state.config.settings.hide_real_icons,
             pecofence_platform::shell_icons::desktop_icons_hidden());
     }
+}
+
+/// The trailing options of `drop-files` / `drop-marshaled`: an item name to drop onto, and
+/// `allowed=link` / `allowed=copy+link` … for a source that offers only those effects (the
+/// Start menu offers Link alone).
+#[cfg(debug_assertions)]
+fn test_drop_options<'a>(rest: &[&'a str]) -> (Option<&'a str>, Option<u32>) {
+    use pecofence_platform::dragdrop::DropEffect;
+    let mut at = None;
+    let mut allowed = None;
+    for t in rest {
+        if let Some(list) = t.strip_prefix("allowed=") {
+            allowed = Some(list.split('+').fold(0, |mask, e| {
+                mask | match e {
+                    "copy" => DropEffect::Copy.to_raw(),
+                    "move" => DropEffect::Move.to_raw(),
+                    "link" => DropEffect::Link.to_raw(),
+                    _ => 0,
+                }
+            }));
+        } else {
+            at = Some(*t);
+        }
+    }
+    (at, allowed)
 }

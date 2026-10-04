@@ -338,6 +338,24 @@ impl FenceViewState {
         })
     }
 
+    /// Test hook: the screen point over the first item whose name contains `name` (a drop onto
+    /// a folder item), the inverse of `hit_item`.
+    #[cfg(debug_assertions)]
+    pub(super) fn test_item_point(&self, name: &str) -> Option<(i32, i32)> {
+        let i = self.items.iter().position(|it| it.name.contains(name))?;
+        let scale = self.scale();
+        let (cw, _) = self.content_size_px();
+        let layout = self.layout(cw as f32 / scale);
+        let c = layout.cell(i);
+        let x = c.x + c.w.min(40.0) / 2.0;
+        let y = c.y - self.scroll_y + layout.fixed_top() + c.h / 2.0;
+        let r = window::window_rect(self.hwnd);
+        Some((
+            r.left + (x * scale).round() as i32,
+            r.top + self.title_h_px() + (y * scale).round() as i32,
+        ))
+    }
+
     /// Item index under a client-pixel point, if any.
     pub(super) fn hit_item(&self, x_px: i32, y_px: i32) -> Option<usize> {
         if self.rolled_up {

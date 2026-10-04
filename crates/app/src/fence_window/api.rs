@@ -421,24 +421,32 @@ impl FenceWindow {
     }
 
     /// Debug-only drop regression hook: runs this window's OLE drop handler for `data` at the
-    /// window centre with `key_state`, as a drag from another program would, without the
-    /// drag image. Returns what DragEnter reported and, when `perform`, what Drop returned.
+    /// window centre (or over the item whose name contains `at`) with `key_state`, as a drag
+    /// from another program offering `allowed` (None = every effect) would, without the drag
+    /// image. Returns what DragEnter reported and, when `perform`, what Drop returned.
     #[cfg(debug_assertions)]
+    #[allow(clippy::too_many_arguments)]
     pub fn test_drop(
         &self,
         ctx: &FenceContext,
         data: &dragdrop::IDataObject,
         key_state: u32,
         perform: bool,
+        at: Option<&str>,
+        allowed: Option<u32>,
     ) -> (DropEffect, Option<DropEffect>) {
         use pecofence_platform::dragdrop::DropHandler;
         let r = self.rect();
-        let pt = dragdrop::DragPoint {
-            x: (r.left + r.right) / 2,
-            y: (r.top + r.bottom) / 2,
-        };
-        let allowed =
-            DropEffect::Copy.to_raw() | DropEffect::Move.to_raw() | DropEffect::Link.to_raw();
+        let (x, y) = at
+            .and_then(|name| {
+                let view = self.view.borrow();
+                view.as_ref().and_then(|v| v.test_item_point(name))
+            })
+            .unwrap_or(((r.left + r.right) / 2, (r.top + r.bottom) / 2));
+        let pt = dragdrop::DragPoint { x, y };
+        let allowed = allowed.unwrap_or(
+            DropEffect::Copy.to_raw() | DropEffect::Move.to_raw() | DropEffect::Link.to_raw(),
+        );
         let mut handler = FenceDropHandler {
             queue: ctx.queue.clone(),
             view: self.view.clone(),

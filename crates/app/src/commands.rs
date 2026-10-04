@@ -146,6 +146,13 @@ pub enum Command {
         name: Option<String>,
         to: FenceId,
     },
+    /// A drop onto `to` was handed to the shell's folder drop target (Outlook mail, a
+    /// Start-menu app): the portals show what landed in their folders; `landed` are the desktop
+    /// entries a virtual fence's drop created, to be filed into `to`.
+    ShellDrop {
+        to: FenceId,
+        landed: Vec<PathBuf>,
+    },
     /// Right-click on the Details header: column visibility menu at screen coordinates.
     HeaderMenu {
         fence: FenceId,
