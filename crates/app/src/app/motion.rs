@@ -71,7 +71,7 @@ impl App {
         {
             use std::sync::atomic::Ordering;
             if TEST_FAILING_RECOVERIES
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1))
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_sub(1))
                 .is_ok()
             {
                 return Err(windows_core::Error::from_hresult(windows_core::HRESULT(
