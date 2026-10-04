@@ -71,22 +71,22 @@ Built for agents and scripts: `describe` exposes the command catalog and JSON Sc
 
 ## Give everything a place
 
-Projects, screenshots, things to read later—keep them in their own groups, arranged
+Projects, screenshots, things to read later—keep them in their own fences, arranged
 the way you work. PecoFence adds just enough structure to make your desktop useful again.
 
 <p align="center">
-  <img src="docs/assets/hero-en.png" alt="PecoFence — Project folders, a real PDF and original design studies in native Liquid Glass panels." width="1280">
+  <img src="docs/assets/hero-en.png" alt="PecoFence — Project folders, a PDF and original design studies in Liquid Glass fences." width="1280">
 </p>
 
 | **Group your work** | **Keep folders close** | **Clear some space** |
 | :--- | :--- | :--- |
-| Make a fence for each project. Drag, resize and snap it into place. | Put a live folder on your desktop. Browse subfolders and see changes as they happen. | Double-click the desktop to hide your groups. Double-click again to bring them back. |
+| Make a fence for each project. Drag, resize and snap it into place. | Put a live folder on your desktop. Browse subfolders and see changes as they happen. | Double-click the desktop to hide your fences. Double-click again to bring them back. |
 
 ## See it in action
 
-### One window. Multiple workspaces.
+### One fence. Multiple workspaces.
 
-Keep related groups together as tabs. Switch from Work to Art in a click,
+Keep related fences together as tabs. Switch from Work to Art in a click,
 then drag a tab out when you want the extra room.
 
 ![Switching between Work and Art, then detaching a tab into its own fence.](docs/assets/tabs.gif)
@@ -96,24 +96,24 @@ then drag a tab out when you want the extra room.
 Press **Ctrl + Alt + Space** to bring your fences above the current application.
 Grab what you need, then press **Esc** to return.
 
-![Peek brings desktop groups above an application; Escape returns to the application.](docs/assets/peek.gif)
+![Peek brings your fences above an application; Esc returns to it.](docs/assets/peek.gif)
 
 <sub>Recorded in PecoFence using demo files and the Fluent theme. GIFs loop automatically.</sub>
 
-## Small details, better everyday use
+## Small details that add up
 
-| Experience | What you get |
+| Feature | What you get |
 | :--- | :--- |
 | **AI + CLI** | `pecofence-cli` — **Configure it in your own words.** Change themes, transparency, icon sizes and global settings, or adjust every fence at once. |
-| **Less sorting** | Rules for file types, extensions, names, wildcards, shortcut targets, time and size. New files find their group automatically. |
+| **Less sorting** | Rules for file types, extensions, names, wildcards, shortcut targets, time and size. New files find their fence automatically. |
 | **Glass that fits your desktop** | Fluent and Liquid Glass themes, light/dark modes, per-fence colors, opacity and icon tinting. |
-| **Familiar file handling** | Explorer context menus, drag and drop, copy/paste, multi-select, thumbnails and icon/list/details views. |
+| **Familiar file handling** | File Explorer context menus, drag and drop, copy/paste, multi-select, thumbnails and icon/list/details views. |
 | **Space when you need it** | Roll a fence up to its title. Hover to expand. Lock a layout you like. |
-| **A way back** | Layout snapshots, daily backups, configuration import/export and display swapping. |
+| **A way back** | Layout snapshots, daily backups, configuration import/export and swapping fences between displays. |
 | **A small footprint** | A native Rust application; the WebView2 settings panel loads on demand. |
 
-Automatic organizing rules keep files in their original locations. File moves you
-initiate work like they do in Explorer.
+Automatic sorting rules keep files in their original locations. File moves you
+initiate work like they do in File Explorer.
 
 [Explore the complete feature list →](docs/FEATURES.md)
 
@@ -139,13 +139,13 @@ Prefer a package manager? `winget install DayuanJiang.PecoFence` installs the sa
 
 **Windows 11 x64 · Portable ZIP · No account required · Apache 2.0 licensed**
 
-The first launch creates Programs, Folders, Files and documents, and Desktop groups
-in your selected language. Windows desktop icons are restored when you exit.
+The first launch creates four fences in your selected language: Programs, Folders,
+Files and documents, and Desktop. Windows desktop icons are restored when you exit.
 
 <details>
 <summary><strong>Requirements, configuration and a few useful notes</strong></summary>
 
-- Designed for Windows 11 22H2 and later. Most native testing has been on 25H2;
+- Designed for Windows 11 22H2 and later. Most hands-on testing has been on 25H2;
   the full older-version and multi-display hardware matrix is still in progress.
 - Microsoft Edge WebView2 Runtime is required for Settings. Keep the bundled
   `WebView2Loader.dll` and `pecofence-watchdog.exe` beside the app.
@@ -155,7 +155,7 @@ in your selected language. Windows desktop icons are restored when you exit.
   See the [upgrade guide](docs/UPGRADING.md).
 - Glass uses the static desktop wallpaper. It does not refract other applications
   or live video wallpaper.
-- Windows-owned dialogs and third-party Explorer menu entries follow Windows' language.
+- Windows-owned dialogs and third-party File Explorer menu entries follow the Windows display language.
 - Portable builds are unsigned. If Windows SmartScreen appears on first launch, choose
   **More info → Run anyway**. Installing from the Microsoft Store or through winget avoids the prompt.
 

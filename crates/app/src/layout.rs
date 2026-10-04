@@ -657,7 +657,7 @@ impl ItemLayout {
         }
     }
 
-    /// 「调整大小时保持为整数个图标」: the rows share the height of a viewport `view_h` DIPs
+    /// 「调整大小时按整行整列对齐」: the rows share the height of a viewport `view_h` DIPs
     /// tall (below the fixed header) like the icon columns share the width, so only whole rows
     /// show at any fence height; a height of exactly whole rows keeps its layout. Icon cells
     /// sit centred in the taller pitch, list rows grow to it. Grouped layouts keep their rows:

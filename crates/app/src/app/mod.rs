@@ -955,7 +955,7 @@ impl App {
             t.show_info(
                 "PecoFence",
                 &pecofence_core::i18n::format(
-                    "配置文件无法读取（可能由更新版本的 PecoFence 写入），已原样保留为 {0}。",
+                    "无法读取配置文件（可能是较新版本的 PecoFence 写入的），原文件已改名为 {0}。",
                     &[moved
                         .file_name()
                         .map(|n| n.to_string_lossy().into_owned())
@@ -1025,7 +1025,7 @@ impl App {
                     t.show_info(
                         "PecoFence",
                         pecofence_core::i18n::text(
-                            "检测到上次未正常退出，已接管桌面图标的隐藏状态。",
+                            "上次 PecoFence 没有正常退出，桌面图标没能恢复显示。现在已重新接管。",
                         ),
                         true,
                     );

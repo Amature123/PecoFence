@@ -82,7 +82,7 @@ impl App {
                             t.show_info(
                                 "PecoFence",
                                 &pecofence_core::i18n::format(
-                                    "快捷键 {0} 已被系统或其他程序占用，「浮现栅栏」改用 {1}。",
+                                    "快捷键 {0} 已被系统或其他程序占用，“速览栅栏”改用 {1}。",
                                     &[
                                         peek_hotkey_label(h).to_string(),
                                         peek_hotkey_label(c).to_string(),
@@ -101,7 +101,7 @@ impl App {
                         t.show_info(
                             "PecoFence",
                             pecofence_core::i18n::text(
-                                "所有「浮现栅栏」快捷键组合都已被占用，可从托盘菜单使用该功能。",
+                                "“速览栅栏”的快捷键都被占用了，请从托盘菜单使用。",
                             ),
                             true,
                         );

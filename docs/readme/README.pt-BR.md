@@ -2,13 +2,13 @@ https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <p align="center">
   <strong>Uma alternativa gratuita e de código aberto ao Stardock Fences para Windows 11.</strong><br>
-  Agrupe arquivos em painéis de vidro, alterne projetos com abas e deixe seu agente de IA configurar o layout, a aparência e as regras de organização pela CLI integrada.
+  Agrupe arquivos em painéis de vidro, alterne entre projetos com abas e deixe seu agente de IA configurar o layout, a aparência e as regras de organização pela CLI integrada.
 </p>
 
 <p align="center">
   <a href="https://pecofence.jiang.jp/pt-BR/"><strong>Site oficial</strong></a>
   &nbsp;·&nbsp; <a href="#baixe-o-pecofence"><strong>Baixe o PecoFence →</strong></a>
-  &nbsp;·&nbsp; <a href="#sua-área-de-trabalho-configurada-pela-sua-ia"><strong>AI + CLI</strong></a>
+  &nbsp;·&nbsp; <a href="#sua-área-de-trabalho-configurada-pela-sua-ia"><strong>IA + CLI</strong></a>
   &nbsp;·&nbsp; <a href="#veja-em-ação">Veja em ação</a>
   &nbsp;·&nbsp; <a href="../README.md">Documentação</a>
 </p>
@@ -38,7 +38,7 @@ Diga ao seu agente de IA como você quer usar a área de trabalho. Com a `pecofe
 
 - **Configure com suas próprias palavras.** Altere temas, transparência, tamanho dos ícones e configurações globais, ou ajuste todos os grupos de uma vez.
 - **Organize uma vez e mantenha a ordem.** Crie grupos por projeto, distribua os ícones e adicione regras para organizar novos arquivos automaticamente.
-- **Salve a configuração de que você gosta.** Use snapshots para os layouts dos grupos e a exportação e importação de configuração para ajustes, regras e layouts.
+- **Salve a configuração de que você gosta.** Use instantâneos para os layouts dos grupos e a exportação e importação de configuração para ajustes, regras e layouts.
 
 **Experimente com seu agente de IA**
 
@@ -76,12 +76,12 @@ do jeito que você trabalha. O PecoFence adiciona só a estrutura necessária pa
 trabalho voltar a ser útil.
 
 <p align="center">
-  <img src="../assets/hero-pt-BR.png" alt="PecoFence — Pastas de projetos, um PDF real e estudos gráficos originais em painéis nativos do Liquid Glass." width="1280">
+  <img src="../assets/hero-pt-BR.png" alt="PecoFence — Pastas de projetos, um PDF real e estudos gráficos originais em grupos com Liquid Glass nativo." width="1280">
 </p>
 
 | **Agrupe seu trabalho** | **Pastas sempre à mão** | **Libere espaço** |
 | :--- | :--- | :--- |
-| Crie um grupo para cada projeto. Arraste, redimensione e encaixe no lugar. | Coloque uma pasta ao vivo na área de trabalho. Navegue pelas subpastas e veja as mudanças na hora. | Clique duas vezes na área de trabalho para ocultar os grupos. Clique duas vezes de novo para trazê-los de volta. |
+| Crie um grupo para cada projeto. Arraste, redimensione e encaixe no lugar. | Coloque na área de trabalho uma pasta de verdade, sempre atualizada. Navegue pelas subpastas e veja as mudanças na hora. | Clique duas vezes na área de trabalho para ocultar os grupos. Clique duas vezes de novo para trazê-los de volta. |
 
 ## Veja em ação
 
@@ -94,23 +94,23 @@ e arraste uma aba para fora quando precisar de mais espaço.
 
 ### Sua área de trabalho a um atalho de distância.
 
-Pressione **Ctrl + Alt + Espaço** para trazer seus grupos por cima do aplicativo atual.
+Pressione **Ctrl + Alt + Espaço** para espiar seus grupos por cima do aplicativo atual.
 Pegue o que precisa e pressione **Esc** para voltar.
 
-![A visualização rápida traz os grupos por cima de um aplicativo; Esc volta ao aplicativo.](../assets/peek.gif)
+![O recurso Espiar traz os grupos por cima de um aplicativo; Esc volta ao aplicativo.](../assets/peek.gif)
 
-<sub>Gravado no PecoFence com arquivos de demonstração e o tema Fluent. Os GIFs repetem automaticamente.</sub>
+<sub>Gravado no PecoFence com arquivos de demonstração e o tema Fluent. Os GIFs se repetem automaticamente.</sub>
 
 ## Pequenos detalhes que fazem diferença no dia a dia
 
 | Experiência | O que você ganha |
 | :--- | :--- |
-| **AI + CLI** | `pecofence-cli` — **Configure com suas próprias palavras.** Altere temas, transparência, tamanho dos ícones e configurações globais, ou ajuste todos os grupos de uma vez. |
+| **IA + CLI** | `pecofence-cli` — **Configure com suas próprias palavras.** Altere temas, transparência, tamanho dos ícones e configurações globais, ou ajuste todos os grupos de uma vez. |
 | **Menos arrumação** | Regras por tipo de arquivo, extensão, nome, curinga, destino do atalho, horário e tamanho. Arquivos novos encontram seu grupo sozinhos. |
 | **Vidro que combina com sua área de trabalho** | Temas Fluent e Liquid Glass, modos claro e escuro, cor por grupo, opacidade e cor dos ícones. |
 | **Arquivos do jeito que você conhece** | Menus de contexto do Explorador de Arquivos, arrastar e soltar, copiar e colar, seleção múltipla, miniaturas e exibição em ícones, lista ou detalhes. |
-| **Espaço quando você precisa** | Recolha um grupo até o título. Passe o mouse para expandir. Bloqueie um layout que você gostou. |
-| **Um caminho de volta** | Instantâneos de layout, backups diários, importação e exportação da configuração e troca entre monitores. |
+| **Espaço quando você precisa** | Recolha um grupo até o título. Passe o mouse para expandir. Bloqueie o layout quando estiver do seu jeito. |
+| **Um caminho de volta** | Instantâneos de layout, backups diários, importação e exportação da configuração e troca de grupos entre monitores. |
 | **Leve de verdade** | Um aplicativo nativo em Rust; o painel de configurações em WebView2 só carrega quando necessário. |
 
 As regras de organização automática mantêm os arquivos onde eles estão. As movimentações
@@ -142,20 +142,20 @@ Prefere um gerenciador de pacotes? `winget install DayuanJiang.PecoFence` instal
 
 **Windows 11 x64 · ZIP portátil · Sem conta · Licença Apache 2.0**
 
-Na primeira execução são criados os grupos Programas, Pastas, Arquivos e documentos e
-Área de trabalho no idioma escolhido. Os ícones da área de trabalho do Windows voltam
+Na primeira execução são criados os grupos “Programas”, “Pastas”, “Arquivos e documentos” e
+“Área de trabalho” no idioma escolhido. Os ícones da área de trabalho do Windows voltam
 a aparecer quando você sai.
 
 <details>
 <summary><strong>Requisitos, configuração e algumas observações úteis</strong></summary>
 
-- Feito para o Windows 11 22H2 ou mais recente. A maior parte dos testes nativos foi no 25H2;
-  a matriz completa de versões antigas e configurações com vários monitores ainda está em andamento.
+- Feito para o Windows 11 22H2 ou mais recente. A maioria dos testes foi feita no 25H2;
+  os testes em versões mais antigas e com vários monitores ainda estão em andamento.
 - O Microsoft Edge WebView2 Runtime é necessário para as Configurações. Mantenha
   `WebView2Loader.dll` e `pecofence-watchdog.exe` na mesma pasta do aplicativo.
 - A configuração fica em `%APPDATA%\PecoFence\config.json`. Inicie com
   `--portable` para mantê-la em uma pasta `config` ao lado do executável.
-- Instalações existentes continuam usando o diretório de configuração anterior.
+- Instalações existentes continuam usando a pasta de configuração anterior.
   Veja o [guia de atualização](../UPGRADING.md).
 - O vidro usa o papel de parede estático. Ele não refrata outros aplicativos
   nem papéis de parede em vídeo.
@@ -193,7 +193,8 @@ Para gerar um ZIP portátil distribuível:
 
 O workspace está organizado em `crates/` para o aplicativo nativo, `ui/` para as Configurações,
 `locales/` para as traduções e `scripts/` para verificação e empacotamento.
-O projeto de vídeo opcional em `extras/` é independente da compilação do aplicativo.
+O site do produto fica em `site/`, e o projeto de vídeo opcional em `extras/`
+é independente da compilação do aplicativo.
 
 [Instruções de lançamento](../RELEASING.md) · [Estrutura do código](../DEVELOPMENT.md#architecture)
 

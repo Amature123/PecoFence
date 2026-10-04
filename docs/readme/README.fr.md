@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 <p align="center">
   <a href="https://pecofence.jiang.jp/fr/"><strong>Site web</strong></a>
   &nbsp;·&nbsp; <a href="#télécharger-pecofence"><strong>Télécharger PecoFence →</strong></a>
-  &nbsp;·&nbsp; <a href="#votre-bureau-configuré-par-votre-ia"><strong>AI + CLI</strong></a>
+  &nbsp;·&nbsp; <a href="#votre-bureau-configuré-par-votre-ia"><strong>IA + CLI</strong></a>
   &nbsp;·&nbsp; <a href="#voyez-le-en-action">Voyez-le en action</a>
   &nbsp;·&nbsp; <a href="../README.md">Documentation</a>
 </p>
@@ -30,11 +30,11 @@ https://github.com/user-attachments/assets/c827f059-cfd7-4f6a-bed3-8b00411a7220
 
 <a id="demandez-à-votre-ia-de-ranger"></a>
 
-## Votre bureau, configuré par votre IA
+## Votre Bureau, configuré par votre IA
 
 **CLI incluse. Prête pour votre agent IA.**
 
-Dites à votre agent IA comment vous souhaitez organiser votre bureau. Avec `pecofence-cli`, incluse dans l’application, Claude Code, Codex et Cursor peuvent lire votre configuration et appliquer les changements directement dans PecoFence.
+Dites à votre agent IA comment vous souhaitez organiser votre Bureau. Avec `pecofence-cli`, incluse dans l’application, Claude Code, Codex et Cursor peuvent lire votre configuration et appliquer les changements directement dans PecoFence.
 
 - **Configurez avec vos propres mots.** Modifiez le thème, la transparence, la taille des icônes et les paramètres généraux, ou ajustez tous les groupes à la fois.
 - **Rangez une fois, gardez l’ordre.** Créez des groupes par projet, répartissez les icônes et ajoutez des règles pour trier automatiquement les nouveaux fichiers.
@@ -42,14 +42,14 @@ Dites à votre agent IA comment vous souhaitez organiser votre bureau. Avec `pec
 
 **Essayez avec votre agent IA**
 
-Ouvrez PecoFence, puis collez cette demande dans votre agent de programmation IA :
+Ouvrez PecoFence, puis collez cette demande dans votre agent de codage IA :
 
 > Configure mon bureau avec pecofence-cli. Lis d’abord pecofence-cli skill et pecofence-cli describe, puis examine mes paramètres et groupes actuels. Sauvegarde ma configuration avant toute modification. Passe en mode sombre et rends tous les groupes plus transparents.
 
 La CLI est incluse. L’édition Microsoft Store ajoute `pecofence-cli` au PATH. Avec le ZIP portable, indiquez à votre agent le chemin complet de `pecofence-cli.exe`.
 
 <details>
-<summary><strong>Exemple de conversation avec un agent de codage</strong></summary>
+<summary><strong>Exemple de conversation avec un agent de codage IA</strong></summary>
 
 > Regroupe les PDF de mon bureau dans Docs et classe aussi les prochains PDF dans ce groupe. Passe en mode sombre et rends les groupes plus transparents.
 
@@ -65,7 +65,7 @@ pecofence-cli fence set --all opacity clear
 
 </details>
 
-Pour les agents et les scripts : `describe` fournit le catalogue de commandes et les schémas JSON ; `skill`, le guide de l’agent. Les résultats JSON indiquent les changements et les erreurs structurées de l’application aident l’agent à choisir la suite.
+Pour les agents et les scripts : `describe` fournit le catalogue de commandes et les schémas JSON ; `skill`, le guide de l’agent. Les résultats JSON indiquent ce qui a changé, et les erreurs structurées de l’application aident l’agent à choisir la suite.
 
 [Premiers pas avec la CLI →](../CLI.md#start-with-your-ai-agent)
 
@@ -76,10 +76,10 @@ disposé comme vous travaillez. PecoFence ajoute juste ce qu’il faut de struct
 votre Bureau à nouveau utile.
 
 <p align="center">
-  <img src="../assets/hero-fr.png" alt="PecoFence — Dossiers de projet, véritable PDF et créations graphiques originales dans des panneaux Liquid Glass natifs." width="1280">
+  <img src="../assets/hero-fr.png" alt="PecoFence — Des dossiers de projet, un vrai PDF et des créations graphiques originales dans des groupes Liquid Glass natifs." width="1280">
 </p>
 
-| **Regroupez votre travail** | **Gardez vos dossiers à portée** | **Libérez de l’espace** |
+| **Regroupez votre travail** | **Gardez vos dossiers à portée de main** | **Libérez de l’espace** |
 | :--- | :--- | :--- |
 | Créez un groupe par projet. Déplacez-le, redimensionnez-le et alignez-le d’un geste. | Posez un dossier en direct sur votre Bureau. Parcourez ses sous-dossiers et voyez les changements au moment où ils se produisent. | Double-cliquez sur le Bureau pour masquer vos groupes. Double-cliquez à nouveau pour les retrouver. |
 
@@ -92,26 +92,26 @@ puis détachez un onglet quand vous avez besoin de plus de place.
 
 ![Passage de Work à Art, puis détachement d’un onglet en groupe indépendant.](../assets/tabs.gif)
 
-### Votre Bureau, toujours à un raccourci.
+### Votre Bureau à portée de raccourci.
 
-Appuyez sur **Ctrl + Alt + Espace** pour faire apparaître vos groupes au-dessus de l’application
+Avec l’aperçu des groupes, **Ctrl + Alt + Espace** affiche vos groupes au-dessus de l’application
 en cours. Prenez ce qu’il vous faut, puis appuyez sur **Échap** pour y revenir.
 
-![L’aperçu fait apparaître les groupes du Bureau au-dessus d’une application ; Échap ramène à l’application.](../assets/peek.gif)
+![L’aperçu des groupes affiche les groupes du Bureau au-dessus d’une application ; Échap ramène à l’application.](../assets/peek.gif)
 
 <sub>Enregistré dans PecoFence avec des fichiers de démonstration et le thème Fluent. Les GIF bouclent automatiquement.</sub>
 
 ## Les petits détails qui changent le quotidien
 
-| Expérience | Ce que vous y gagnez |
+| Fonction | Ce que vous y gagnez |
 | :--- | :--- |
-| **AI + CLI** | `pecofence-cli` — **Configurez avec vos propres mots.** Modifiez le thème, la transparence, la taille des icônes et les paramètres généraux, ou ajustez tous les groupes à la fois. |
+| **IA + CLI** | `pecofence-cli` — **Configurez avec vos propres mots.** Modifiez le thème, la transparence, la taille des icônes et les paramètres généraux, ou ajustez tous les groupes à la fois. |
 | **Moins de tri** | Des règles par type de fichier, extension, nom, motif, cible de raccourci, date et taille. Les nouveaux fichiers trouvent leur groupe tout seuls. |
 | **Un verre assorti à votre fond d’écran** | Thèmes Fluent et Liquid Glass, modes clair et sombre, couleur, opacité et teinte des icônes réglables groupe par groupe. |
 | **Des fichiers qui se manipulent comme d’habitude** | Menus contextuels de l’Explorateur, glisser-déposer, copier-coller, sélection multiple, miniatures et affichages Icônes, Liste ou Détails. |
 | **De la place quand il en faut** | Repliez un groupe sur son titre. Survolez-le pour le développer. Verrouillez une disposition qui vous convient. |
 | **Un retour toujours possible** | Instantanés de disposition, sauvegardes quotidiennes, import/export de la configuration et échange entre écrans. |
-| **Une empreinte légère** | Une application native en Rust ; le panneau Paramètres en WebView2 se charge à la demande. |
+| **Une empreinte légère** | Une application native en Rust ; la fenêtre Paramètres en WebView2 se charge à la demande. |
 
 Les règles de classement automatique laissent les fichiers à leur emplacement d’origine.
 Les déplacements que vous lancez vous-même se comportent comme dans l’Explorateur.
@@ -193,7 +193,8 @@ Créez un ZIP portable prêt à distribuer :
 
 L’espace de travail se compose de `crates/` pour l’application native, `ui/` pour les Paramètres,
 `locales/` pour les traductions et `scripts/` pour la vérification et l’empaquetage.
-Le projet vidéo facultatif dans `extras/` est indépendant de la compilation de l’application.
+Le site du produit se trouve dans `site/`, et le projet vidéo facultatif dans `extras/`
+est indépendant de la compilation de l’application.
 
 [Instructions de publication](../RELEASING.md) · [Organisation des sources](../DEVELOPMENT.md#architecture)
 

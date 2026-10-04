@@ -143,7 +143,7 @@ impl FenceViewState {
         )
     }
 
-    /// The item layout at `width_dip`. With 「调整大小时保持为整数个图标」 its rows fill the
+    /// The item layout at `width_dip`. With 「调整大小时按整行整列对齐」 its rows fill the
     /// viewport's height, so any fence height shows whole icons.
     pub(super) fn layout(&self, width_dip: f32) -> ItemLayout {
         let layout = self.natural_layout(width_dip);

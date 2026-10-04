@@ -163,15 +163,23 @@ pub fn catalog(language: Language) -> &'static HashMap<String, String> {
     slot.get_or_init(|| serde_json::from_str(source).expect("validated translation catalog"))
 }
 
+/// Separates a disambiguating context from the message in a key, as in gettext:
+/// `"新建\x04文件夹"` is the singular New ▸ Folder command, while `"文件夹"` stays the
+/// plural default fence name. Simplified Chinese shows only the text after it.
+pub const CONTEXT: char = '\u{4}';
+
 pub fn text_in(language: Language, source: &'static str) -> &'static str {
+    let bare = source
+        .split_once(CONTEXT)
+        .map_or(source, |(_, message)| message);
     if language == Language::SimplifiedChinese {
-        return source;
+        return bare;
     }
     catalog(language)
         .get(source)
         .or_else(|| catalog(Language::English).get(source))
         .map(String::as_str)
-        .unwrap_or(source)
+        .unwrap_or(bare)
 }
 
 pub fn text(source: &'static str) -> &'static str {
@@ -260,6 +268,17 @@ mod tests {
         let loaded: crate::Settings = serde_json::from_value(old).unwrap();
         assert_eq!(loaded.language, Language::SimplifiedChinese);
         assert_eq!(text_in(Language::English, "不存在的消息"), "不存在的消息");
+    }
+
+    #[test]
+    fn context_keys_show_the_bare_chinese_message() {
+        assert_eq!(
+            text_in(Language::SimplifiedChinese, "新建\x04文件夹"),
+            "文件夹"
+        );
+        assert_eq!(text_in(Language::English, "新建\x04文件夹"), "Folder");
+        assert_eq!(text_in(Language::English, "文件夹"), "Folders");
+        assert_eq!(text_in(Language::English, "测试\x04不存在"), "不存在");
     }
 
     #[test]

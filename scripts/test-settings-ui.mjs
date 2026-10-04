@@ -531,7 +531,7 @@ async function runTests() {
   await test('Type and weekday rules validate empty groups and accept multiple selections', async () => {
     for (const [kind, group, values, label] of [
       ['type', 'nrCats', ['documents', 'images'], '类型：文档、图片'],
-      ['weekday', 'nrWeek', ['0', '6'], '创建于 周一、周日'],
+      ['weekday', 'nrWeek', ['0', '6'], '创建于周一、周日'],
     ]) {
       change(doc, 'nrKind', kind);
       const count = ruleCount(doc);
@@ -575,7 +575,7 @@ async function runTests() {
       const count = ruleCount(doc);
       await add(doc);
       assert(ruleCount(doc) === count + 1, kind + ' was not added');
-      assert(doc.querySelector('#ruleList .rule:last-child .conds').textContent === label + ' → 放入 “Desktop”', 'Wrong condition or destination');
+      assert(doc.querySelector('#ruleList .rule:last-child .conds').textContent === label + ' → 放入“Desktop”', 'Wrong condition or destination');
       assert(current().rules.list.at(-1).target === 'inbox', 'Inbox target serialized as a virtual fence');
     }
   });
