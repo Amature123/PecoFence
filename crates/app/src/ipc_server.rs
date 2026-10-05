@@ -329,8 +329,12 @@ fn serve(connection: File, control: isize, pending: &PendingQueue, active: &Atom
         lines += 1;
     }
     // Either the client left (write failed; the UI thread notices at its next send) or the app
-    // is shutting down (sender dropped). Flush what the client may still be reading.
-    pipe::finish(&connection);
+    // is shutting down (sender dropped). Flush what the client may still be reading, but no
+    // longer than it may take to read a reply: a stalled reader would hold the flush for ever.
+    {
+        let _deadline = IoDeadline::arm(&thread, WRITE_DEADLINE);
+        pipe::finish(&connection);
+    }
     tracing::info!(
         target: "pecofence::ipc",
         lines,
