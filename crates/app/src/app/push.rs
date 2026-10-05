@@ -19,7 +19,8 @@ enum Role {
     Free,
     /// Locked: stays at its resting place.
     Locked,
-    /// In the user's hands (dragged, or resized when `pushes`): stays where it is.
+    /// Stays where it is: in the user's hands (dragged, or resized when `pushes`), or pushed by
+    /// a fence that is being dragged (it makes room again once that fence is dropped).
     Held,
 }
 
@@ -42,7 +43,8 @@ struct Slot {
     role: Role,
     /// Fences below it make room for it (not while the user drags it around).
     pushes: bool,
-    /// Top this pass gives it, and the fences that pushed it there.
+    /// Top this pass gives it, and the fences that pushed it there (a held fence keeps the ones
+    /// from the last pass).
     y: i32,
     by: Vec<HWND>,
 }
@@ -90,14 +92,15 @@ fn stack(slots: &mut [Slot], enabled: bool) {
                 y = y.min(bottom - b.h).max(b.base);
             }
         }
-        let by = match binding {
-            Some(i) if y != slots[j].base => std::iter::once(slots[i].hwnd)
-                .chain(slots[i].by.iter().copied())
-                .collect(),
-            _ => Vec::new(),
-        };
+        if slots[j].role != Role::Held {
+            slots[j].by = match binding {
+                Some(i) if y != slots[j].base => std::iter::once(slots[i].hwnd)
+                    .chain(slots[i].by.iter().copied())
+                    .collect(),
+                _ => Vec::new(),
+            };
+        }
         slots[j].y = y;
-        slots[j].by = by;
     }
 }
 
@@ -137,10 +140,9 @@ impl App {
                 if h <= 0 {
                     continue;
                 }
-                let base = pushed
-                    .iter()
-                    .find(|p| p.hwnd == hwnd && p.top == r.top)
-                    .map_or(r.top, |p| r.top - p.dy);
+                let prev = pushed.iter().find(|p| p.hwnd == hwnd && p.top == r.top);
+                let base = prev.map_or(r.top, |p| r.top - p.dy);
+                let by = prev.map(|p| p.by.clone()).unwrap_or_default();
                 let (cx, cy) = ((r.left + r.right) / 2, base + title_h / 2);
                 let work = self
                     .state
@@ -149,7 +151,10 @@ impl App {
                     .position(|w| cx >= w.left && cx < w.right && cy >= w.top && cy < w.bottom)
                     .map(|i| (i, self.state.work_areas[i].bottom));
                 let is_dragged = dragged.contains(&hwnd);
-                let role = if is_dragged || sized == Some(hwnd) {
+                // A press on the title of a fence that pushes others already counts as a drag:
+                // what it pushed stays put rather than sliding back under it.
+                let frozen = by.iter().any(|h| dragged.contains(h));
+                let role = if is_dragged || frozen || sized == Some(hwnd) {
                     Role::Held
                 } else if self.state.fence(id).is_some_and(|f| f.locked) {
                     Role::Locked
@@ -171,7 +176,7 @@ impl App {
                     role,
                     pushes: !is_dragged,
                     y: r.top,
-                    by: Vec::new(),
+                    by,
                 });
             }
         }
@@ -344,6 +349,21 @@ mod tests {
         get(&mut s, 3).top = 250;
         stack(&mut s, true);
         assert_eq!(ys(&s, &[2, 3]), vec![146, 250]);
+    }
+
+    #[test]
+    fn what_a_dragged_fence_pushed_stays_put() {
+        // A expanded and pushing B, then pressed on its title: B is held where it is.
+        let mut s = vec![slot(1, 0, 100, 300, TITLE), slot(2, 0, 146, TITLE, TITLE)];
+        get(&mut s, 1).role = Role::Held;
+        get(&mut s, 1).pushes = false;
+        let b = get(&mut s, 2);
+        b.role = Role::Held;
+        b.top = 408;
+        b.by = vec![hwnd(1)];
+        stack(&mut s, true);
+        assert_eq!(ys(&s, &[1, 2]), vec![100, 408]);
+        assert_eq!(get(&mut s, 2).by, vec![hwnd(1)]);
     }
 
     #[test]
