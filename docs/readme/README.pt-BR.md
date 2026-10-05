@@ -118,15 +118,6 @@ que você mesmo inicia funcionam como no Explorador de Arquivos.
 
 [Conheça a lista completa de recursos →](../FEATURES.md)
 
-## Fala a sua língua
-
-**Português (Brasil) · English · 简体中文 · 繁體中文 · 日本語**  
-**한국어 · Deutsch · Français · Español · Русский**
-
-Troque na hora em **Configurações → Geral → Idioma de exibição** ou siga o idioma do Windows.
-Todas as traduções vêm incluídas e funcionam offline. Seus nomes de arquivos e nomes
-personalizados são preservados.
-
 ## Baixe o PecoFence
 
 <a href="https://apps.microsoft.com/detail/9MV6WG3XNWSX?mode=direct"><img src="https://get.microsoft.com/images/pt-br%20dark.svg" alt="Obter na Microsoft Store" width="200"></a>

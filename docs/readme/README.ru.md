@@ -118,14 +118,6 @@ pecofence-cli fence set --all opacity clear
 
 [Полный список возможностей →](../FEATURES.md)
 
-## Говорит на вашем языке
-
-**Русский · English · 简体中文 · 繁體中文 · 日本語**  
-**한국어 · Deutsch · Français · Español · Português (Brasil)**
-
-Переключайте язык мгновенно в разделе **Настройки → Общие → Язык интерфейса** или используйте язык Windows.
-Все переводы встроены и работают офлайн. Имена файлов и заданные вами названия остаются без изменений.
-
 ## Скачать PecoFence
 
 <a href="https://apps.microsoft.com/detail/9MV6WG3XNWSX?mode=direct"><img src="https://get.microsoft.com/images/ru%20dark.svg" alt="Загрузить из Microsoft Store" width="200"></a>

@@ -118,15 +118,6 @@ Les déplacements que vous lancez vous-même se comportent comme dans l’Explor
 
 [Découvrir la liste complète des fonctionnalités →](../FEATURES.md)
 
-## PecoFence parle votre langue
-
-**Français · English · 简体中文 · 繁體中文 · 日本語**  
-**한국어 · Deutsch · Español · Português (Brasil) · Русский**
-
-Changez de langue instantanément dans **Paramètres → Général → Langue d’affichage**, ou suivez Windows.
-Toutes les traductions sont incluses et fonctionnent hors ligne. Vos noms de fichiers et vos noms
-personnalisés restent intacts.
-
 ## Télécharger PecoFence
 
 <a href="https://apps.microsoft.com/detail/9MV6WG3XNWSX?mode=direct"><img src="https://get.microsoft.com/images/fr%20dark.svg" alt="Télécharger dans le Microsoft Store" width="200"></a>

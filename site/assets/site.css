@@ -640,7 +640,6 @@ kbd {
     color: #4b526b
 }
 
-
 /* Film and selectable feature gallery */
 .section {
     padding-block: 104px
@@ -886,74 +885,7 @@ h2 {
     line-height: 1.85
 }
 
-/* Languages, download and footer */
-.languages-section {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    align-items: center;
-    gap: 70px;
-    padding-block: 58px;
-    border-block: 1px solid var(--edge)
-}
-
-.language-symbol {
-    display: block;
-    margin-bottom: 24px;
-    color: var(--accent);
-    font: 500 31px/1 var(--font-display)
-}
-
-.language-symbol>span {
-    position: relative;
-    top: 7px;
-    padding-left: 5px;
-    color: #8298c4;
-    font-size: 24px
-}
-
-.languages-section h2 {
-    font-size: 36px
-}
-
-.language-copy>p {
-    color: var(--ink-soft);
-    font-size: 14px;
-    margin: 22px 0;
-    line-height: 1.85
-}
-
-.language-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin: 0;
-    padding: 0;
-    list-style: none
-}
-
-.language-list a {
-    display: block;
-    padding: 11px 17px;
-    border: 1px solid var(--edge);
-    border-radius: 7px;
-    color: var(--ink-soft);
-    background: white;
-    font-size: 14px;
-    text-decoration: none;
-    transition: background .2s, transform .2s
-}
-
-.language-list a:hover {
-    transform: translateY(-2px);
-    background: #eaf0ff;
-    color: var(--accent)
-}
-
-.language-list a[aria-current="page"] {
-    border-color: #b6c5ef;
-    color: var(--accent-dark);
-    background: #e8eeff
-}
+/* Download and footer */
 
 .download-banner {
     position: relative;
@@ -1328,19 +1260,6 @@ h2 {
         gap: 32px
     }
 
-    .languages-section {
-        gap: 35px
-    }
-
-    .languages-section h2 {
-        font-size: 30px
-    }
-
-    .language-list a {
-        font-size: 12px;
-        padding: 9px 12px
-    }
-
     .install-grid {
         gap: 35px
     }
@@ -1519,20 +1438,6 @@ h2 {
 
     .details dd {
         font-size: 13px
-    }
-
-    .languages-section {
-        grid-template-columns: 1fr;
-        gap: 30px;
-        padding-block: 45px
-    }
-
-    .language-list {
-        gap: 8px
-    }
-
-    .language-copy>p {
-        margin-block: 18px
     }
 
     .download-banner {

@@ -118,14 +118,6 @@ AI와 스크립트를 위한 인터페이스: `describe`는 명령 목록과 JSO
 
 [전체 기능 목록 보기 →](../FEATURES.md)
 
-## 내 언어로
-
-**한국어 · English · 简体中文 · 繁體中文 · 日本語**  
-**Deutsch · Français · Español · Português (Brasil) · Русский**
-
-**설정 → 일반 → 표시 언어**에서 바로 바꾸거나 Windows 설정을 따르세요.
-모든 번역이 내장되어 오프라인에서도 동작합니다. 파일 이름과 직접 지은 이름은 그대로 유지됩니다.
-
 ## PecoFence 시작하기
 
 <a href="https://apps.microsoft.com/detail/9MV6WG3XNWSX?mode=direct"><img src="https://get.microsoft.com/images/ko%20dark.svg" alt="Microsoft Store에서 받기" width="200"></a>
