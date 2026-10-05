@@ -49,12 +49,12 @@ impl App {
             return;
         }
         if let Some(window) = self.fences.get(&source) {
-            self.state.set_fence_bounds(
-                source,
+            let (rect, rolled, expanded) = (
                 window.rect(),
                 window.is_rolled(),
                 window.expanded_height_px(),
             );
+            self.record_bounds(source, rect, rolled, expanded);
         }
         let Some(change) = self.state.detach_tab(tab) else {
             return;
@@ -113,7 +113,7 @@ impl App {
             None => self.place_new_fence(3, 200.0, x, y, Some(host)),
         };
         let h = rect.bottom - rect.top;
-        self.state.set_fence_bounds(tab, rect, false, h);
+        self.record_bounds(tab, rect, false, h);
         let started = Instant::now();
         self.resync_windows();
         let resynced_ms = started.elapsed().as_millis();
@@ -128,8 +128,9 @@ impl App {
             if let Some(fit) = w.auto_height_px() {
                 w.restore_geometry(w.rect(), false, fit);
             }
+            let rect = self.ctx.behavior.resting_rect(w.hwnd(), w.rect());
             self.state
-                .set_fence_bounds(tab, w.rect(), false, w.expanded_height_px());
+                .set_fence_bounds(tab, rect, false, w.expanded_height_px());
             self.queue.push(Command::RaiseFence(w.hwnd()));
             tracing::debug!(
                 from_drag,

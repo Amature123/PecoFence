@@ -136,6 +136,80 @@ pub struct Behavior {
     /// Fence windows (and their host fence ids) selected with a marquee on the desktop; a
     /// title drag of one of them moves them all. Owned by the App (`App::set_fence_selection`).
     pub selection: std::cell::RefCell<Vec<(HWND, FenceId)>>,
+    /// Fence windows moved down out of an expanded neighbour's way (`rollUp.pushNeighbors`).
+    /// Owned by the App's push pass (`app/push.rs`).
+    pub pushed: std::cell::RefCell<Vec<Pushed>>,
+    /// The system move / size loop in progress (one at a time: it is modal).
+    pub size_move: std::cell::RefCell<Option<SizeMove>>,
+}
+
+/// A fence window the push pass moved down. The shift stands only while the window is still at
+/// the top the pass gave it: anything else that moves it makes its new place the resting one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Pushed {
+    pub hwnd: HWND,
+    /// Window top the pass gave it.
+    pub top: i32,
+    /// How far below its resting top that is.
+    pub dy: i32,
+    /// The fences that pushed it, directly or through the ones in between.
+    pub by: Vec<HWND>,
+}
+
+/// A window in the system move / size loop and, for a title drag, the selection moving along.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SizeMove {
+    pub hwnd: HWND,
+    pub moving: bool,
+    pub group: Vec<HWND>,
+}
+
+impl Behavior {
+    /// `rect`, `hwnd`'s window rectangle, without the push shift: what the layout records.
+    pub fn resting_rect(&self, hwnd: HWND, mut rect: RECT) -> RECT {
+        if let Some(p) = self
+            .pushed
+            .borrow()
+            .iter()
+            .find(|p| p.hwnd == hwnd && p.top == rect.top)
+        {
+            rect.top -= p.dy;
+            rect.bottom -= p.dy;
+        }
+        rect
+    }
+
+    /// The user moved `hwnd`: where it is now is where it rests.
+    pub fn release_push(&self, hwnd: HWND) {
+        self.pushed.borrow_mut().retain(|p| p.hwnd != hwnd);
+    }
+
+    /// The pointer is over a fence that `hwnd` pushed out of its way: moving onto it must not
+    /// close `hwnd`'s hover peek (the fence would slide away from under the pointer).
+    pub fn holds_open(&self, hwnd: HWND, pt: pecofence_platform::POINT) -> bool {
+        self.pushed.borrow().iter().any(|p| {
+            let r = window::window_rect(p.hwnd);
+            p.by.contains(&hwnd)
+                && pt.x >= r.left
+                && pt.x < r.right
+                && pt.y >= r.top
+                && pt.y < r.bottom
+        })
+    }
+}
+
+/// Queues `FenceBoundsChanged` with `hwnd`'s window rectangle as it is now, the push shift taken
+/// out in the same breath (a push pass running before the command is handled cannot skew it).
+pub(super) fn queue_bounds_changed(
+    queue: &CommandQueue,
+    behavior: &Behavior,
+    fence: FenceId,
+    hwnd: HWND,
+) {
+    queue.push(Command::FenceBoundsChanged {
+        fence,
+        rect: behavior.resting_rect(hwnd, window::window_rect(hwnd)),
+    });
 }
 
 /// How the shown items fit the window (see [`FenceWindow::fit_report`]).

@@ -212,8 +212,9 @@ is rejected with `invalid_value` and the hint to re-save it (`| Set-Content -Enc
 `settings set` paths are dotted camelCase keys of the Settings object, e.g. `iconSize`, `theme`,
 `themeStyle`, `hideRealIcons`, `autostart`, `peek.enabled`, `quickHide.enabled`,
 `titleAlign` (left/center/right: the title and tab strip in every title row),
-`rollUp.hoverPeek`, `rollUp.clickToExpand`, `rollUp.pushNeighbors` (an expanded fence pushes the fences stacked
-below it down and they slide back when it rolls up; nothing is saved, default on), `rollUp.titleOnHover` (the title row folds away until the
+`rollUp.hoverPeek`, `rollUp.clickToExpand`, `rollUp.pushNeighbors` (an expanded fence pushes the
+fences stacked below it down and they slide back when it rolls up; their `rect` stays where it was,
+default on), `rollUp.titleOnHover` (the title row folds away until the
 pointer is over the fence; for every fence whose `titleOnHover` is `default`), `snapping.enabled`, `snapping.gapPx` (the gap, in DIPs,
 fences keep to each other and the screen edges while snapping; 0 to 64, default 8),
 `snapping.sizeToCells` (resizing keeps whole icon columns and rows), `snapping.guideLines`
@@ -361,7 +362,8 @@ The app ignores the field's value.
 **physical pixels in virtual-screen coordinates**: the primary monitor's top-left corner is `0,0`,
 monitors placed to the left of it have negative `x`. `monitor list` shows each monitor's `rect`,
 `workArea` and `dpi`. A fence's `rect` is its expanded size (what `fence move`/`resize` change);
-`windowRect` is what is currently on screen (only the title bar while rolled up). A tab hosted in
+`windowRect` is what is currently on screen (only the title bar while rolled up, lower than `rect`
+while an expanded fence above pushes it down, see `rollUp.pushNeighbors`). A tab hosted in
 another fence's window reports that window's `rect` and a `null` `windowRect`, so skip entries with
 a `tabHost` when checking fences for overlaps. The saved, DPI-independent form is in `geometry`.
 Rects that lie off every monitor or exceed the virtual screen are rejected with `invalid_value`.

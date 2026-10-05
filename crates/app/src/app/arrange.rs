@@ -84,11 +84,12 @@ impl App {
             .collect()
     }
 
-    /// Moves host `id` to `rect` and records it.
+    /// Moves host `id` to `rect` and records it (it rests there now).
     fn relocate(&mut self, id: FenceId, rect: RECT) {
         let Some(w) = self.fences.get(&id) else {
             return;
         };
+        self.ctx.behavior.release_push(w.hwnd());
         w.set_bounds(rect);
         let rolled = w.is_rolled();
         let expanded = if rolled {
@@ -96,7 +97,7 @@ impl App {
         } else {
             rect.bottom - rect.top
         };
-        self.state.set_fence_bounds(id, rect, rolled, expanded);
+        self.record_bounds(id, rect, rolled, expanded);
         self.schedule_save();
     }
 
@@ -183,8 +184,8 @@ impl App {
         clearance::limit_below(&self.other_fence_rects(id), r, self.gap_px(w.hwnd()))
     }
 
-    /// Expanding a rolled fence: the expanded height stops short of a fence placed under the
-    /// title row meanwhile (the rest of the items scroll).
+    /// Expanding a rolled fence with `rollUp.pushNeighbors` off: the expanded height stops short
+    /// of a fence placed under the title row meanwhile (the rest of the items scroll).
     pub(super) fn clamp_expand_height(&mut self, id: FenceId) {
         let Some(w) = self.fences.get(&id) else {
             return;
@@ -205,7 +206,7 @@ impl App {
             return;
         }
         w.set_expanded_height_px(h);
-        self.state.set_fence_bounds(id, r, true, h);
+        self.record_bounds(id, r, true, h);
     }
 
     /// Icon-size change on a fixed-height fence: the height follows the content (no band of
@@ -239,7 +240,7 @@ impl App {
             return;
         }
         let rect = w.apply_height(h, false);
-        self.state.set_fence_bounds(id, rect, false, h);
+        self.record_bounds(id, rect, false, h);
         self.schedule_save();
     }
 }

@@ -306,9 +306,8 @@ pub struct RollUpSettings {
     /// Show the scrollbar only while the mouse is inside the fence or right after scrolling.
     #[serde(default)]
     pub hide_inactive_scrollbar: bool,
-    /// While a fence is expanded (click or hover peek), the fences stacked below it slide down
-    /// out of its way and slide back when it rolls up. Nothing is persisted: the saved
-    /// positions stay the resting layout.
+    /// While a fence is expanded (a click or a hover peek), the fences stacked below it slide down
+    /// out of its way and slide back when it rolls up. The saved positions stay where they were.
     #[serde(default = "default_true")]
     pub push_neighbors: bool,
 }

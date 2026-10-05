@@ -144,14 +144,12 @@ pub(super) fn restore_members(members: &[GroupMember]) {
     move_members(members, &starts);
 }
 
-/// A finished group drag: every member's new rect is recorded and, like a single fence let go
-/// over another one, moved out of an overlap.
-pub(super) fn commit_members(queue: &CommandQueue, members: &[GroupMember]) {
+/// A finished group drag: every member's new rect is recorded (where it was dropped is where it
+/// rests now) and, like a single fence let go over another one, moved out of an overlap.
+pub(super) fn commit_members(queue: &CommandQueue, behavior: &Behavior, members: &[GroupMember]) {
     for m in members {
-        queue.push(Command::FenceBoundsChanged {
-            fence: m.fence,
-            rect: window::window_rect(m.hwnd),
-        });
+        behavior.release_push(m.hwnd);
+        queue_bounds_changed(queue, behavior, m.fence, m.hwnd);
     }
     for m in members {
         queue.push(Command::FenceDropped(m.fence));

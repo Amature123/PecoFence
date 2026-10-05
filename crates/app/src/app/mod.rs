@@ -225,8 +225,6 @@ pub struct App {
     pending_routes: Vec<PendingRoute>,
     /// Previous frame's timestamp while an animation runs (frame-gap diagnostics).
     frame_prev: Option<Instant>,
-    /// Fences slid down out of an expanded neighbour's way (see `push.rs`).
-    pushed: push::PushState,
     /// Cadence statistics of the animation run in progress.
     frame_run: FrameRun,
     /// `--no-hide-icons`: keep Explorer's icons visible this run without persisting the choice.
@@ -799,6 +797,8 @@ impl App {
                         .ok(),
                 ),
                 selection: std::cell::RefCell::new(Vec::new()),
+                pushed: std::cell::RefCell::new(Vec::new()),
+                size_move: std::cell::RefCell::new(None),
             }),
         });
 
@@ -890,7 +890,6 @@ impl App {
             wallpaper_override: args.wallpaper_override.clone(),
             pending_routes: Vec::new(),
             frame_prev: None,
-            pushed: push::PushState::default(),
             frame_run: FrameRun::default(),
             no_hide_icons: args.no_hide_icons,
             theme_override: if args.light {
@@ -997,6 +996,8 @@ impl App {
         app.sync_desktop_if_available("startup");
         app.state.refresh_all_portals();
         app.sync_fence_windows();
+        // A fence saved expanded pushes the ones below it before overlaps are judged.
+        app.reflow_pushed();
         // Fences never stay on top of each other: pull apart any overlap the layout brings.
         app.resolve_overlaps();
         if let Some(folder) = args.portal.as_deref() {
@@ -1164,8 +1165,7 @@ impl App {
         for _ in 0..8 {
             let cmds = self.queue.drain();
             if cmds.is_empty() {
-                self.reflow_pushed();
-                return;
+                break;
             }
             for cmd in cmds {
                 // A command that blocks the UI thread for more than a compositor frame delays
@@ -1184,18 +1184,19 @@ impl App {
                 }
             }
         }
+        // After the batch, however it ended: heights it changed push the fences below now.
+        self.reflow_pushed();
     }
 
     fn handle(&mut self, cmd: Command) {
         match cmd {
             Command::FenceBoundsChanged { fence, rect } => {
-                let rect = self.pushed.resting_rect(fence, rect);
                 let (rolled, expanded) = self
                     .fences
                     .get(&fence)
                     .map(|w| (w.is_rolled(), w.expanded_height_px()))
                     .unwrap_or((false, rect.bottom - rect.top));
-                self.state.set_fence_bounds(fence, rect, rolled, expanded);
+                self.record_bounds(fence, rect, rolled, expanded);
                 self.schedule_save();
                 self.apply_auto_height(fence);
             }
