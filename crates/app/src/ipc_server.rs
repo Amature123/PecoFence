@@ -36,6 +36,9 @@ const REPLY_GRACE: Duration = Duration::from_secs(5);
 const READ_DEADLINE: Duration = Duration::from_secs(10);
 /// A client must have read its reply within this long after it was written.
 const WRITE_DEADLINE: Duration = Duration::from_secs(5);
+/// Once a deadline has passed, how often it repeats the cancel until the operation gives up: a
+/// cancel that lands between two reads of one `read_line` finds nothing to abort.
+const CANCEL_RETRY: Duration = Duration::from_millis(10);
 /// Pause after a failed pipe-instance creation before the listener tries again.
 const CREATE_BACKOFF: Duration = Duration::from_millis(100);
 
@@ -165,8 +168,9 @@ fn listen_loop(
     tracing::debug!(target: "pecofence::ipc", "listener stopped");
 }
 
-/// Cancels the calling thread's blocking pipe I/O when it is still running after `after`.
-/// Disarmed (and the pending cancel suppressed) on drop.
+/// Cancels the calling thread's blocking pipe I/O when it is still running after `after`, and
+/// keeps cancelling every [`CANCEL_RETRY`] until disarmed. Disarmed on drop, which also waits
+/// for the worker to stop.
 struct IoDeadline {
     armed: Arc<(Mutex<bool>, Condvar)>,
     worker: Option<JoinHandle<()>>,
@@ -181,20 +185,32 @@ impl IoDeadline {
             let spawned = std::thread::Builder::new()
                 .name("pecofence-ipc-deadline".into())
                 .spawn(move || {
-                    let (lock, wake) = &*flag;
-                    let Ok(armed) = lock.lock() else {
+                    let (lock, disarmed) = &*flag;
+                    let Ok(mut armed) = lock.lock() else {
                         return;
                     };
-                    let Ok((still_armed, elapsed)) =
-                        wake.wait_timeout_while(armed, after, |armed| *armed)
-                    else {
-                        return;
-                    };
-                    // Holding the lock across the cancel means a disarm cannot slip in between
-                    // the check and the call, so the cancel never hits a later operation.
-                    if elapsed.timed_out() && *still_armed {
+                    let mut wait = after;
+                    let mut cancels = 0u32;
+                    loop {
+                        let Ok((guard, result)) =
+                            disarmed.wait_timeout_while(armed, wait, |armed| *armed)
+                        else {
+                            return;
+                        };
+                        armed = guard;
+                        if !result.timed_out() {
+                            break;
+                        }
+                        // The wait only times out while still armed. Holding the lock across the
+                        // cancel means a disarm cannot slip in between the check and the call,
+                        // so the cancel never hits a later operation.
                         thread.cancel_io();
-                        tracing::debug!(target: "pecofence::ipc", after_ms = after.as_millis() as u64, "connection I/O deadline hit");
+                        cancels += 1;
+                        wait = CANCEL_RETRY;
+                    }
+                    drop(armed);
+                    if cancels > 0 {
+                        tracing::debug!(target: "pecofence::ipc", after_ms = after.as_millis() as u64, cancels, "connection I/O deadline hit");
                     }
                 });
             match spawned {
@@ -566,16 +582,57 @@ mod tests {
         ));
     }
 
+    /// A connected pipe: the server end (as `accept` returns it) and the client end.
+    fn pipe_pair() -> (File, File) {
+        let name = format!(r"\\.\pipe\PecoFence.deadline-test-{}", uuid::Uuid::new_v4());
+        let mut listener = PipeListener::bind(&name).unwrap();
+        let client = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&name)
+            .unwrap();
+        (listener.accept().unwrap(), client)
+    }
+
+    /// Reads a request from a client that connected and then went silent, through `wrap`, under
+    /// a deadline of `after`. `Err` when the read was still blocked after 3 s.
+    fn read_from_silent_client(
+        after: Duration,
+        wrap: fn(&File) -> Box<dyn Read + '_>,
+    ) -> Result<Result<Request, ReadError>, mpsc::RecvTimeoutError> {
+        let (server, client) = pipe_pair();
+        let (done, result) = mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            let thread = Some(Arc::new(ThreadHandle::current().expect("thread handle")));
+            let _deadline = IoDeadline::arm(&thread, after);
+            let _ = done.send(read_request(wrap(&server)));
+        });
+        let read = result.recv_timeout(Duration::from_secs(3));
+        // Closing the client also ends a read the deadline failed to cancel.
+        drop(client);
+        reader.join().unwrap();
+        read
+    }
+
     #[test]
-    fn deadline_disarms_on_drop() {
+    fn a_disarmed_deadline_never_cancels_a_later_read() {
+        let (server, client) = pipe_pair();
         let thread = ThreadHandle::current().map(Arc::new);
-        let deadline = IoDeadline::arm(&thread, Duration::from_millis(20));
-        let flag = deadline.armed.clone();
-        drop(deadline);
-        assert!(!*flag.0.lock().unwrap());
-        std::thread::sleep(Duration::from_millis(60));
-        // Blocking on a pipe read now must not be interrupted by the expired watchdog.
-        assert!(!*flag.0.lock().unwrap());
+        drop(IoDeadline::arm(&thread, Duration::from_millis(20)));
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100));
+            (&client)
+                .write_all(b"{\"protocol\":1,\"method\":\"status.get\"}\n")
+                .unwrap();
+            client
+        });
+        // Still blocked when the old deadline would have expired: must wait for the line.
+        let read = read_request(&server);
+        drop(writer.join().unwrap());
+        assert!(
+            matches!(&read, Ok(r) if r.method == Method::StatusGet),
+            "{read:?}"
+        );
     }
 
     #[test]
@@ -597,28 +654,29 @@ mod tests {
     }
 
     #[test]
-    fn deadline_still_cancels_a_stalled_native_pipe_read() {
-        let name = format!(r"\\.\pipe\PecoFence.deadline-test-{}", uuid::Uuid::new_v4());
-        let mut listener = PipeListener::bind(&name).unwrap();
-        let (done, result) = mpsc::channel();
-        let server = std::thread::spawn(move || {
-            let connection = listener.accept().unwrap();
-            let thread = ThreadHandle::current().map(Arc::new);
-            assert!(thread.is_some());
-            let deadline = IoDeadline::arm(&thread, Duration::from_millis(50));
-            let request = read_request(&connection);
-            drop(deadline);
-            done.send(matches!(request, Err(ReadError::TimedOut)))
-                .unwrap();
+    fn deadline_cancels_a_stalled_pipe_read() {
+        let read = read_from_silent_client(Duration::from_millis(50), |pipe| Box::new(pipe));
+        assert!(matches!(read, Ok(Err(ReadError::TimedOut))), "{read:?}");
+    }
+
+    #[test]
+    fn deadline_also_cancels_a_read_that_starts_after_it_expired() {
+        // `read_line` may issue several reads; a deadline that expires between two of them must
+        // still cut off the next one.
+        struct LateStart<'a>(&'a File, bool);
+        impl Read for LateStart<'_> {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                if !self.1 {
+                    self.1 = true;
+                    std::thread::sleep(Duration::from_millis(150));
+                }
+                let mut pipe = self.0;
+                pipe.read(buf)
+            }
+        }
+        let read = read_from_silent_client(Duration::from_millis(30), |pipe| {
+            Box::new(LateStart(pipe, false))
         });
-        let client = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&name)
-            .unwrap();
-        let cancelled = result.recv_timeout(Duration::from_secs(3));
-        drop(client);
-        server.join().unwrap();
-        assert!(cancelled.unwrap(), "deadline must cancel the blocked read");
+        assert!(matches!(read, Ok(Err(ReadError::TimedOut))), "{read:?}");
     }
 }
