@@ -308,11 +308,8 @@ pub(super) fn on_lbuttonup(
             }
             return Some(0);
         }
-        let rect = window::window_rect(drag.hwnd);
-        queue.push(Command::FenceBoundsChanged {
-            fence: drag.fence,
-            rect,
-        });
+        h.behavior.release_push(drag.hwnd);
+        queue_bounds_changed(queue, &h.behavior, drag.fence, drag.hwnd);
         if drag.merge_target != 0 {
             queue.push(Command::MergeHint {
                 target: HWND(std::ptr::null_mut()),
@@ -321,7 +318,7 @@ pub(super) fn on_lbuttonup(
         }
         if !drag.group.is_empty() {
             queue.push(Command::FenceDropped(drag.fence));
-            commit_members(queue, &drag.group);
+            commit_members(queue, &h.behavior, &drag.group);
         } else if let Some(into) =
             merge_target_at(drag.hwnd, HWND::default(), (release.x, release.y))
         {
@@ -485,16 +482,13 @@ pub(super) fn on_capturechanged(
         v.detach_pending = false;
         if let Some(rd) = v.remote_drag.take() {
             hide_drag_feedback(&v.behavior);
-            let rect = window::window_rect(rd.hwnd);
-            queue.push(Command::FenceBoundsChanged {
-                fence: rd.fence,
-                rect,
-            });
-            for m in &rd.group {
-                queue.push(Command::FenceBoundsChanged {
-                    fence: m.fence,
-                    rect: window::window_rect(m.hwnd),
-                });
+            for (fence, hwnd) in std::iter::once((rd.fence, rd.hwnd))
+                .chain(rd.group.iter().map(|m| (m.fence, m.hwnd)))
+            {
+                if rd.started {
+                    v.behavior.release_push(hwnd);
+                }
+                queue_bounds_changed(queue, &v.behavior, fence, hwnd);
             }
             if rd.merge_target != 0 {
                 queue.push(Command::MergeHint {

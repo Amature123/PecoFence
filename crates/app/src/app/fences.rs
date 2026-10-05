@@ -303,7 +303,7 @@ impl App {
             w.apply_height(h, false);
             h
         };
-        self.state.set_fence_bounds(id, rect, rolled, expanded);
+        self.record_bounds(id, rect, rolled, expanded);
         self.schedule_save();
     }
 
@@ -328,7 +328,7 @@ impl App {
         // transient peek as "expanded".
         let rolled = w.is_rolled();
         let rect = w.apply_height(h, true);
-        self.state.set_fence_bounds(id, rect, rolled, h);
+        self.record_bounds(id, rect, rolled, h);
         self.schedule_save();
     }
 
@@ -669,9 +669,9 @@ impl App {
         } else {
             h
         };
-        self.state
-            .set_fence_bounds(fence, rect, w.is_rolled(), expanded);
-        if !w.is_rolled() {
+        let rolled = w.is_rolled();
+        self.record_bounds(fence, rect, rolled, expanded);
+        if !rolled {
             self.toggle_roll(fence);
         }
         self.schedule_save();
@@ -803,7 +803,11 @@ impl App {
     /// undo each other while the 167 ms roll animation is still running.
     pub(super) fn set_roll(&mut self, fence: FenceId, rolled: bool) {
         let fence = self.state.host_of(fence);
-        if !rolled && self.fences.get(&fence).is_some_and(|w| w.is_rolled()) {
+        // With pushNeighbors on the fences below make room instead.
+        if !rolled
+            && !self.state.config.settings.roll_up.push_neighbors
+            && self.fences.get(&fence).is_some_and(|w| w.is_rolled())
+        {
             self.clamp_expand_height(fence);
         }
         if let Some(w) = self.fences.get(&fence) {

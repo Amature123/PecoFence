@@ -580,6 +580,7 @@ impl App {
             || new.theme_style != old.theme_style
             || new.backdrop != old.backdrop;
         let icons_changed = new.icons != old.icons;
+        let push_changed = new.roll_up.push_neighbors != old.roll_up.push_neighbors;
         // 「调整大小时按整行整列对齐」 switched on keeps every rectangle: the rows fill any
         // height with whole icons (redrawn above), and rounding would undo fences lined up.
         self.state.config.settings = new;
@@ -595,6 +596,10 @@ impl App {
         }
         if visual_changed {
             self.refresh_visuals(true);
+        }
+        if push_changed {
+            // Pushed fences go back at once when it is switched off.
+            self.reflow_pushed();
         }
         self.push_settings_state();
     }

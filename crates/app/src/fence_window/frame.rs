@@ -112,7 +112,7 @@ impl FenceWindow {
             return true;
         }
         // Phase 3: final geometry — lay the frozen content out once and rasterise everything.
-        let queue = {
+        let (queue, behavior) = {
             let mut guard = self.view.borrow_mut();
             let Some(v) = guard.as_mut() else {
                 return more;
@@ -132,13 +132,9 @@ impl FenceWindow {
                 tracing::error!(error = %e, "redraw after height animation failed");
             }
             v.update_shadow_now();
-            v.queue.clone()
+            (v.queue.clone(), v.behavior.clone())
         };
-        let rect = window::window_rect(hwnd);
-        queue.push(Command::FenceBoundsChanged {
-            fence: self.id,
-            rect,
-        });
+        queue_bounds_changed(&queue, &behavior, self.id, hwnd);
         more
     }
 }

@@ -1142,6 +1142,33 @@ impl FenceWindow {
         });
     }
 
+    /// Title-row height and the height the window settles at: the title row while it is rolled
+    /// up, rolling up or hover-peeking, else the expanded height. The push pass lays the fences
+    /// out from these (`app/push.rs`).
+    pub fn resting_heights_px(&self) -> Option<(i32, i32)> {
+        let guard = self.view.try_borrow().ok()?;
+        let v = guard.as_ref()?;
+        let title = v.title_h_px();
+        let rolled = v.roll_target() || v.peeking;
+        Some((title, if rolled { title } else { v.expanded_h_px }))
+    }
+
+    /// Windows a title or tear-off drag driven by this window moves right now (the dragged one
+    /// and the selection moving along); empty when none runs.
+    pub fn dragged_windows(&self) -> Vec<HWND> {
+        self.view
+            .try_borrow()
+            .ok()
+            .and_then(|g| {
+                g.as_ref()?.remote_drag.as_ref().map(|rd| {
+                    std::iter::once(rd.hwnd)
+                        .chain(rd.group.iter().map(|m| m.hwnd))
+                        .collect()
+                })
+            })
+            .unwrap_or_default()
+    }
+
     pub fn expanded_height_px(&self) -> i32 {
         self.view
             .borrow()

@@ -535,6 +535,12 @@ pub(super) fn on_entersizemove(
     } else {
         Vec::new()
     };
+    // The push pass leaves the windows of the loop where the user puts them.
+    *h.behavior.size_move.borrow_mut() = Some(SizeMove {
+        hwnd,
+        moving: caption.is_some(),
+        group: h.group.borrow().iter().map(|m| m.hwnd).collect(),
+    });
     rect_at_enter.set(r);
     grab_offset.set((start_x - r.left, start_y - r.top));
     h.grab_dpi.set(monitors::dpi_for_window(hwnd));
@@ -562,6 +568,7 @@ pub(super) fn on_exitsizemove(
     } = h;
     let fence_id = h.fence_id;
     in_size_move.set(false);
+    h.behavior.size_move.replace(None);
     hide_drag_feedback(&h.behavior);
     let rect = window::window_rect(hwnd);
     let at_enter = rect_at_enter.get();
@@ -606,10 +613,11 @@ pub(super) fn on_exitsizemove(
             None => false,
         }
     };
-    queue.push(Command::FenceBoundsChanged {
-        fence: fence_id,
-        rect,
-    });
+    if same_size && !cancelled {
+        // Moved: where it was dropped is where it rests.
+        h.behavior.release_push(hwnd);
+    }
+    queue_bounds_changed(queue, &h.behavior, fence_id, hwnd);
     if let Some(into) = merge_into {
         queue.push(Command::MergeFence {
             fence: fence_id,
@@ -618,7 +626,7 @@ pub(super) fn on_exitsizemove(
         });
     } else if same_size && !cancelled {
         queue.push(Command::FenceDropped(fence_id));
-        commit_members(queue, &group);
+        commit_members(queue, &h.behavior, &group);
     }
     if peeking {
         // The close timer was cancelled on WM_ENTERSIZEMOVE; its arm

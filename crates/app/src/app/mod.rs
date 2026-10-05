@@ -59,6 +59,7 @@ mod menus;
 mod motion;
 mod peek;
 mod portals;
+mod push;
 mod settings;
 mod sync;
 mod tabs;
@@ -796,6 +797,8 @@ impl App {
                         .ok(),
                 ),
                 selection: std::cell::RefCell::new(Vec::new()),
+                pushed: std::cell::RefCell::new(Vec::new()),
+                size_move: std::cell::RefCell::new(None),
             }),
         });
 
@@ -993,6 +996,8 @@ impl App {
         app.sync_desktop_if_available("startup");
         app.state.refresh_all_portals();
         app.sync_fence_windows();
+        // A fence saved expanded pushes the ones below it before overlaps are judged.
+        app.reflow_pushed();
         // Fences never stay on top of each other: pull apart any overlap the layout brings.
         app.resolve_overlaps();
         if let Some(folder) = args.portal.as_deref() {
@@ -1160,7 +1165,7 @@ impl App {
         for _ in 0..8 {
             let cmds = self.queue.drain();
             if cmds.is_empty() {
-                return;
+                break;
             }
             for cmd in cmds {
                 // A command that blocks the UI thread for more than a compositor frame delays
@@ -1179,6 +1184,8 @@ impl App {
                 }
             }
         }
+        // After the batch, however it ended: heights it changed push the fences below now.
+        self.reflow_pushed();
     }
 
     fn handle(&mut self, cmd: Command) {
@@ -1189,7 +1196,7 @@ impl App {
                     .get(&fence)
                     .map(|w| (w.is_rolled(), w.expanded_height_px()))
                     .unwrap_or((false, rect.bottom - rect.top));
-                self.state.set_fence_bounds(fence, rect, rolled, expanded);
+                self.record_bounds(fence, rect, rolled, expanded);
                 self.schedule_save();
                 self.apply_auto_height(fence);
             }

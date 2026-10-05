@@ -359,7 +359,10 @@ pub(super) fn on_timer_peek_close(
         });
     let pt = window::cursor_pos();
     let r = window::window_rect(hwnd);
-    let inside = pt.x >= r.left && pt.x < r.right && pt.y >= r.top && pt.y < r.bottom;
+    // A fence this one pushed out of its way counts as inside: moving onto it must not make it
+    // slide back from under the pointer.
+    let inside = (pt.x >= r.left && pt.x < r.right && pt.y >= r.top && pt.y < r.bottom)
+        || h.behavior.holds_open(hwnd, pt);
     if inside || popup {
         window::set_timer(hwnd, TIMER_PEEK_CLOSE, PEEK_CLOSE_MS);
         return Some(0);

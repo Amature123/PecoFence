@@ -1723,13 +1723,15 @@ impl App {
         // shows; `h` becomes the height it unrolls to.
         let full = rect_to_win(rect);
         let rolled = w.is_rolled();
+        // An explicit place is where the fence rests, even at the top a push gave it.
+        self.ctx.behavior.release_push(w.hwnd());
         if rolled {
             w.restore_geometry(full, true, rect.h);
         } else {
             w.set_bounds(full);
             w.apply_height(rect.h, false);
         }
-        self.state.set_fence_bounds(id, full, rolled, rect.h);
+        self.record_bounds(id, full, rolled, rect.h);
         self.apply_auto_height(id);
         self.schedule_save();
         let changed = self.state.fence(id) != Some(&before);
