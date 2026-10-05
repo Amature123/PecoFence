@@ -132,9 +132,11 @@ AI와 스크립트를 위한 인터페이스: `describe`는 명령 목록과 JSO
 
 Microsoft Store 버전은 Microsoft가 서명하고 자동으로 업데이트되며 SmartScreen 경고가 나타나지 않습니다. ZIP 파일이 편하다면 아래 포터블 빌드를 받으세요. 같은 앱입니다.
 
-1. 이 저장소의 **Releases** 페이지에서 `pecofence-<버전>-x64.zip`을 다운로드합니다.
+1. 이 저장소의 **Releases** 페이지에서 `pecofence-v<버전>-x64-portable.zip`을 다운로드합니다.
 2. **ZIP 전체**를 한 폴더에 풀고 `pecofence.exe`를 실행합니다.
 3. 이제 정리를 시작하세요. 설정을 열거나 종료하려면 트레이 아이콘을 오른쪽 클릭하면 됩니다.
+
+설치 프로그램이 편하다면 같은 페이지의 `pecofence-v<버전>-x64-setup.exe`를 사용하세요. 현재 사용자에게만 설치되고 시작 메뉴 항목과 제거 프로그램이 추가됩니다. 설정은 ZIP 버전과 함께 씁니다.
 
 패키지 관리자가 편하다면 `winget install DayuanJiang.PecoFence`로 같은 포터블 빌드를 설치할 수 있고, SmartScreen 경고도 나타나지 않습니다.
 
@@ -160,7 +162,7 @@ Microsoft Store 버전은 Microsoft가 서명하고 자동으로 업데이트되
 - 포터블 빌드는 코드 서명이 되어 있지 않습니다. 첫 실행 때 Windows SmartScreen이 나타나면 **추가 정보 → 실행**을 선택하세요.
   Microsoft Store나 winget으로 설치하면 이 경고가 나타나지 않습니다.
 
-[포터블 버전 안내](../PORTABLE.md) · [언어 안내](../LOCALIZATION.md)
+[포터블 버전 안내](../PORTABLE.md) · [언어 안내](../LOCALIZATION.md) · [Windows 설치 버전 안내](../INSTALLER.md)
 
 </details>
 

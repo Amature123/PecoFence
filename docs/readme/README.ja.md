@@ -126,9 +126,11 @@ AI とスクリプト向けのインターフェース。`describe` はコマン
 
 Microsoft Store 版は Microsoft によって署名され、自動で更新され、SmartScreen の警告も表示されません。ZIP 版がよければ、下のポータブル版をどうぞ。中身は同じアプリです。
 
-1. このリポジトリの **Releases** ページから `pecofence-<バージョン>-x64.zip` をダウンロードします。
+1. このリポジトリの **Releases** ページから `pecofence-v<バージョン>-x64-portable.zip` をダウンロードします。
 2. **ZIP 全体**をフォルダーに展開し、`pecofence.exe` を実行します。
 3. あとは整理を始めるだけ。設定を開くときや終了するときは、トレイアイコンを右クリックしてください。
+
+インストーラーを使いたい場合は、同じページの `pecofence-v<バージョン>-x64-setup.exe` をどうぞ。現在のユーザーだけにインストールされ、スタートメニューとアンインストーラーが追加されます。設定は ZIP 版と共通です。
 
 パッケージマネージャーがお好みなら `winget install DayuanJiang.PecoFence` で同じポータブル版をインストールでき、SmartScreen の警告も出ません。
 
@@ -147,7 +149,7 @@ Microsoft Store 版は Microsoft によって署名され、自動で更新さ�
 - Windows 標準のダイアログや、サードパーティ製のエクスプローラーメニュー項目は Windows の言語で表示されます。
 - ポータブル版はコード署名されていません。初回起動時に Windows SmartScreen が表示された場合は**詳細情報 → 実行**を選んでください。Microsoft Store または winget からのインストールではこの警告は出ません。
 
-[ポータブル版ガイド](../PORTABLE.md) · [言語ガイド](../LOCALIZATION.md)
+[ポータブル版ガイド](../PORTABLE.md) · [言語ガイド](../LOCALIZATION.md) · [Windows インストール版ガイド](../INSTALLER.md)
 
 </details>
 

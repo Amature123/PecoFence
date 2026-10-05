@@ -133,9 +133,11 @@ und eigene Bezeichnungen bleiben unverändert.
 
 Die Microsoft-Store-Version ist von Microsoft signiert, aktualisiert sich automatisch und zeigt keine SmartScreen-Abfrage. Lieber ein einfaches ZIP? Der portable Build unten ist dieselbe App.
 
-1. Öffne die **Releases**-Seite dieses Repositorys und lade `pecofence-<Version>-x64.zip` herunter.
+1. Öffne die **Releases**-Seite dieses Repositorys und lade `pecofence-v<Version>-x64-portable.zip` herunter.
 2. Entpacke die **gesamte ZIP-Datei** in einen Ordner und starte `pecofence.exe`.
 3. Leg los. Über einen Rechtsklick auf das Taskleistensymbol öffnest du die Einstellungen oder beendest PecoFence.
+
+Lieber mit Installer? `pecofence-v<Version>-x64-setup.exe` auf derselben Seite installiert PecoFence für dein Windows-Konto, mit Startmenü-Eintrag und Deinstallationsprogramm. Die Einstellungen teilt es mit der ZIP-Version.
 
 Lieber per Paketmanager? `winget install DayuanJiang.PecoFence` installiert denselben portablen Build und überspringt die SmartScreen-Abfrage.
 
@@ -161,7 +163,7 @@ in der gewählten Sprache angelegt. Beim Beenden erscheinen die Windows-Desktops
 - Portable Builds sind nicht signiert. Fragt Windows SmartScreen beim ersten Start nach, wähle
   **Weitere Informationen → Trotzdem ausführen**. Eine Installation über den Microsoft Store oder winget vermeidet die Abfrage.
 
-[Anleitung zur portablen Version](../PORTABLE.md) · [Sprachen und Übersetzungen](../LOCALIZATION.md)
+[Anleitung zur portablen Version](../PORTABLE.md) · [Sprachen und Übersetzungen](../LOCALIZATION.md) · [Windows-Installationsanleitung](../INSTALLER.md)
 
 </details>
 

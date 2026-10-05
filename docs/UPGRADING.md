@@ -21,12 +21,28 @@ using the `config` directory beside the executable.
 New logs and WebView2 profiles use `%LOCALAPPDATA%\PecoFence`. An outstanding
 desktop-icon recovery marker from the older name is recognized.
 
+## Switching between the ZIP and the installer
+
+Releases offer `pecofence-v<version>-x64-portable.zip` and
+`pecofence-v<version>-x64-setup.exe`, with the same program inside. Both keep
+settings in `%APPDATA%\PecoFence`, so switching keeps your fences, rules and
+settings. Exit PecoFence from its tray menu first.
+
+- **ZIP to installer:** run the setup EXE. It can install into the folder you
+  extracted the ZIP into and replaces the program files there. If you install
+  somewhere else, you can delete the old ZIP folder afterwards.
+- **Installer to ZIP:** uninstall through Windows Settings (your data is kept),
+  then extract the ZIP and run `pecofence.exe`.
+- If you started the ZIP with `--portable`, its configuration is in the `config`
+  folder beside the executable, which other copies do not read. Use **Export or
+  import configuration** in Settings to carry it over.
+
 ## Windows startup
 
 A normal release launch registers the `PecoFence` startup entry when required.
 The legacy `openFence` entry is removed only after a replacement was registered
-successfully, or when startup is disabled. A working PecoFence entry pointing to
-another copy is preserved.
+successfully, or when startup is disabled. When startup is on, the running release
+points the entry at its own executable, so the copy that ran last starts with Windows.
 
 Portable and development launches do not change startup entries. Changing the
 autostart switch in Settings remains an explicit opt-in/out.

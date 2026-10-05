@@ -133,10 +133,12 @@ nombres que pongas tú se conservan.
 
 La versión de Microsoft Store está firmada por Microsoft, se actualiza sola y nunca muestra el aviso de SmartScreen. ¿Prefieres un ZIP? La versión portátil de abajo es la misma aplicación.
 
-1. Abre la página de **Releases** de este repositorio y descarga `pecofence-<versión>-x64.zip`.
+1. Abre la página de **Releases** de este repositorio y descarga `pecofence-v<versión>-x64-portable.zip`.
 2. Extrae el **ZIP completo** en una carpeta y ejecuta `pecofence.exe`.
 3. Empieza a organizar. Haz clic con el botón derecho en el icono de la bandeja cuando necesites
    la Configuración o quieras salir.
+
+¿Prefieres un instalador? `pecofence-v<versión>-x64-setup.exe`, en la misma página, instala PecoFence para tu usuario de Windows, con acceso en el menú Inicio y desinstalador. Usa la misma configuración que el ZIP.
 
 ¿Prefieres un gestor de paquetes? `winget install DayuanJiang.PecoFence` instala la misma versión portátil y evita el aviso de SmartScreen.
 
@@ -163,7 +165,7 @@ en el idioma que elijas. Los iconos del escritorio de Windows se restauran al sa
 - Las versiones portátiles no están firmadas. Si Windows SmartScreen aparece en el primer inicio, elige
   **Más información → Ejecutar de todas formas**. Instalar desde Microsoft Store o con winget evita el aviso.
 
-[Guía de la edición portátil](../PORTABLE.md) · [Guía de idiomas](../LOCALIZATION.md)
+[Guía de la edición portátil](../PORTABLE.md) · [Guía de idiomas](../LOCALIZATION.md) · [Guía del instalador de Windows](../INSTALLER.md)
 
 </details>
 
