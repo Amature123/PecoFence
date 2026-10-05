@@ -1,5 +1,5 @@
 #requires -Version 5.1
-# Build once, then package identical binaries with distribution-specific markers.
+# Build once, then package the same binaries as a ZIP and an Inno Setup installer.
 [CmdletBinding()]
 param(
   [ValidateSet("All", "Portable", "Installer")][string]$Format = "All",
@@ -83,9 +83,6 @@ try {
   Copy-Item -LiteralPath "skills/pecofence-cli/SKILL.md" -Destination (Join-Path $common "SKILL.md")
   & $Python scripts/write-license-notices.py (Join-Path $common "THIRD-PARTY-LICENSES.txt")
   if ($LASTEXITCODE -ne 0) { throw "License notice generation failed" }
-  # Provenance only; the app does not implement a GitHub updater.
-  $info = [ordered]@{ schema = 1; repository = $Repository; version = $Version; tag = "v$Version" }
-  [IO.File]::WriteAllText((Join-Path $common "release-info.json"), ($info | ConvertTo-Json) + "`n", $utf8)
 
   $modes = switch ($Format) { "All" { "portable"; "installed" }; "Portable" { "portable" }; "Installer" { "installed" } }
   foreach ($mode in $modes) {
@@ -94,8 +91,6 @@ try {
     Get-ChildItem -LiteralPath $common -File | Copy-Item -Destination $stage
     $guide = if ($mode -eq "portable") { "docs/PORTABLE.md" } else { "docs/INSTALLER.md" }
     Copy-Item -LiteralPath $guide -Destination (Join-Path $stage "README.md")
-    $marker = '{"schema":1,"appId":"PecoFence","mode":"' + $mode + '"}'
-    [IO.File]::WriteAllText((Join-Path $stage "deployment.json"), $marker + "`n", $utf8)
     if ($mode -eq "portable") {
       $zip = Join-Path $distRoot "$baseName-portable.zip"
       Compress-Archive -Path "$stage/*" -DestinationPath $zip -Force

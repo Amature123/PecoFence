@@ -135,7 +135,7 @@ The Microsoft Store edition is signed by Microsoft, updates automatically and ne
 2. Extract the **whole ZIP** into a folder and run `pecofence.exe`.
 3. Start organizing. Right-click the tray icon whenever you need Settings or want to exit.
 
-For a setup wizard, download `pecofence-v<version>-x64-setup.exe` from the same Releases page. It installs for your Windows user and keeps data in AppData.
+Prefer an installer? `pecofence-v<version>-x64-setup.exe` on the same page installs PecoFence for your Windows user, with a Start menu entry and an uninstaller. It uses the same settings as the ZIP.
 
 Prefer a package manager? `winget install DayuanJiang.PecoFence` installs the same portable build and skips the SmartScreen prompt.
 

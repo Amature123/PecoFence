@@ -137,7 +137,7 @@ Die Microsoft-Store-Version ist von Microsoft signiert, aktualisiert sich automa
 2. Entpacke die **gesamte ZIP-Datei** in einen Ordner und starte `pecofence.exe`.
 3. Leg los. Über einen Rechtsklick auf das Taskleistensymbol öffnest du die Einstellungen oder beendest PecoFence.
 
-Für einen Installationsassistenten laden Sie `pecofence-v<version>-x64-setup.exe` von derselben Releases-Seite herunter. Er installiert für Ihren Windows-Benutzer und speichert Daten in AppData.
+Lieber mit Installer? `pecofence-v<Version>-x64-setup.exe` auf derselben Seite installiert PecoFence für dein Windows-Konto, mit Startmenü-Eintrag und Deinstallationsprogramm. Die Einstellungen teilt es mit der ZIP-Version.
 
 Lieber per Paketmanager? `winget install DayuanJiang.PecoFence` installiert denselben portablen Build und überspringt die SmartScreen-Abfrage.
 

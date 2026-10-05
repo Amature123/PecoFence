@@ -43,7 +43,6 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.22621
 SetupIconFile=..\..\crates\app\assets\pecofence.ico
 UninstallDisplayIcon={app}\pecofence.exe
-LicenseFile={#PayloadDir}\LICENSE
 OutputBaseFilename=pecofence-v{#AppVersion}-x64-setup
 Compression=lzma2
 SolidCompression=yes
@@ -75,8 +74,6 @@ Source: "{#PayloadDir}\pecofence.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\pecofence-watchdog.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\pecofence-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#PayloadDir}\deployment.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#PayloadDir}\release-info.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\LICENSE-WebView2Loader.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\THIRD-PARTY-LICENSES.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -89,35 +86,44 @@ Name: "{group}\{#ProductName}"; Filename: "{app}\pecofence.exe"; WorkingDir: "{a
 Name: "{autodesktop}\{#ProductName}"; Filename: "{app}\pecofence.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\pecofence.exe"; Description: "{cm:LaunchProgram,{#ProductName}}"; Flags: nowait postinstall skipifsilent unchecked
+Filename: "{app}\pecofence.exe"; Description: "{cm:LaunchProgram,{#ProductName}}"; Flags: nowait postinstall skipifsilent
 
 [CustomMessages]
-en.InvalidDestination=Choose an empty folder. To upgrade, use the existing installer-managed folder and leave deployment.json unchanged. Portable folders cannot be converted in place.
-zh_CN.InvalidDestination=请选择空文件夹。升级时请使用原安装目录，并保持 deployment.json 不变。不能直接覆盖免安装版文件夹。
-zh_TW.InvalidDestination=請選擇空資料夾。升級時請使用原安裝目錄，並保持 deployment.json 不變。不能直接覆蓋免安裝版資料夾。
-ja.InvalidDestination=空のフォルダーを選択してください。更新時は既存のインストール先を使用し、deployment.json を変更しないでください。ポータブル版のフォルダーには上書きできません。
-ko.InvalidDestination=빈 폴더를 선택하세요. 업그레이드할 때는 기존 설치 폴더를 사용하고 deployment.json을 변경하지 마세요. 포터블 폴더에는 덮어쓸 수 없습니다.
-de.InvalidDestination=Wählen Sie einen leeren Ordner. Verwenden Sie für Updates den bisherigen Installationsordner und ändern Sie deployment.json nicht. Portable Ordner können nicht überschrieben werden.
-fr.InvalidDestination=Choisissez un dossier vide. Pour une mise à niveau, utilisez le dossier d'installation existant sans modifier deployment.json. Les dossiers portables ne peuvent pas être remplacés.
-es.InvalidDestination=Elige una carpeta vacía. Para actualizar, usa la carpeta de instalación existente y no modifiques deployment.json. No se pueden sobrescribir las carpetas portables.
-pt_BR.InvalidDestination=Escolha uma pasta vazia. Para atualizar, use a pasta de instalação existente e não altere deployment.json. Pastas portáteis não podem ser sobrescritas.
-ru.InvalidDestination=Выберите пустую папку. Для обновления используйте прежнюю папку установки и не изменяйте deployment.json. Портативную папку нельзя перезаписать установщиком.
-en.NewerVersion=A newer version is already installed. Uninstall it before installing an older version. Your application data will be kept.
-zh_CN.NewerVersion=已安装较新的版本。请先卸载，再安装旧版本。应用数据将会保留。
-zh_TW.NewerVersion=已安裝較新的版本。請先解除安裝，再安裝舊版本。應用程式資料將會保留。
-ja.NewerVersion=新しいバージョンがインストールされています。古いバージョンを入れる前にアンインストールしてください。アプリのデータは保持されます。
-ko.NewerVersion=더 최신 버전이 설치되어 있습니다. 이전 버전을 설치하기 전에 제거하세요. 앱 데이터는 유지됩니다.
-de.NewerVersion=Eine neuere Version ist bereits installiert. Deinstallieren Sie diese zuerst. Ihre Anwendungsdaten bleiben erhalten.
-fr.NewerVersion=Une version plus récente est déjà installée. Désinstallez-la avant d'installer une ancienne version. Vos données seront conservées.
-es.NewerVersion=Ya hay una versión más reciente instalada. Desinstálala antes de instalar una anterior. Se conservarán tus datos.
-pt_BR.NewerVersion=Uma versão mais recente já está instalada. Desinstale-a antes de instalar uma versão anterior. Seus dados serão preservados.
-ru.NewerVersion=Уже установлена более новая версия. Удалите её перед установкой старой версии. Данные приложения будут сохранены.
+en.AlreadyInstalled=PecoFence is already installed in %1. To install it in another folder, uninstall it first.
+zh_CN.AlreadyInstalled=PecoFence 已经装在 %1。想换个位置，请先卸载。
+zh_TW.AlreadyInstalled=PecoFence 已經安裝在 %1。想換個位置，請先解除安裝。
+ja.AlreadyInstalled=PecoFence はすでに %1 にインストールされています。別のフォルダーに入れるには、先にアンインストールしてください。
+ko.AlreadyInstalled=PecoFence가 이미 %1에 설치되어 있습니다. 다른 폴더에 설치하려면 먼저 제거하세요.
+de.AlreadyInstalled=PecoFence ist bereits in %1 installiert. Um es in einen anderen Ordner zu installieren, deinstalliere es zuerst.
+fr.AlreadyInstalled=PecoFence est déjà installé dans %1. Pour l'installer dans un autre dossier, désinstallez-le d'abord.
+es.AlreadyInstalled=PecoFence ya está instalado en %1. Para instalarlo en otra carpeta, desinstálalo primero.
+pt_BR.AlreadyInstalled=O PecoFence já está instalado em %1. Para instalá-lo em outra pasta, desinstale-o primeiro.
+ru.AlreadyInstalled=PecoFence уже установлен в %1. Чтобы установить его в другую папку, сначала удалите его.
+en.InvalidDestination=This folder already contains other files. Choose an empty folder, or the folder that already contains PecoFence.
+zh_CN.InvalidDestination=这个文件夹里已经有别的文件了。请选一个空文件夹，或者原来放 PecoFence 的文件夹。
+zh_TW.InvalidDestination=這個資料夾裡已經有其他檔案。請選一個空資料夾，或原本放 PecoFence 的資料夾。
+ja.InvalidDestination=このフォルダーには別のファイルがあります。空のフォルダーか、PecoFence が入っているフォルダーを選んでください。
+ko.InvalidDestination=이 폴더에는 이미 다른 파일이 있습니다. 빈 폴더나 PecoFence가 들어 있는 폴더를 선택하세요.
+de.InvalidDestination=Dieser Ordner enthält bereits andere Dateien. Wähle einen leeren Ordner oder den Ordner, in dem PecoFence schon liegt.
+fr.InvalidDestination=Ce dossier contient déjà d'autres fichiers. Choisissez un dossier vide ou celui qui contient déjà PecoFence.
+es.InvalidDestination=Esta carpeta ya tiene otros archivos. Elige una carpeta vacía o la que ya contiene PecoFence.
+pt_BR.InvalidDestination=Esta pasta já tem outros arquivos. Escolha uma pasta vazia ou a que já contém o PecoFence.
+ru.InvalidDestination=В этой папке уже есть другие файлы. Выберите пустую папку или ту, где уже лежит PecoFence.
+en.NewerVersion=A newer version of PecoFence is already installed. Uninstall it first to install this older version. Your settings and fences are kept.
+zh_CN.NewerVersion=已经装了更新的 PecoFence。要装这个旧版本，请先卸载。设置和栅栏都会保留。
+zh_TW.NewerVersion=已經安裝了較新的 PecoFence。要安裝這個舊版本，請先解除安裝。設定和圍欄都會保留。
+ja.NewerVersion=新しいバージョンの PecoFence がインストールされています。この古いバージョンを入れるには、先にアンインストールしてください。設定とフェンスは残ります。
+ko.NewerVersion=더 최신 버전의 PecoFence가 설치되어 있습니다. 이 이전 버전을 설치하려면 먼저 제거하세요. 설정과 펜스는 그대로 남습니다.
+de.NewerVersion=Eine neuere Version von PecoFence ist bereits installiert. Um diese ältere Version zu installieren, deinstalliere sie zuerst. Deine Einstellungen und Bereiche bleiben erhalten.
+fr.NewerVersion=Une version plus récente de PecoFence est déjà installée. Pour installer cette version plus ancienne, désinstallez-la d'abord. Vos réglages et vos groupes sont conservés.
+es.NewerVersion=Ya hay una versión más reciente de PecoFence instalada. Para instalar esta versión anterior, desinstálala primero. Tus ajustes y grupos se conservan.
+pt_BR.NewerVersion=Uma versão mais recente do PecoFence já está instalada. Para instalar esta versão anterior, desinstale-a primeiro. Suas configurações e grupos são mantidos.
+ru.NewerVersion=Уже установлена более новая версия PecoFence. Чтобы установить старую версию, сначала удалите новую. Настройки и области сохранятся.
 
 [Code]
 const
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#ProductId}_is1';
   RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
-  InstalledMarker = '{"schema":1,"appId":"PecoFence","mode":"installed"}';
 
 function SameDirectory(const Left, Right: String): Boolean;
 begin
@@ -148,14 +154,13 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   PreviousDir, PreviousVersion: String;
   PreviousNumber, NewNumber: Int64;
-  Marker: AnsiString;
-  Registered: Boolean;
 begin
   Result := '';
-  Registered := RegQueryStringValue(HKCU, UninstallKey, 'InstallLocation', PreviousDir);
-  if Registered then begin
+  { A registration whose folder was deleted by hand no longer pins the location. }
+  if RegQueryStringValue(HKCU, UninstallKey, 'InstallLocation', PreviousDir) and
+    DirExists(PreviousDir) then begin
     if not SameDirectory(PreviousDir, ExpandConstant('{app}')) then begin
-      Result := CustomMessage('InvalidDestination');
+      Result := FmtMessage(CustomMessage('AlreadyInstalled'), [RemoveBackslashUnlessRoot(PreviousDir)]);
       Exit;
     end;
     if RegQueryStringValue(HKCU, UninstallKey, 'DisplayVersion', PreviousVersion) then begin
@@ -164,21 +169,13 @@ begin
         PreviousVersion := Copy(PreviousVersion, 1, Pos('-', PreviousVersion) - 1);
       if StrToVersion(PreviousVersion, PreviousNumber) and
         StrToVersion('{#NumericVersion}', NewNumber) then
-        if ComparePackedVersion(PreviousNumber, NewNumber) > 0 then begin
+        if ComparePackedVersion(PreviousNumber, NewNumber) > 0 then
           Result := CustomMessage('NewerVersion');
-          Exit;
-        end;
     end;
-  end;
-  if DirectoryHasEntries(ExpandConstant('{app}')) then begin
-    { This is our generated marker, not a general JSON parser. Do not adopt ZIPs. }
-    if not Registered then
-      Result := CustomMessage('InvalidDestination')
-    else if not LoadStringFromFile(ExpandConstant('{app}\deployment.json'), Marker) then
-      Result := CustomMessage('InvalidDestination')
-    else if Trim(String(Marker)) <> InstalledMarker then
-      Result := CustomMessage('InvalidDestination');
-  end;
+  end else if DirectoryHasEntries(ExpandConstant('{app}')) and
+    not FileExists(ExpandConstant('{app}\pecofence.exe')) then
+    { A folder the ZIP was extracted into is upgraded in place; unrelated files are not. }
+    Result := CustomMessage('InvalidDestination');
 end;
 
 procedure RemoveOwnedStartupValue(const Name: String);

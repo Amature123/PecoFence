@@ -130,7 +130,7 @@ Microsoft Store 版は Microsoft によって署名され、自動で更新さ�
 2. **ZIP 全体**をフォルダーに展開し、`pecofence.exe` を実行します。
 3. あとは整理を始めるだけ。設定を開くときや終了するときは、トレイアイコンを右クリックしてください。
 
-セットアップウィザードを使う場合は、同じ Releases ページから `pecofence-v<version>-x64-setup.exe` をダウンロードしてください。現在の Windows ユーザー向けにインストールし、データは AppData に保存します。
+インストーラーを使いたい場合は、同じページの `pecofence-v<バージョン>-x64-setup.exe` をどうぞ。現在のユーザーだけにインストールされ、スタートメニューとアンインストーラーが追加されます。設定は ZIP 版と共通です。
 
 パッケージマネージャーがお好みなら `winget install DayuanJiang.PecoFence` で同じポータブル版をインストールでき、SmartScreen の警告も出ません。
 

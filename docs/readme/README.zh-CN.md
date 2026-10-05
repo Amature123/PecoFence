@@ -135,7 +135,7 @@ Microsoft Store 版由微软签名，自动更新，不会出现 SmartScreen 提
 2. **完整解压**到一个文件夹，运行 `pecofence.exe`。
 3. 开始整理。需要设置或退出时，右键系统托盘里的 PecoFence 图标。
 
-如需安装向导，请在同一 Releases 页面下载 `pecofence-v<version>-x64-setup.exe`。它为当前 Windows 用户安装，并将数据保存在 AppData。
+想用安装包？同一页面上的 `pecofence-v<版本>-x64-setup.exe` 只为当前用户安装，会添加开始菜单项和卸载程序，设置和 ZIP 版通用。
 
 习惯用包管理器？`winget install DayuanJiang.PecoFence` 安装的是同一个便携版，并且不会触发 SmartScreen 提示。
 

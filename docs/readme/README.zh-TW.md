@@ -135,7 +135,7 @@ Microsoft Store 版由微軟簽署、自動更新，不會出現 SmartScreen 提
 2. 把壓縮檔**完整解壓縮**到一個資料夾，執行 `pecofence.exe`。
 3. 開始整理。需要開啟設定或結束程式時，在系統匣的 PecoFence 圖示上按右鍵。
 
-如需安裝精靈，請在同一 Releases 頁面下載 `pecofence-v<version>-x64-setup.exe`。它會為目前的 Windows 使用者安裝，並將資料保存在 AppData。
+想用安裝程式？同一頁面上的 `pecofence-v<版本>-x64-setup.exe` 只替目前的使用者安裝，會加入開始功能表項目和解除安裝程式，設定與 ZIP 版共用。
 
 習慣用套件管理器？`winget install DayuanJiang.PecoFence` 安裝的是同一個免安裝版，而且不會觸發 SmartScreen 提示。
 

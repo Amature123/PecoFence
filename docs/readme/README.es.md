@@ -138,7 +138,7 @@ La versión de Microsoft Store está firmada por Microsoft, se actualiza sola y 
 3. Empieza a organizar. Haz clic con el botón derecho en el icono de la bandeja cuando necesites
    la Configuración o quieras salir.
 
-Para usar un asistente de instalación, descarga `pecofence-v<version>-x64-setup.exe` desde la misma página Releases. Instala la aplicación para tu usuario de Windows y guarda los datos en AppData.
+¿Prefieres un instalador? `pecofence-v<versión>-x64-setup.exe`, en la misma página, instala PecoFence para tu usuario de Windows, con acceso en el menú Inicio y desinstalador. Usa la misma configuración que el ZIP.
 
 ¿Prefieres un gestor de paquetes? `winget install DayuanJiang.PecoFence` instala la misma versión portátil y evita el aviso de SmartScreen.
 

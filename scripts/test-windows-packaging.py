@@ -23,7 +23,7 @@ UNINSTALL = r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
 RUN = r"Software\Microsoft\Windows\CurrentVersion\Run"
 PAYLOAD = {
     "pecofence.exe", "pecofence-cli.exe", "pecofence-watchdog.exe",
-    "WebView2Loader.dll", "deployment.json", "release-info.json", "LICENSE",
+    "WebView2Loader.dll", "LICENSE",
     "LICENSE-WebView2Loader.txt", "THIRD-PARTY-LICENSES.txt", "README.md",
     "UPGRADING.md", "SKILL.md",
 }
@@ -63,22 +63,27 @@ def shell_folder(csidl):
     return Path(path.value)
 
 
+def find_iscc(path):
+    """Resolve the compiler exactly as make-windows.ps1 does."""
+    script = str(ROOT / "scripts/find-iscc.ps1").replace("'", "''")
+    argument = (path or "").replace("'", "''")
+    # PowerShell 7's PSModulePath breaks module autoloading in Windows PowerShell 5.1.
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
+    result = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+                             f". '{script}'; Find-Iscc '{argument}'"], cwd=ROOT, env=env,
+                            startupinfo=HIDDEN, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace", timeout=90)
+    assert result.returncode == 0, f"Inno Setup 7 not found:\n{result.stdout}\n{result.stderr}"
+    return result.stdout.strip().splitlines()[-1]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target-dir", type=Path, default=ROOT / "target/package")
     parser.add_argument("--repository", default=os.getenv("GITHUB_REPOSITORY") or "DayuanJiang/PecoFence")
-    parser.add_argument("--iscc", default=os.getenv("ISCC"))
+    parser.add_argument("--iscc", help="ISCC.exe; default: the ISCC variable, PATH, then common install folders")
     args = parser.parse_args()
-    iscc = args.iscc or shutil.which("ISCC.exe")
-    if not iscc:
-        for base in (os.getenv("ProgramFiles"), os.getenv("ProgramFiles(x86)"),
-                     str(Path(os.environ["LOCALAPPDATA"]) / "Programs")):
-            candidate = Path(base or "") / "Inno Setup 7/ISCC.exe"
-            if candidate.is_file():
-                iscc = str(candidate)
-                break
-    assert iscc, "Install Inno Setup 7 or pass --iscc"
-    assert run([iscc, "--version"]).stdout.strip().startswith("7.")
+    iscc = find_iscc(args.iscc)
     version = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
     base = f"pecofence-v{version}-x64"
     dist = ROOT / "dist"
@@ -90,22 +95,15 @@ def main():
         expected = f"{digest(asset.read_bytes())}  {asset.name}\n"
         assert Path(str(asset) + ".sha256").read_text(encoding="utf-8") == expected
     assert set(p.name for p in payload.iterdir()) == PAYLOAD
-    expected_info = {"schema": 1, "repository": args.repository, "version": version, "tag": f"v{version}"}
     with zipfile.ZipFile(dist / f"{base}-portable.zip") as archive:
         assert set(archive.namelist()) == PAYLOAD, "Unexpected files or directories in ZIP"
-        assert json.loads(archive.read("deployment.json")) == {
-            "schema": 1, "appId": "PecoFence", "mode": "portable"}
-        assert json.loads(archive.read("release-info.json")) == expected_info
-        assert json.loads((payload / "release-info.json").read_bytes()) == expected_info
-        assert json.loads((payload / "deployment.json").read_bytes()) == {
-            "schema": 1, "appId": "PecoFence", "mode": "installed"}
         for name in ("pecofence.exe", "pecofence-cli.exe", "pecofence-watchdog.exe", "WebView2Loader.dll"):
             portable_bytes = archive.read(name)
             assert portable_bytes == (payload / name).read_bytes(), f"Different binaries: {name}"
             source = (ROOT / "third_party/webview2/WebView2Loader.x64.dll" if name.endswith(".dll")
                       else args.target_dir / "release" / name)
             assert portable_bytes == source.read_bytes(), f"Stale payload: {name}"
-    passed.append("ZIP payload, both markers, identical build outputs, repository metadata and both checksums")
+    passed.append("ZIP and setup payloads, identical build outputs and both checksums")
 
     identity = uuid.uuid4().hex[:12]
     product_id = f"PecoFence.InstallerTest.{identity}"
@@ -130,8 +128,9 @@ def main():
              "/LANG=en", f"/LOG={stage / (name + '.log')}", *extra], success=success)
 
     def uninstall(name):
-        exe = installed / "unins000.exe"
-        if reg_value(uninstall_key, "InstallLocation") is not None:
+        location = reg_value(uninstall_key, "InstallLocation")
+        if location is not None:
+            exe = Path(location) / "unins000.exe"
             assert exe.is_file(), "Test uninstall entry exists but uninstaller is missing"
             setup(exe, name)
             # Inno's original uninstaller exits before its temporary child finishes.
@@ -151,8 +150,6 @@ def main():
         # Synthetic versions test upgrade policy without altering workspace versions.
         for number in (1, 2):
             test_version = f"0.0.{number}"
-            info = dict(expected_info, version=test_version, tag=f"v{test_version}")
-            (fixture / "release-info.json").write_text(json.dumps(info), encoding="utf-8")
             run([iscc, "--quiet", f"--define=PayloadDir={fixture}",
                  f"--define=AppVersion={test_version}", f"--define=Repository={args.repository}",
                  f"--define=TestIdentity={identity}", f"--output-dir={stage}",
@@ -160,19 +157,13 @@ def main():
             installers.append(stage / f"setup-{number}.exe")
         old, new = installers
 
-        for name, marker in (("portable", '{"schema":1,"appId":"PecoFence","mode":"portable"}'),
-                             ("unowned", None)):
-            folder = stage / name
-            folder.mkdir()
-            sentinel = folder / "keep.txt"
-            sentinel.write_text("unchanged", encoding="utf-8")
-            if marker:
-                (folder / "deployment.json").write_text(marker, encoding="utf-8")
-            before = {p.name: p.read_bytes() for p in folder.iterdir()}
-            setup(old, f"reject-{name}", f"/DIR={folder}", success=False)
-            assert {p.name: p.read_bytes() for p in folder.iterdir()} == before
-            assert reg_value(uninstall_key, "InstallLocation") is None
-        passed.append("portable and unrelated nonempty folders are not overwritten")
+        unowned = stage / "unowned"
+        unowned.mkdir()
+        (unowned / "keep.txt").write_text("unchanged", encoding="utf-8")
+        setup(old, "reject-unowned", f"/DIR={unowned}", success=False)
+        assert [p.name for p in unowned.iterdir()] == ["keep.txt"]
+        assert reg_value(uninstall_key, "InstallLocation") is None
+        passed.append("an unrelated nonempty folder is not overwritten")
 
         # Exercise the same AppMutex mechanism with a unique name, never the real app.
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -194,19 +185,13 @@ def main():
         assert reg_value(uninstall_key, "URLUpdateInfo") == f"https://github.com/{args.repository}/releases"
         assert all(reg_value(RUN, name) is None for name in run_names), "Setup enabled autostart"
         assert desktop_link.is_file() and (menu_group / f"{product_name}.lnk").is_file()
-        for name in PAYLOAD - {"release-info.json"}:
+        for name in PAYLOAD:
             assert (installed / name).read_bytes() == (payload / name).read_bytes()
         passed.append("per-user install, exact payload, shortcuts, fork links and no setup autostart")
 
-        marker_file = installed / "deployment.json"
-        valid_marker = marker_file.read_bytes()
-        marker_file.write_text('{"schema":1,"appId":"PecoFence","mode":"portable"}', encoding="utf-8")
-        setup(new, "reject-changed-marker", success=False)
-        assert "portable" in marker_file.read_text(encoding="utf-8")
-        marker_file.write_bytes(valid_marker)
         setup(new, "reject-relocation", f"/DIR={stage / 'other install'}", success=False)
         assert not (stage / "other install/pecofence.exe").exists()
-        passed.append("upgrade refuses changed distribution marker and installation directory")
+        passed.append("upgrade refuses to move the installation directory")
 
         retained = {}
         for name in ("config/config.json", "data/logs/keep.log", "user-file.txt"):
@@ -220,7 +205,6 @@ def main():
         assert Path(reg_value(uninstall_key, "InstallLocation")) == installed
         assert reg_value(uninstall_key, "DisplayVersion") == "0.0.2"
         assert (installed / "pecofence-cli.exe").read_bytes() == (payload / "pecofence-cli.exe").read_bytes()
-        assert json.loads((installed / "release-info.json").read_bytes())["version"] == "0.0.2"
         assert all(p.read_bytes() == data for p, data in retained.items())
         assert len(list(installed.glob("unins*.exe"))) == 1
         passed.append("upgrade reuses directory/uninstaller, replaces binaries and preserves added data")
@@ -240,6 +224,27 @@ def main():
         assert reg_value(RUN, run_names[0]) is None
         assert reg_value(RUN, run_names[1]) == other_command
         passed.append("uninstall removes managed files/shortcuts, keeps data and another copy's startup entry")
+
+        # A folder an older ZIP was extracted into (the default directory, for some users).
+        extracted = stage / "extracted zip"
+        extracted.mkdir()
+        (extracted / "pecofence.exe").write_bytes(b"older ZIP build fixture")
+        (extracted / "config").mkdir()
+        (extracted / "config/config.json").write_text("portable config", encoding="utf-8")
+        setup(new, "adopt-zip-folder", f"/DIR={extracted}")
+        assert Path(reg_value(uninstall_key, "InstallLocation")) == extracted
+        assert (extracted / "pecofence.exe").read_bytes() == (payload / "pecofence.exe").read_bytes()
+        assert (extracted / "config/config.json").read_text(encoding="utf-8") == "portable config"
+        passed.append("a folder holding an extracted ZIP is upgraded in place and keeps its files")
+
+        # Deleting the folder by hand must not pin later installs to the stale registration.
+        shutil.rmtree(extracted)
+        relocated = stage / "new location"
+        setup(new, "reinstall-after-deleted-folder", f"/DIR={relocated}")
+        assert Path(reg_value(uninstall_key, "InstallLocation")) == relocated
+        uninstall("uninstall-reinstalled")
+        assert not (relocated / "pecofence.exe").exists()
+        passed.append("a registration whose folder was deleted does not block a new location")
     finally:
         # The only persistent writes outside .cache belong to this generated test ID.
         try:

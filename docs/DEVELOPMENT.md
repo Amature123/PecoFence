@@ -67,22 +67,22 @@ requiring Inno Setup; `scripts/make-portable.ps1` remains a compatibility entry 
 `-Format Installer` builds only setup. No MSIX staging directory is reused.
 
 The compiler is found through `-Iscc`, `ISCC`, PATH or common Inno Setup 7 install
-locations. `-Python` accepts a Python executable path, including one returned by
+locations (`scripts/find-iscc.ps1`, which the packaging test also uses). `-Python` accepts a Python executable path, including one returned by
 `uv python find 3.12`. Packaging does not install development tools locally.
 CI uses the pinned URL/SHA-256 in `packaging/inno/toolchain.json`.
 
 For a fork, pass `-Repository owner/repo` and pass the same value to the test with
 `--repository owner/repo`. The default is `GITHUB_REPOSITORY`, then
-`DayuanJiang/PecoFence` outside Actions. This sets installer links and package
-provenance; it does not add an updater or change application identity. Fork setup
+`DayuanJiang/PecoFence` outside Actions. This sets the installer's links; it does
+not change application identity. Fork setup
 EXEs still target the same installed PecoFence product. Use the test script for
 isolated validation instead of installing a fork package over a real installation.
 
-The packaging test checks ZIP contents, markers, binary equality and checksums.
+The packaging test checks the ZIP and setup payloads, binary equality and checksums.
 It then compiles the production `.iss` with a random **test-only** identity and two
 synthetic versions, installs to `.cache/`, upgrades and uninstalls. It exercises
-shortcuts, startup ownership, retained data, mutex blocking and destination/version
-guards without starting PecoFence. Temporary test shortcuts/registry entries are
+shortcuts, startup ownership, retained data, mutex blocking, destination/version
+guards and upgrading a folder that holds an extracted ZIP, without starting PecoFence. Temporary test shortcuts/registry entries are
 cleaned up; reports and logs remain under `.cache/installer-*/`. Never distribute
 these synthetic test installers. Manually inspect the setup wizard and supported
 Windows/DPI combinations before release.

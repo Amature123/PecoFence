@@ -136,7 +136,7 @@ Microsoft Store 버전은 Microsoft가 서명하고 자동으로 업데이트되
 2. **ZIP 전체**를 한 폴더에 풀고 `pecofence.exe`를 실행합니다.
 3. 이제 정리를 시작하세요. 설정을 열거나 종료하려면 트레이 아이콘을 오른쪽 클릭하면 됩니다.
 
-설치 마법사를 사용하려면 같은 Releases 페이지에서 `pecofence-v<version>-x64-setup.exe`를 다운로드하세요. 현재 Windows 사용자용으로 설치하며 데이터는 AppData에 보관합니다.
+설치 프로그램이 편하다면 같은 페이지의 `pecofence-v<버전>-x64-setup.exe`를 사용하세요. 현재 사용자에게만 설치되고 시작 메뉴 항목과 제거 프로그램이 추가됩니다. 설정은 ZIP 버전과 함께 씁니다.
 
 패키지 관리자가 편하다면 `winget install DayuanJiang.PecoFence`로 같은 포터블 빌드를 설치할 수 있고, SmartScreen 경고도 나타나지 않습니다.
 

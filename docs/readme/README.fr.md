@@ -138,7 +138,7 @@ La version Microsoft Store est signée par Microsoft, se met à jour automatique
 3. Commencez à ranger. Un clic droit sur l’icône de la zone de notification ouvre les Paramètres
    ou quitte l’application.
 
-Pour utiliser un assistant d’installation, téléchargez `pecofence-v<version>-x64-setup.exe` depuis la même page Releases. Il installe l’application pour votre utilisateur Windows et conserve les données dans AppData.
+Vous préférez un programme d’installation ? `pecofence-v<version>-x64-setup.exe`, sur la même page, installe PecoFence pour votre compte Windows, avec une entrée dans le menu Démarrer et un programme de désinstallation. Il utilise les mêmes réglages que le ZIP.
 
 Vous préférez un gestionnaire de paquets ? `winget install DayuanJiang.PecoFence` installe la même version portable et évite l’avertissement SmartScreen.
 
