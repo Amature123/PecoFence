@@ -70,7 +70,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Explicit payload: never collect config, caches or arbitrary files from a checkout.
-Source: "{#PayloadDir}\pecofence.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\pecofence-watchdog.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\pecofence-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
@@ -80,6 +79,8 @@ Source: "{#PayloadDir}\THIRD-PARTY-LICENSES.txt"; DestDir: "{app}"; Flags: ignor
 Source: "{#PayloadDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\UPGRADING.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\SKILL.md"; DestDir: "{app}"; Flags: ignoreversion
+; Last: an update aborted halfway (a file in use) keeps the old app, which offers it again.
+Source: "{#PayloadDir}\pecofence.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#ProductName}"; Filename: "{app}\pecofence.exe"; WorkingDir: "{app}"
@@ -87,6 +88,8 @@ Name: "{autodesktop}\{#ProductName}"; Filename: "{app}\pecofence.exe"; WorkingDi
 
 [Run]
 Filename: "{app}\pecofence.exe"; Description: "{cm:LaunchProgram,{#ProductName}}"; Flags: nowait postinstall skipifsilent
+; The in-app updater runs setup silently and has exited: start the new version.
+Filename: "{app}\pecofence.exe"; Flags: nowait; Check: RestartAfterUpdate
 
 [CustomMessages]
 en.AlreadyInstalled=PecoFence is already installed in %1. To install it in another folder, uninstall it first.
@@ -124,6 +127,101 @@ ru.NewerVersion=Уже установлена более новая версия
 const
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#ProductId}_is1';
   RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
+
+var
+  Updating, Installed: Boolean;
+
+function OpenProcess(Access: DWORD; Inherit: BOOL; Pid: DWORD): THandle;
+  external 'OpenProcess@kernel32.dll stdcall';
+function WaitForSingleObject(Handle: THandle; Milliseconds: DWORD): DWORD;
+  external 'WaitForSingleObject@kernel32.dll stdcall';
+function CloseHandle(Handle: THandle): BOOL;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+{ /UPDATE=<pid>,<pid>...: started by PecoFence's updater, which exits right away. Wait, 30 s
+  at most in all, until it, its watchdogs and its instance lock are gone, so the AppMutex
+  check that follows passes and no file is in use. Every pid is opened first, so one that
+  exits early cannot be reused by another process meanwhile. }
+function InitializeSetup: Boolean;
+var
+  Pids: String;
+  Comma, Count, I, Round: Integer;
+  Processes: array of THandle;
+  Waiting: Boolean;
+begin
+  Pids := ExpandConstant('{param:UPDATE|}');
+  Updating := Pids <> '';
+  Count := 0;
+  while Pids <> '' do begin
+    Comma := Pos(',', Pids);
+    if Comma = 0 then
+      Comma := Length(Pids) + 1;
+    SetArrayLength(Processes, Count + 1);
+    Processes[Count] := OpenProcess($00100000 { SYNCHRONIZE }, False, StrToIntDef(Copy(Pids, 1, Comma - 1), 0));
+    if Processes[Count] <> 0 then
+      Count := Count + 1;
+    Delete(Pids, 1, Comma);
+  end;
+  if Updating then begin
+    for Round := 0 to 300 do begin
+      Waiting := CheckForMutexes('{#AppMutexNames}');
+      for I := 0 to Count - 1 do
+        if WaitForSingleObject(Processes[I], 0) <> 0 then
+          Waiting := True;
+      if not Waiting or (Round = 300) then begin
+        Log(Format('Update: waited %d ms for PecoFence to exit', [Round * 100]));
+        Break;
+      end;
+      Sleep(100);
+    end;
+  end;
+  for I := 0 to Count - 1 do
+    CloseHandle(Processes[I]);
+  Result := True;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    Installed := True;
+end;
+
+{ Test installers carry the real app: they log the restart instead of running it. }
+function StartApp(const Executable: String): Boolean;
+#ifndef TestIdentity
+var
+  Code: Integer;
+#endif
+begin
+#ifdef TestIdentity
+  Log('Test identity: would start ' + Executable);
+  Result := False;
+#else
+  Result := ExecAsOriginalUser(Executable, '', '', SW_SHOWNORMAL, ewNoWait, Code);
+#endif
+end;
+
+function RestartAfterUpdate: Boolean;
+begin
+  Result := Updating;
+#ifdef TestIdentity
+  if Result then
+    StartApp(ExpandConstant('{app}\pecofence.exe'));
+  Result := False;
+#endif
+end;
+
+{ An update that failed or was cancelled must not leave the user without PecoFence (unless it
+  never exited: then it is still running). }
+procedure DeinitializeSetup;
+var
+  PreviousDir: String;
+begin
+  if Updating and not Installed and not CheckForMutexes('{#AppMutexNames}') and
+    RegQueryStringValue(HKCU, UninstallKey, 'InstallLocation', PreviousDir) and
+    FileExists(AddBackslash(PreviousDir) + 'pecofence.exe') then
+    StartApp(AddBackslash(PreviousDir) + 'pecofence.exe');
+end;
 
 function SameDirectory(const Left, Right: String): Boolean;
 begin

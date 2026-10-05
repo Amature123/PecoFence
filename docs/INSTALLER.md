@@ -75,5 +75,7 @@ the installed program files and shortcuts, and removes the startup entry only wh
 it points to this installed executable. Configuration, backups, logs and files you
 added to the installation folder are kept.
 
-There is no in-app update downloader yet. Download a newer installer from the
-Releases page.
+**Settings > About > Check for updates** asks GitHub for the latest release. To
+install it, PecoFence downloads the new setup and runs it; PecoFence closes meanwhile
+and opens again when setup is done. You can
+also run a newer setup from the Releases page yourself.

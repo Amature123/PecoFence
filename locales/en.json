@@ -461,5 +461,16 @@
   "邮箱格式不正确": "That email address doesn't look right",
   "问题": "Problem",
   "附带诊断日志（不含个人信息）": "Attach diagnostic log (no personal information)",
-  "（暂无日志）": "(No log yet)"
+  "（暂无日志）": "(No log yet)",
+  "更新": "Updates",
+  "检查更新": "Check for updates",
+  "正在检查更新…": "Checking for updates…",
+  "已是最新版本": "PecoFence is up to date",
+  "有新版本 {0}": "Version {0} is available",
+  "下载并安装": "Download and install",
+  "打开下载页": "Open download page",
+  "有新版本 {0}。安装时 PecoFence 会先退出，装好后自动重新打开。": "Version {0} is available. PecoFence closes during the update and opens again afterwards.",
+  "正在下载新版本…": "Downloading the new version…",
+  "检查更新失败，请稍后再试": "Couldn't check for updates. Try again later.",
+  "下载失败，请稍后再试": "Couldn't download the update. Try again later."
 }

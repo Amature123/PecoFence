@@ -65,6 +65,7 @@ mod tabs;
 #[cfg(test)]
 mod tests;
 mod testscript;
+mod updates;
 mod visuals;
 mod wallpaper_refresh;
 
@@ -215,6 +216,7 @@ pub struct App {
     settings_focus_fence: Option<FenceId>,
     /// The 「反馈」 page: pending focus and the crash offer (see `feedback.rs`).
     feedback: feedback::FeedbackState,
+    updates: updates::Updates,
     web_env: Option<WebEnvironment>,
     settings_class: WindowClass,
     theme_mode: ThemeMode,
@@ -880,6 +882,7 @@ impl App {
             settings: None,
             settings_focus_fence: None,
             feedback: Default::default(),
+            updates: Default::default(),
             web_env: None,
             settings_class,
             theme_mode,
@@ -1054,6 +1057,7 @@ impl App {
         // Close the gap between the startup snapshot and installing the registry watchers.
         window::post_message(app.control.hwnd(), WM_APP_WALLPAPER, 0, 0);
 
+        app.remove_old_update_downloads();
         // Last of the startup balloons, so it is the one left showing.
         app.offer_crash_feedback();
         if args.open_settings {
@@ -1157,6 +1161,7 @@ impl App {
         self.check_cut_clipboard();
         self.drain_fileops();
         self.drain_ipc();
+        self.drain_updates();
         for _ in 0..8 {
             let cmds = self.queue.drain();
             if cmds.is_empty() {

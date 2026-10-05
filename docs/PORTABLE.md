@@ -27,6 +27,9 @@ them above other windows. Drag a title to move a fence; double-click it to roll 
 Automatic organizing rules only change group membership. File operations you
 initiate—moving, renaming, copying and deleting—operate on real files.
 
+**Settings → About → Check for updates** tells you when a newer version is out and
+opens its download page; extract the new ZIP over this folder after exiting PecoFence.
+
 Exit restores Windows desktop icons. If needed, use **Restore Windows desktop
 icons** from the tray menu or Settings → About.
 

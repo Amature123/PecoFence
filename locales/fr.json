@@ -461,5 +461,16 @@
   "邮箱格式不正确": "Cette adresse e-mail n’est pas valide",
   "问题": "Problème",
   "附带诊断日志（不含个人信息）": "Joindre le journal de diagnostic (aucune donnée personnelle)",
-  "（暂无日志）": "(Pas encore de journal)"
+  "（暂无日志）": "(Pas encore de journal)",
+  "更新": "Mises à jour",
+  "检查更新": "Rechercher des mises à jour",
+  "正在检查更新…": "Recherche de mises à jour…",
+  "已是最新版本": "PecoFence est à jour",
+  "有新版本 {0}": "La version {0} est disponible",
+  "下载并安装": "Télécharger et installer",
+  "打开下载页": "Ouvrir la page de téléchargement",
+  "有新版本 {0}。安装时 PecoFence 会先退出，装好后自动重新打开。": "La version {0} est disponible. PecoFence se ferme pendant l’installation et se rouvre automatiquement ensuite.",
+  "正在下载新版本…": "Téléchargement de la nouvelle version…",
+  "检查更新失败，请稍后再试": "Impossible de rechercher les mises à jour. Réessayez plus tard.",
+  "下载失败，请稍后再试": "Impossible de télécharger la mise à jour. Réessayez plus tard."
 }

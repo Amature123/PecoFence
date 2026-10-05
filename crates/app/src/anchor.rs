@@ -139,6 +139,8 @@ struct DesktopIcons {
     /// A hide was requested (setting on) but has not succeeded yet; retried from ensure_anchored.
     pending: bool,
     pending_attempts: u32,
+    /// Every watchdog started this run; each one waits for this process to exit.
+    watchdogs: Vec<u32>,
 }
 
 impl DesktopIcons {
@@ -166,6 +168,7 @@ impl DesktopIcons {
             marker,
             pending: false,
             pending_attempts: 0,
+            watchdogs: Vec::new(),
         }
     }
 }
@@ -858,7 +861,7 @@ impl DesktopAnchor {
     }
 
     /// Starts `pecofence-watchdog.exe` (next to our exe) so a crash still restores the icons.
-    fn spawn_watchdog(&self) {
+    fn spawn_watchdog(&mut self) {
         let Ok(exe) = std::env::current_exe() else {
             return;
         };
@@ -871,9 +874,17 @@ impl DesktopAnchor {
         let pid = pecofence_platform::process::current_pid().to_string();
         let marker = self.icons.marker.to_string_lossy().to_string();
         match pecofence_platform::process::spawn_detached(&wd.to_string_lossy(), &[&pid, &marker]) {
-            Ok(wpid) => tracing::info!(watchdog_pid = wpid, "watchdog started"),
+            Ok(wpid) => {
+                tracing::info!(watchdog_pid = wpid, "watchdog started");
+                self.icons.watchdogs.push(wpid);
+            }
             Err(e) => tracing::warn!(error = %e, "watchdog spawn failed"),
         }
+    }
+
+    /// The watchdog processes setup has to wait for before it replaces their executable.
+    pub fn watchdog_pids(&self) -> &[u32] {
+        &self.icons.watchdogs
     }
 
     /// Restores the icons if (and only if) we hid them. Also cancels a pending retry, so turning
