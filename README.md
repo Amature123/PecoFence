@@ -117,14 +117,6 @@ initiate work like they do in File Explorer.
 
 [Explore the complete feature list →](docs/FEATURES.md)
 
-## Speaks your language
-
-**English · 简体中文 · 繁體中文 · 日本語 · 한국어**  
-**Deutsch · Français · Español · Português (Brasil) · Русский**
-
-Switch instantly in **Settings → General → Display language**, or follow Windows.
-All translations are included and work offline. Your filenames and custom names are preserved.
-
 ## Get PecoFence
 
 <a href="https://apps.microsoft.com/detail/9MV6WG3XNWSX?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft Store" width="200"></a>

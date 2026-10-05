@@ -117,14 +117,6 @@ pecofence-cli fence set --all opacity clear
 
 [查看完整功能清單 →](../FEATURES.md)
 
-## 用你熟悉的語言
-
-**繁體中文 · 简体中文 · English · 日本語 · 한국어**  
-**Deutsch · Français · Español · Português (Brasil) · Русский**
-
-在 **設定 → 一般 → 顯示語言** 即時切換，也可以跟隨 Windows。
-翻譯已經內建，離線也能用；檔案名稱和你自己取的名稱都保持不變。
-
 ## 開始使用
 
 <a href="https://apps.microsoft.com/detail/9MV6WG3XNWSX?mode=direct"><img src="https://get.microsoft.com/images/zh-tw%20dark.svg" alt="從 Microsoft Store 取得" width="200"></a>

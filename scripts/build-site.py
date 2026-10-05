@@ -85,18 +85,6 @@ def detail_items(strings):
     )
 
 
-def language_items(languages, current, root):
-    parts = []
-    for language in languages:
-        href = root + (language["dir"] or "./")
-        active = ' aria-current="page"' if language is current else ""
-        parts.append(
-            f'          <li lang="{language["code"]}"><a href="{href}" '
-            f'hreflang="{language["code"]}"{active}>{html.escape(language["name"])}</a></li>'
-        )
-    return "\n".join(parts)
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=str(ROOT / "dist/site"))
@@ -160,9 +148,6 @@ def main():
         else:
             problems.append(f"no strings for {code}, using English")
         root = "../" if directory else ""
-        readme = f"{repository}/blob/main/README.md" if code == "en" else \
-            f"{repository}/blob/main/docs/readme/README.{code}.md"
-        language_links = language_items(languages, language, root)
         language_options = "\n".join(
             f'        <option value="{lang["code"]}" data-href="{root}{lang["dir"]}"{" selected" if lang is language else ""}>'
             f'{html.escape(lang["name"])}</option>'
@@ -179,11 +164,9 @@ def main():
             "repository": repository,
             "releases": f"{repository}/releases/latest",
             "docs": docs,
-            "readme": readme,
             "features": feature_fences(strings, root),
             "feature_tabs": feature_tabs(strings),
             "details": detail_items(strings),
-            "language_links": language_links,
             "language_options": language_options,
             "year": str(datetime.date.today().year),
             "v": asset_version,

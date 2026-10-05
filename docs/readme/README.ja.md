@@ -113,13 +113,6 @@ AI とスクリプト向けのインターフェース。`describe` はコマン
 
 [機能一覧をすべて見る →](../FEATURES.md)
 
-## あなたの言語で
-
-**日本語 · English · 简体中文 · 繁體中文 · 한국어**  
-**Deutsch · Français · Español · Português (Brasil) · Русский**
-
-**設定 → 全般 → 表示言語** からすぐに切り替えられ、Windows の言語に合わせることもできます。翻訳はすべて内蔵されていてオフラインでも動作します。ファイル名や自分で付けた名前はそのまま保持されます。
-
 ## はじめる
 
 <a href="https://apps.microsoft.com/detail/9MV6WG3XNWSX?mode=direct"><img src="https://get.microsoft.com/images/ja%20dark.svg" alt="Microsoft Store から入手" width="200"></a>

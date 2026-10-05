@@ -118,15 +118,6 @@ die du selbst anstößt, funktionieren wie im Explorer.
 
 [Die vollständige Funktionsliste →](../FEATURES.md)
 
-## Spricht deine Sprache
-
-**Deutsch · English · 简体中文 · 繁體中文 · 日本語**  
-**한국어 · Français · Español · Português (Brasil) · Русский**
-
-Wechsle jederzeit unter **Einstellungen → Allgemein → Anzeigesprache** oder übernimm
-die Windows-Sprache. Alle Übersetzungen sind enthalten und funktionieren offline. Dateinamen
-und eigene Bezeichnungen bleiben unverändert.
-
 ## PecoFence herunterladen
 
 <a href="https://apps.microsoft.com/detail/9MV6WG3XNWSX?mode=direct"><img src="https://get.microsoft.com/images/de%20dark.svg" alt="Im Microsoft Store herunterladen" width="200"></a>
