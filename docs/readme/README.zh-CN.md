@@ -131,9 +131,11 @@ pecofence-cli fence set --all opacity clear
 
 Microsoft Store 版由微软签名，自动更新，不会出现 SmartScreen 提示。想要纯压缩包？下面的便携版是同一个程序。
 
-1. 在本仓库的 **Releases** 页面下载 `pecofence-<版本>-x64.zip`。
+1. 在本仓库的 **Releases** 页面下载 `pecofence-v<版本>-x64-portable.zip`。
 2. **完整解压**到一个文件夹，运行 `pecofence.exe`。
 3. 开始整理。需要设置或退出时，右键系统托盘里的 PecoFence 图标。
+
+如需安装向导，请在同一 Releases 页面下载 `pecofence-v<version>-x64-setup.exe`。它为当前 Windows 用户安装，并将数据保存在 AppData。
 
 习惯用包管理器？`winget install DayuanJiang.PecoFence` 安装的是同一个便携版，并且不会触发 SmartScreen 提示。
 
@@ -156,7 +158,7 @@ Microsoft Store 版由微软签名，自动更新，不会出现 SmartScreen 提
 - Windows 自带对话框和第三方资源管理器菜单仍使用系统语言。
 - 便携版未做代码签名。首次运行若出现 Windows SmartScreen 提示，点击**更多信息 → 仍要运行**。通过 Microsoft Store 或 winget 安装不会出现该提示。
 
-[便携版说明](../PORTABLE.md) · [多语言说明](../LOCALIZATION.md)
+[便携版说明](../PORTABLE.md) · [多语言说明](../LOCALIZATION.md) · [Windows 安装版说明](../INSTALLER.md)
 
 </details>
 
