@@ -581,6 +581,12 @@ pub struct AppearanceOverride {
     /// `rollUp.titleOnHover`).
     #[serde(default)]
     pub title_on_hover: Option<bool>,
+    /// The tint washes only the title row instead of the whole glass.
+    #[serde(default)]
+    pub tint_title_only: bool,
+    /// This fence's bar in a tab strip (None = its tint).
+    #[serde(default)]
+    pub tab_rgb: Option<[u8; 3]>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -591,6 +597,7 @@ pub enum TitleSize {
     #[default]
     Normal,
     Large,
+    ExtraLarge,
 }
 
 /// Distance between icons in the grid (Fences "icon spacing").
@@ -665,6 +672,10 @@ pub struct Fence {
     /// Folder portal: hide the folder glyph before the title.
     #[serde(default)]
     pub hide_title_icon: bool,
+    /// Inbox: no window while it holds no items (为空时自动隐藏); the next item to land on the
+    /// desktop brings it back at its saved spot.
+    #[serde(default)]
+    pub hide_when_empty: bool,
     #[serde(default)]
     pub items: Vec<ItemRef>,
 }
@@ -688,6 +699,7 @@ impl Fence {
             tab_order: Vec::new(),
             portal_navigate: true,
             hide_title_icon: false,
+            hide_when_empty: false,
             items: Vec::new(),
         }
     }

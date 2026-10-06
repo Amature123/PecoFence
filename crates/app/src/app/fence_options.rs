@@ -58,6 +58,8 @@ pub(super) const FENCE_PROPS: &[&str] = &[
     "excludeFromQuickHide",
     "opacity",
     "tint",
+    "tintTitleOnly",
+    "tabColor",
     "titleColor",
     "titleSize",
     "titleOnHover",
@@ -68,6 +70,7 @@ pub(super) const FENCE_PROPS: &[&str] = &[
     "labelLines",
     "portalNavigate",
     "portalTitleIcon",
+    "hideWhenEmpty",
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -91,6 +94,9 @@ pub(super) enum FenceProp {
     /// None = the global default; otherwise a preset (`OPACITY_CLEAR` / `_SOLID` / `_NONE`).
     Opacity(Option<f32>),
     Tint(Option<[u8; 3]>),
+    TintTitleOnly(bool),
+    /// None = the tab's tint.
+    TabColor(Option<[u8; 3]>),
     TitleColor(TitleColorChoice),
     /// None = normal.
     TitleSize(Option<TitleSize>),
@@ -98,6 +104,8 @@ pub(super) enum FenceProp {
     TitleOnHover(Option<bool>),
     PortalNavigate(bool),
     PortalTitleIcon(bool),
+    /// Inbox only: 为空时自动隐藏.
+    HideWhenEmpty(bool),
     Layout(ViewLayout),
     Sort(SortMode),
     Reverse(bool),
@@ -155,15 +163,21 @@ pub(super) fn parse_fence_prop(
                 _ => return Err(bad(ALLOWED)),
             })
         }
-        "tint" => {
+        "tint" | "tabColor" => {
             const ALLOWED: &[&str] = &["#RRGGBB", "null"];
-            FenceProp::Tint(match value {
+            let rgb = match value {
                 serde_json::Value::Null => None,
                 serde_json::Value::String(s) if s.is_empty() => None,
                 serde_json::Value::String(s) => Some(parse_hex(s).ok_or_else(|| bad(ALLOWED))?),
                 _ => return Err(bad(ALLOWED)),
-            })
+            };
+            if prop == "tint" {
+                FenceProp::Tint(rgb)
+            } else {
+                FenceProp::TabColor(rgb)
+            }
         }
+        "tintTitleOnly" => FenceProp::TintTitleOnly(as_bool()?),
         "titleColor" => {
             const ALLOWED: &[&str] = &["theme", "tint", "white", "black", "#RRGGBB"];
             FenceProp::TitleColor(match as_str(ALLOWED)? {
@@ -175,11 +189,12 @@ pub(super) fn parse_fence_prop(
             })
         }
         "titleSize" => {
-            const ALLOWED: &[&str] = &["small", "normal", "large"];
+            const ALLOWED: &[&str] = &["small", "normal", "large", "extraLarge"];
             FenceProp::TitleSize(match as_str(ALLOWED)? {
                 "small" => Some(TitleSize::Small),
                 "normal" => None,
                 "large" => Some(TitleSize::Large),
+                "extraLarge" => Some(TitleSize::ExtraLarge),
                 _ => return Err(bad(ALLOWED)),
             })
         }
@@ -224,6 +239,7 @@ pub(super) fn parse_fence_prop(
         }
         "portalNavigate" => FenceProp::PortalNavigate(as_bool()?),
         "portalTitleIcon" => FenceProp::PortalTitleIcon(as_bool()?),
+        "hideWhenEmpty" => FenceProp::HideWhenEmpty(as_bool()?),
         _ => {
             return Err(IpcError::invalid_value(
                 format!("unknown fence property {prop:?}"),
@@ -284,6 +300,13 @@ impl App {
         self.schedule_save();
     }
 
+    /// The inbox's 为空时自动隐藏 (other fences keep the flag but never hide).
+    pub(super) fn set_fence_hide_when_empty(&mut self, fence: FenceId, on: bool) {
+        self.state.set_hide_when_empty(fence, on);
+        self.sync_inbox_window();
+        self.schedule_save();
+    }
+
     /// `None` = default opacity; otherwise one of the presets (or any imported value).
     pub(super) fn set_fence_opacity(&mut self, fence: FenceId, opacity: Option<f32>) {
         let host = self.state.host_of(fence);
@@ -317,6 +340,20 @@ impl App {
             title_rgb = tint;
         }
         self.set_fence_style(fence, tint, title_rgb, title_size);
+    }
+
+    pub(super) fn set_fence_tint_title_only(&mut self, fence: FenceId, on: bool) {
+        let host = self.state.host_of(fence);
+        self.state.set_tint_title_only(host, on);
+        self.apply_fence_appearance(host);
+        self.schedule_save();
+    }
+
+    /// A tab's own bar colour; it stays with the tab, whichever window it is in.
+    pub(super) fn set_fence_tab_color(&mut self, fence: FenceId, rgb: Option<[u8; 3]>) {
+        self.state.set_tab_color(fence, rgb);
+        self.refresh_fence(fence);
+        self.schedule_save();
     }
 
     /// A tab keeps its own title appearance when it joins or leaves a stack.
@@ -427,6 +464,7 @@ impl App {
             TitleSize::Small => "small",
             TitleSize::Normal => "normal",
             TitleSize::Large => "large",
+            TitleSize::ExtraLarge => "extraLarge",
         };
         let spacing = match f.view.spacing {
             Spacing::Compact => "compact",
@@ -456,9 +494,12 @@ impl App {
             "excludeFromQuickHide": h.exclude_from_quick_hide,
             "opacity": opacity,
             "tint": tint.map(hex),
+            "tintTitleOnly": h.appearance.as_ref().is_some_and(|a| a.tint_title_only),
+            "tabColor": f.appearance.as_ref().and_then(|a| a.tab_rgb).map(hex),
             "titleColor": title_color,
             "titleSize": title_size,
             "titleOnHover": title_on_hover,
+            "hideWhenEmpty": f.hide_when_empty,
             "portal": portal,
         })
     }
@@ -521,6 +562,8 @@ impl App {
             FenceProp::ExcludeFromQuickHide(on) => self.set_fence_quick_hide_excluded(fence, on),
             FenceProp::Opacity(op) => self.set_fence_opacity(fence, op),
             FenceProp::Tint(tint) => self.set_fence_tint(fence, tint),
+            FenceProp::TintTitleOnly(on) => self.set_fence_tint_title_only(fence, on),
+            FenceProp::TabColor(rgb) => self.set_fence_tab_color(fence, rgb),
             FenceProp::TitleColor(choice) => {
                 let (tint, _, _) = self.style_of(host);
                 let (_, _, title_size) = self.style_of(fence);
@@ -538,6 +581,7 @@ impl App {
             FenceProp::TitleOnHover(on) => self.set_fence_title_on_hover(fence, on),
             FenceProp::PortalNavigate(on) => self.set_fence_portal_navigate(fence, on),
             FenceProp::PortalTitleIcon(on) => self.set_fence_title_icon(fence, on),
+            FenceProp::HideWhenEmpty(on) => self.set_fence_hide_when_empty(fence, on),
             FenceProp::Layout(layout) => {
                 // Same steps as the fence menu's 视图 items.
                 self.state.set_layout(fence, layout);

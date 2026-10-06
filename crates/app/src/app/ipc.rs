@@ -1245,9 +1245,15 @@ impl App {
             spacing: text("spacing"),
             auto_height: flag("autoHeight"),
             exclude_from_quick_hide: flag("excludeFromQuickHide"),
+            hide_when_empty: flag("hideWhenEmpty"),
             opacity: text("opacity"),
             tint: opts
                 .get("tint")
+                .and_then(Value::as_str)
+                .map(|t| with_hash(t.to_string())),
+            tint_title_only: flag("tintTitleOnly"),
+            tab_color: opts
+                .get("tabColor")
                 .and_then(Value::as_str)
                 .map(|t| with_hash(t.to_string())),
             title_color: with_hash(text("titleColor")),
@@ -1670,7 +1676,7 @@ impl App {
         let f = self.fence_or_err(id)?.clone();
         if f.kind == FenceKind::Inbox {
             return Err(unsupported(format!(
-                "{:?} is the inbox fence (the desktop itself) and cannot be deleted",
+                "{:?} is the inbox fence (the desktop itself) and cannot be deleted; fence set inbox hideWhenEmpty true hides it while it is empty",
                 f.title
             )));
         }

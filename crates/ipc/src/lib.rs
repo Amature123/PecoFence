@@ -146,9 +146,10 @@ pub enum Method {
     FencesMoveToMonitor { fence: String, monitor: String },
     /// Per-fence option; `prop` and `value` use the same names and values as [`FenceDto`]
     /// (`iconSize` 32|48|64|96, `spacing`, `autoHeight`, `locked`, `excludeFromQuickHide`,
-    /// `opacity` default|clear|solid|transparent, `tint` "#RRGGBB"|null, `titleColor`, `titleSize`,
+    /// `opacity` default|clear|solid|transparent, `tint` "#RRGGBB"|null, `tintTitleOnly`,
+    /// `tabColor` "#RRGGBB"|null, `titleColor`, `titleSize` small|normal|large|extraLarge,
     /// `titleOnHover` default|hover|always, `layout` icons|list|details, `sort`, `reverse`, `groupByDate`, `labelLines`,
-    /// `portalNavigate`, `portalTitleIcon`). Result: `{changed, fence}`.
+    /// `portalNavigate`, `portalTitleIcon`, `hideWhenEmpty`). Result: `{changed, fence}`.
     #[serde(rename = "fences.setOption")]
     FencesSetOption {
         fence: String,

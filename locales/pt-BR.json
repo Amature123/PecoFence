@@ -299,7 +299,6 @@
   "默认：透出桌面。更厚实：多一层底色。全透明：鼠标悬停时才显示玻璃。": "Padrão: a área de trabalho aparece através do vidro. Mais opaco: adiciona uma camada de cor. Totalmente transparente: o vidro só aparece ao passar o mouse.",
   "给玻璃染上一层颜色，标签页的色条随之变化": "Colorir o vidro e os indicadores das abas",
   "要跟随色调，请先选一种色调": "Para usar “Igual à tonalidade”, escolha uma tonalidade primeiro",
-  "标题栏高度随字号变化": "A altura do título acompanha o tamanho do texto",
   "显示标题栏": "Mostrar barra de título",
   "鼠标悬停时显示：平时收起标题行，指针移到栅栏上才出现": "Ao passar o mouse: a linha do título fica recolhida até você apontar para o grupo",
   "跟随常规设置": "Usar a configuração geral",
@@ -474,5 +473,13 @@
   "有新版本 {0}。安装时 PecoFence 会先退出，装好后自动重新打开。": "A versão {0} está disponível. O PecoFence fecha durante a instalação e abre de novo quando ela termina.",
   "正在下载新版本…": "Baixando a nova versão…",
   "检查更新失败，请稍后再试": "Não foi possível verificar atualizações. Tente novamente mais tarde.",
-  "下载失败，请稍后再试": "Não foi possível baixar a atualização. Tente novamente mais tarde."
+  "下载失败，请稍后再试": "Não foi possível baixar a atualização. Tente novamente mais tarde.",
+  "为空时自动隐藏": "Ocultar quando estiver vazio",
+  "里面没有图标时就不显示；桌面上一出现新图标，它会自己回来": "Fica oculto enquanto não tiver ícones e volta assim que um novo ícone aparecer na área de trabalho",
+  "只给标题栏上色": "Colorir só a barra de título",
+  "关掉的话，整个栅栏都会染上色调": "Desligado, a tonalidade cobre o grupo inteiro",
+  "标签页颜色": "Cor da aba",
+  "标签页文字下方那条色条的颜色，方便区分同一个栅栏里的标签页": "A barra sob o nome da aba, para distinguir as abas de um mesmo grupo",
+  "特大": "Muito grande",
+  "栅栏标题和标签页文字的大小": "Tamanho do título do grupo e dos nomes das abas"
 }
