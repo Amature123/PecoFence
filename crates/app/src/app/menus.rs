@@ -225,8 +225,11 @@ impl App {
                     && !item.is_namespace()
                     && let Some(p) = item.key.as_path()
                 {
+                    use std::os::windows::process::CommandExt;
+                    // `/select,"<path>"`: quoted as a whole (what `arg` does for a name with
+                    // a space), the argument makes Explorer open Documents instead.
                     let _ = std::process::Command::new("explorer.exe")
-                        .arg(format!("/select,{p}"))
+                        .raw_arg(format!("/select,\"{p}\""))
                         .spawn();
                 }
             }
