@@ -32,6 +32,7 @@
 - A crash could leave the desktop icons hidden after 「隐藏 Windows 桌面图标」 had been turned off and on, or a shutdown had been cancelled: two watchdogs restored the icons at once and undid each other.
 - Renaming an icon to its own name in lower case (README → readme) renames the file. It used to do nothing.
 - pecofence-cli: `fence create --portal` resolves a relative folder such as `.` against the current directory, not PecoFence's.
+- PecoFence closes when Windows asks it to: for a Store update, an installer, or the end of the session. It used to keep running, so Windows waited, ended it by force and reported it as not responding. After an update, PecoFence starts again by itself.
 
 ## 0.1.3
 

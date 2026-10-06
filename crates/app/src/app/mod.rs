@@ -703,6 +703,15 @@ impl App {
                             }
                             Some(0)
                         }
+                        msg::WM_ENDSESSION => {
+                            // The session ends, or a package update or Restart Manager asks
+                            // this program to close (ENDSESSION_CLOSEAPP): leave as 退出 does
+                            // (WM_QUERYENDSESSION saved and showed the icons). Staying makes
+                            // Windows wait, then kill it and report a hang.
+                            tracing::info!(close_app = lparam & 1 != 0, "session ending: quitting");
+                            window::post_quit(0);
+                            Some(0)
+                        }
                         msg::WM_DESTROY => Some(0),
                         _ => None,
                     }
