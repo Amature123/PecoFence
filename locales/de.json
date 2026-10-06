@@ -481,5 +481,10 @@
   "标签页颜色": "Tab-Farbe",
   "标签页文字下方那条色条的颜色，方便区分同一个栅栏里的标签页": "Die Markierung unter dem Tab-Namen, damit sich die Tabs eines Bereichs unterscheiden lassen",
   "特大": "Sehr groß",
-  "栅栏标题和标签页文字的大小": "Größe von Bereichstitel und Tab-Namen"
+  "栅栏标题和标签页文字的大小": "Größe von Bereichstitel und Tab-Namen",
+  "喜欢 PecoFence 吗？": "Gefällt dir PecoFence?",
+  "点这里在 Microsoft Store 给它打个分，几秒钟就好。": "Hier klicken, um es im Microsoft Store zu bewerten. Dauert nur ein paar Sekunden.",
+  "你的支持能让更多人发现它。": "Deine Unterstützung hilft anderen, es zu finden.",
+  "在 Microsoft Store 评分": "Im Microsoft Store bewerten",
+  "在 GitHub 点 Star": "Auf GitHub einen Stern geben"
 }

@@ -240,6 +240,7 @@ impl App {
             "monitors": monitors,
             "tintPalette": fence_options::tint_palette_json(),
             "version": env!("CARGO_PKG_VERSION"),
+            "storeEdition": pecofence_platform::process::is_packaged(),
             "configPath": self.state.config_path_on_disk().to_string_lossy(),
             "memoryMb": mem_mb,
             "itemCount": self.state.workspace_item_count(),
@@ -437,6 +438,11 @@ impl App {
                 }
                 Some("repairIcons") => self.set_desktop_icons_hidden(false),
                 Some("hideDesktopIcons") => self.set_desktop_icons_hidden(true),
+                Some("rateInStore") => self.open_store_rating(),
+                Some("openRepository") => {
+                    let url = pecofence_core::brand::REPOSITORY_URL;
+                    let _ = shell::shell_execute(std::path::Path::new(url), None, None);
+                }
                 _ => {}
             },
             _ => {}

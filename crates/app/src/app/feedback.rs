@@ -71,16 +71,24 @@ impl App {
         }
     }
 
-    /// A tray balloon was clicked; only the crash offer reacts to it.
+    /// A tray balloon was clicked; the crash offer and the rating offer react to it.
     pub(super) fn on_balloon_click(&mut self) {
         if std::mem::take(&mut self.feedback.crash_offer_pending) {
             self.open_feedback(true);
+        } else {
+            self.rating_offer_clicked();
         }
     }
 
     /// The balloon went away unclicked (or another one replaced it).
     pub(super) fn on_balloon_gone(&mut self) {
         self.feedback.crash_offer_pending = false;
+        self.rating_offer_gone();
+    }
+
+    /// The crash offer's balloon is up (another balloon would replace it).
+    pub(super) fn feedback_offer_pending(&self) -> bool {
+        self.feedback.crash_offer_pending
     }
 
     /// Opens the settings window on the 「反馈」 page; `crash` says it reports the last crash.

@@ -60,6 +60,7 @@ mod motion;
 mod peek;
 mod portals;
 mod push;
+mod rating;
 mod settings;
 mod sync;
 mod tabs;
@@ -223,6 +224,8 @@ pub struct App {
     /// The 「反馈」 page: pending focus and the crash offer (see `feedback.rs`).
     feedback: feedback::FeedbackState,
     updates: updates::Updates,
+    /// The one-time Store rating offer (see `rating.rs`).
+    rating: rating::RatingPrompt,
     web_env: Option<WebEnvironment>,
     settings_class: WindowClass,
     theme_mode: ThemeMode,
@@ -882,6 +885,10 @@ impl App {
             control.hwnd(),
             ipc_pending.clone(),
         );
+        let rating = rating::RatingPrompt::load(
+            state.config_path().parent().unwrap_or(Path::new(".")),
+            pecofence_platform::process::is_packaged(),
+        );
 
         let mut app = App {
             state,
@@ -908,6 +915,7 @@ impl App {
             settings_focus_fence: None,
             feedback: Default::default(),
             updates: Default::default(),
+            rating,
             web_env: None,
             settings_class,
             theme_mode,
@@ -1179,6 +1187,7 @@ impl App {
                 }
             }
         }
+        self.offer_rating_if_due();
     }
 
     /// Drains and executes queued commands. Loops because handlers may enqueue more.

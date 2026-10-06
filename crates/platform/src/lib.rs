@@ -18,6 +18,18 @@
     unused_imports
 )]
 mod bindings;
+// Windows.Services.Store, kept apart from `bindings` (tools/bindgen/store.txt).
+#[allow(
+    non_snake_case,
+    non_upper_case_globals,
+    non_camel_case_types,
+    clippy::upper_case_acronyms,
+    clippy::missing_transmute_annotations,
+    clippy::useless_transmute,
+    dead_code,
+    unused_imports
+)]
+mod store_bindings;
 
 pub mod autostart;
 pub mod clipboard;
@@ -46,6 +58,7 @@ pub mod shell;
 pub mod shell_icons;
 pub mod shell_menu;
 pub mod shell_notify;
+pub mod store;
 pub mod sysparams;
 pub mod theme;
 pub mod tooltip;

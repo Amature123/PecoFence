@@ -617,6 +617,21 @@ async function runTests() {
     assert(messages().length === 1 && messages()[0].a === 'two' && messages()[0].b === 'one', 'Display selections reset or swapped incorrectly');
   });
 
+  await test('The Store rating button appears only in the Store edition; both support buttons post', async () => {
+    doc.querySelector('[data-page=about]').click();
+    const rate = doc.getElementById('rateStore'), star = doc.getElementById('starRepo');
+    current().storeEdition = false;
+    frame.contentWindow.testRefresh(); await settle();
+    assert(rate.hidden && !star.hidden, 'Rating offered outside the Store edition');
+    current().storeEdition = true;
+    frame.contentWindow.testRefresh(); await settle();
+    assert(!rate.hidden && rate.offsetWidth > 0, 'Rating button missing in the Store edition');
+    const actions = () => frame.contentWindow.testMessages.filter(m => m.type === 'action').map(m => m.name);
+    rate.click(); star.click(); await settle();
+    assert(actions().slice(-2).join() === 'rateInStore,openRepository', 'Support buttons did not post their actions');
+    current().storeEdition = false;
+    frame.contentWindow.testRefresh();
+  });
   await test('Desktop icons can be restored, hidden again, and restored repeatedly', async () => {
     doc.querySelector('[data-page=about]').click();
     const restore = doc.getElementById('repairIcons'), hide = doc.getElementById('hideIconsAgain');

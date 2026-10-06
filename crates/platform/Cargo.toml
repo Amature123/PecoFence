@@ -8,6 +8,8 @@ license.workspace = true
 pecofence-core = { path = "../core" }
 windows-core = { workspace = true }
 windows-numerics = { workspace = true }
+# IAsyncOperation for the Microsoft Store rating dialog (store.rs).
+windows-future = "0.100"
 tracing = { workspace = true }
 
 [dev-dependencies]

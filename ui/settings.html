@@ -484,6 +484,8 @@
         <div><div class="name">PecoFence <span id="ver"></span></div><div class="s">开源的 Windows 11 桌面整理工具</div><div class="s">Apache 2.0 许可证</div><div class="s" id="memDetail">—</div></div>
       </div>
       <div class="card" id="updateCard" hidden><div class="l"><span class="ic">&#xE895;</span><div><div class="t">更新</div><div class="s" id="updateStatus"></div></div></div><button id="updateAction"></button></div>
+      <div class="card"><div class="l"><span class="ic">&#xE734;</span><div><div class="t">喜欢 PecoFence 吗？</div><div class="s">你的支持能让更多人发现它。</div></div></div>
+        <div class="actions"><button id="rateStore" hidden>在 Microsoft Store 评分</button><button id="starRepo">在 GitHub 点 Star</button></div></div>
       <div class="card"><div class="l"><span class="ic">&#xE8A5;</span><div><div class="t">配置文件</div><div class="s"><code id="cfgPath"></code></div></div></div><button id="openCfg">打开配置文件夹</button></div>
       <h3>疑难解答</h3>
       <div class="card"><div class="l"><span class="ic">&#xE90F;</span><div><div class="t">Windows 桌面图标</div><div class="s" id="desktopIconsStatus"></div></div></div>
@@ -1021,6 +1023,8 @@
     restoreFocus(bl, backupFocus);
   }
   document.getElementById('openCfg').onclick = () => send({ type: 'action', name: 'openConfigFolder' });
+  document.getElementById('rateStore').onclick = () => send({ type: 'action', name: 'rateInStore' });
+  document.getElementById('starRepo').onclick = () => send({ type: 'action', name: 'openRepository' });
   document.getElementById('repairIcons').onclick = () => send({ type: 'action', name: 'repairIcons' });
 
   // 关于 → 更新: an installed copy downloads and runs the new setup, a ZIP opens the release page.
@@ -1147,6 +1151,8 @@
         document.documentElement.style.setProperty('--accent-hover', m.accent + 'E6');
       }
       document.getElementById('ver').textContent = 'v' + m.version;
+      // Only the Store edition has the Store's rating dialog.
+      document.getElementById('rateStore').hidden = !m.storeEdition;
       renderWorkspaceSummary(m.fences.length, m.itemCount);
       document.getElementById('cfgPath').textContent = m.configPath;
       bindAll(); bindThemeStyle(); bindIconTint(); renderDependents(); renderFences(); renderRules(); renderLayout(); updateKind(); renderAppearance(); renderDesktopIconsStatus();
