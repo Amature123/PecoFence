@@ -2054,7 +2054,9 @@ impl App {
                 format!("{target:?} already exists in that folder"),
             )
             .hint("Pick another name, or move the existing item first"),
-            RenameError::Io(msg) => IpcError::internal(format!("rename failed: {msg}")),
+            RenameError::Denied(msg) | RenameError::Io(msg) => {
+                IpcError::internal(format!("rename failed: {msg}"))
+            }
         })?;
         // Portal ids are path hashes and change with the name; desktop ids are stable.
         let new_id = if self.state.item(id).is_some() {

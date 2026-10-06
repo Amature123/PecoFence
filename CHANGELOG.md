@@ -3,6 +3,7 @@
 ## Unreleased
 
 - 「打开配置文件夹」 opens the right folder in the Store edition (#45). Windows keeps what a Store app writes under %APPDATA% in the package's own `LocalCache\Roaming` folder, and Explorer cannot see the file at the %APPDATA% path, so the button opened Documents. The settings page (and `pecofence-cli status` / `paths`) now show the real location, and the button opens it with config.json selected.
+- Renaming an icon that only administrators may change, such as a shortcut installed for all users (it lives on the Public Desktop), asks for permission the way Explorer does (#48): 「你需要提供管理员权限才能重命名此文件」 with 继续, instead of failing with 「拒绝访问」. The icon keeps its fence. pecofence-cli `item rename` still reports the error without a prompt.
 
 ## 0.1.4
 

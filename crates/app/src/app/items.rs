@@ -12,8 +12,20 @@ pub(super) enum RenameError {
     InvalidName,
     /// Another entry of that name is already in the folder.
     Exists,
+    /// Access denied (message): the folder needs administrator rights (the Public Desktop),
+    /// or a file inside the folder being renamed is open.
+    Denied(String),
     /// The filesystem refused (message).
     Io(String),
+}
+
+fn rename_error(e: std::io::Error) -> RenameError {
+    tracing::warn!(error = %e, "rename failed");
+    if e.kind() == std::io::ErrorKind::PermissionDenied {
+        RenameError::Denied(e.to_string())
+    } else {
+        RenameError::Io(e.to_string())
+    }
 }
 
 impl App {
@@ -254,8 +266,28 @@ impl App {
             .unwrap_or_default();
         // Explorer's editing name drops `.lnk` / hidden extensions: keep whatever it dropped.
         let suffix = crate::rename::rename_hidden_suffix(&it.display_name, file_name, it.is_folder);
-        let toast = match self.rename_item_to(item, &format!("{name}{suffix}")) {
+        let old = it.key.as_path().map(PathBuf::from);
+        let new_name = format!("{name}{suffix}");
+        let toast = match self.rename_item_to(item, &new_name) {
             Ok(_) | Err(RenameError::Unsupported) => None,
+            Err(RenameError::Denied(e)) => match old {
+                // Explorer asks for administrator permission here; the shell's own rename
+                // does the same.
+                Some(old) => {
+                    let owner = self
+                        .state
+                        .portal_of_item(item)
+                        .or_else(|| {
+                            let f = self.state.fences().iter().find(|f| f.contains_item(item));
+                            f.map(|f| f.id)
+                        })
+                        .and_then(|f| self.window_for(f))
+                        .map_or_else(|| self.control.hwnd(), |w| w.hwnd());
+                    self.start_shell_rename(old, new_name, owner);
+                    None
+                }
+                None => Some(pecofence_core::i18n::format("重命名失败：{0}", &[e])),
+            },
             Err(RenameError::InvalidName) => Some(
                 pecofence_core::i18n::text("名称不能为空，也不能包含 \\ / : * ? \" < > |")
                     .to_string(),
@@ -305,17 +337,14 @@ impl App {
         {
             // Same name, another case: a no-op for the item table, but the file's spelling
             // changes. (`old` is the lower-cased key: callers already skipped unchanged names.)
-            std::fs::rename(&old, &new).map_err(|e| RenameError::Io(e.to_string()))?;
+            std::fs::rename(&old, &new).map_err(rename_error)?;
             self.refresh_fences_with(item);
             return Ok(new);
         }
         if new.exists() {
             return Err(RenameError::Exists);
         }
-        std::fs::rename(&old, &new).map_err(|e| {
-            tracing::warn!(error = %e, "rename failed");
-            RenameError::Io(e.to_string())
-        })?;
+        std::fs::rename(&old, &new).map_err(rename_error)?;
         tracing::info!(from = %old.display(), to = %new.display(), "item renamed");
         if self.state.is_portal_item(item) {
             // Portal ids are path hashes. Update the old view's identity before the folder

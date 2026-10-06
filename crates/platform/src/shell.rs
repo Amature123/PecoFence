@@ -639,6 +639,33 @@ pub fn transfer_to_folder(
     }
 }
 
+/// Renames `path` to `new_name` (the complete file name) with the shell's file operation, so
+/// a folder the user may not write to (the Public Desktop) gets Explorer's own
+/// administrator-permission prompt. Blocks like [`transfer_to_folder`]; returns false when
+/// the user cancelled.
+pub fn rename_with_prompt(path: &Path, new_name: &str, owner: Option<HWND>) -> Result<bool> {
+    let name = to_wide(new_name);
+    // SAFETY: COM calls on objects created here; the caller's thread has COM initialized and
+    // `name` outlives the operation.
+    unsafe {
+        let op: IFileOperation = CoCreateInstance(&FileOperation, None, CLSCTX_ALL as u32)?;
+        op.SetOperationFlags((FOF_ALLOWUNDO | FOFX_ADDUNDORECORD) as u32)
+            .ok()?;
+        if let Some(h) = owner {
+            let _ = op.SetOwnerWindow(h);
+        }
+        op.RenameItem(&shell_item(path)?, PCWSTR(name.as_ptr()), None)
+            .ok()?;
+        // Declining the prompt fails the operation too: report that as a cancel, not an error.
+        let performed = op.PerformOperations();
+        if op.GetAnyOperationsAborted().is_ok_and(|b| b.as_bool()) {
+            return Ok(false);
+        }
+        performed.ok()?;
+        Ok(true)
+    }
+}
+
 /// Opens an item with the shell (default verb), or runs `verb` (`"runas"`, `"properties"`,
 /// `"openas"`…).
 pub fn shell_execute(path: &Path, verb: Option<&str>, owner: Option<HWND>) -> Result<()> {
@@ -846,6 +873,27 @@ mod move_tests {
         let start_menu = Path::new(r"{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}\Steam\steam.exe");
         assert!(create_shortcut(start_menu, &base).is_err());
         assert!(!base.join("steam - 快捷方式.lnk").exists());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// The shell rename takes the complete file name: a shortcut's hidden `.lnk` is not added
+    /// a second time.
+    #[test]
+    fn rename_with_prompt_takes_the_full_file_name() {
+        let _com = crate::com::OleGuard::init().expect("COM");
+        let base = std::env::temp_dir().join(format!("pecofence-ren-{}", std::process::id()));
+        std::fs::create_dir_all(&base).unwrap();
+        let file = base.join("probe.txt");
+        std::fs::write(&file, b"x").unwrap();
+        let lnk = create_shortcut(&file, &base).expect("shortcut");
+        assert!(rename_with_prompt(&file, "renamed.txt", None).expect("rename file"));
+        assert!(rename_with_prompt(&lnk, "renamed.lnk", None).expect("rename link"));
+        let mut names: Vec<String> = std::fs::read_dir(&base)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["renamed.lnk", "renamed.txt"]);
         let _ = std::fs::remove_dir_all(&base);
     }
 }
