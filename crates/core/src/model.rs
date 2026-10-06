@@ -581,6 +581,12 @@ pub struct AppearanceOverride {
     /// `rollUp.titleOnHover`).
     #[serde(default)]
     pub title_on_hover: Option<bool>,
+    /// The tint washes only the title row instead of the whole glass.
+    #[serde(default)]
+    pub tint_title_only: bool,
+    /// This fence's bar in a tab strip (None = its tint).
+    #[serde(default)]
+    pub tab_rgb: Option<[u8; 3]>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -591,6 +597,7 @@ pub enum TitleSize {
     #[default]
     Normal,
     Large,
+    ExtraLarge,
 }
 
 /// Distance between icons in the grid (Fences "icon spacing").

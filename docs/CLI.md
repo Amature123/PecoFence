@@ -157,10 +157,11 @@ in; only the tab currently shown can be measured, so another tab is `unsupported
 `fence set` properties (values as shown by `fence get`): `title` (or `fence rename`), `iconSize`
 32/48/64/96, `spacing` compact/normal/loose, `autoHeight`, `locked`, `excludeFromQuickHide`,
 `opacity` default/clear/solid/transparent (transparent: no glass, rim or shadow until the pointer
-is over the fence), `tint` `"#RRGGBB"` or `null`, `titleColor`
-theme/tint/white/black/`"#RRGGBB"`, `titleSize` small/normal/large, `titleOnHover`
-default/hover/always (hover: the title row folds away until the pointer is over the fence; default
-follows `rollUp.titleOnHover`), `layout` icons/list/details,
+is over the fence), `tint` `"#RRGGBB"` or `null`, `tintTitleOnly` (the tint washes only the title
+row), `tabColor` `"#RRGGBB"` or `null` (the bar under the fence's tab in a tab strip; `null` follows
+its tint), `titleColor` theme/tint/white/black/`"#RRGGBB"`, `titleSize` small/normal/large/extraLarge,
+`titleOnHover` default/hover/always (hover: the title row folds away until the pointer is over the
+fence; default follows `rollUp.titleOnHover`), `layout` icons/list/details,
 `sort` manual/name/type/date/size/openCount, `reverse`, `groupByDate`, `labelLines`,
 `portalNavigate`, `portalTitleIcon`, `hideWhenEmpty` (inbox only: no window while it is empty; the inbox
 cannot be deleted). `--all` applies the option to every fence one call at a time and

@@ -1580,6 +1580,24 @@ impl AppState {
         }
     }
 
+    /// Changes a fence's appearance override; one left at every default is dropped (None =
+    /// follow the global settings).
+    fn edit_appearance(
+        &mut self,
+        id: FenceId,
+        edit: impl FnOnce(&mut pecofence_core::AppearanceOverride),
+    ) {
+        if let Some(f) = self.fence_mut(id) {
+            let mut next = f.appearance.clone().unwrap_or_default();
+            edit(&mut next);
+            let next = (next != pecofence_core::AppearanceOverride::default()).then_some(next);
+            if f.appearance != next {
+                f.appearance = next;
+                self.dirty = true;
+            }
+        }
+    }
+
     /// Per-fence appearance override (None = follow the global settings).
     pub fn set_appearance(
         &mut self,
@@ -1587,16 +1605,10 @@ impl AppState {
         backdrop: Option<pecofence_core::Backdrop>,
         opacity: Option<f32>,
     ) {
-        if let Some(f) = self.fence_mut(id) {
-            let mut next = f.appearance.clone().unwrap_or_default();
-            next.backdrop = backdrop;
-            next.opacity = opacity;
-            let next = (next != pecofence_core::AppearanceOverride::default()).then_some(next);
-            if f.appearance != next {
-                f.appearance = next;
-                self.dirty = true;
-            }
-        }
+        self.edit_appearance(id, |a| {
+            a.backdrop = backdrop;
+            a.opacity = opacity;
+        });
     }
 
     /// Per-fence colour wash / title colour / title size (None fields = theme defaults).
@@ -1607,30 +1619,26 @@ impl AppState {
         title_rgb: Option<[u8; 3]>,
         title_size: Option<pecofence_core::TitleSize>,
     ) {
-        if let Some(f) = self.fence_mut(id) {
-            let mut next = f.appearance.clone().unwrap_or_default();
-            next.tint_rgb = tint_rgb;
-            next.title_rgb = title_rgb;
-            next.title_size = title_size;
-            let next = (next != pecofence_core::AppearanceOverride::default()).then_some(next);
-            if f.appearance != next {
-                f.appearance = next;
-                self.dirty = true;
-            }
-        }
+        self.edit_appearance(id, |a| {
+            a.tint_rgb = tint_rgb;
+            a.title_rgb = title_rgb;
+            a.title_size = title_size;
+        });
     }
 
     /// Per-fence title on hover (None = follow `rollUp.titleOnHover`).
     pub fn set_title_on_hover(&mut self, id: FenceId, on: Option<bool>) {
-        if let Some(f) = self.fence_mut(id) {
-            let mut next = f.appearance.clone().unwrap_or_default();
-            next.title_on_hover = on;
-            let next = (next != pecofence_core::AppearanceOverride::default()).then_some(next);
-            if f.appearance != next {
-                f.appearance = next;
-                self.dirty = true;
-            }
-        }
+        self.edit_appearance(id, |a| a.title_on_hover = on);
+    }
+
+    /// The tint washes only the title row.
+    pub fn set_tint_title_only(&mut self, id: FenceId, on: bool) {
+        self.edit_appearance(id, |a| a.tint_title_only = on);
+    }
+
+    /// The fence's bar in a tab strip (None = its tint).
+    pub fn set_tab_color(&mut self, id: FenceId, rgb: Option<[u8; 3]>) {
+        self.edit_appearance(id, |a| a.tab_rgb = rgb);
     }
 
     pub fn set_spacing(&mut self, id: FenceId, spacing: pecofence_core::Spacing) {

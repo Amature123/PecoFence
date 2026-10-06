@@ -323,7 +323,6 @@
   "默认：透出桌面。更厚实：多一层底色。全透明：鼠标悬停时才显示玻璃。": "Default: the desktop shows through. More opaque: adds a solid backing. Fully transparent: the glass appears only on hover.",
   "给玻璃染上一层颜色，标签页的色条随之变化": "Tint the glass and matching tab indicators",
   "要跟随色调，请先选一种色调": "To match the tint, choose a tint first",
-  "标题栏高度随字号变化": "Title bar height follows the text size",
   "显示标题栏": "Show title bar",
   "鼠标悬停时显示：平时收起标题行，指针移到栅栏上才出现": "On hover: the title bar stays hidden until the pointer is over the fence",
   "跟随常规设置": "Use General setting",
@@ -476,5 +475,11 @@
   "检查更新失败，请稍后再试": "Couldn't check for updates. Try again later.",
   "下载失败，请稍后再试": "Couldn't download the update. Try again later.",
   "为空时自动隐藏": "Hide when empty",
-  "里面没有图标时就不显示；桌面上一出现新图标，它会自己回来": "Stays out of sight while it has no icons and comes back as soon as a new icon appears on the desktop"
+  "里面没有图标时就不显示；桌面上一出现新图标，它会自己回来": "Stays out of sight while it has no icons and comes back as soon as a new icon appears on the desktop",
+  "只给标题栏上色": "Tint the title bar only",
+  "关掉的话，整个栅栏都会染上色调": "When off, the tint covers the whole fence",
+  "标签页颜色": "Tab color",
+  "标签页文字下方那条色条的颜色，方便区分同一个栅栏里的标签页": "The bar under the tab's name, to tell the tabs of a fence apart",
+  "特大": "Extra large",
+  "栅栏标题和标签页文字的大小": "Size of the fence title and tab names"
 }

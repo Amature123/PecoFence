@@ -334,6 +334,27 @@ mod ipc {
         );
         let err = parse_fence_prop("tint", &json!("red")).unwrap_err();
         assert_eq!(err.code, ErrorCode::InvalidValue);
+        // Issue #40: a tab's own bar colour, a title-row-only tint, an 18 DIP title.
+        assert_eq!(
+            parse_fence_prop("tabColor", &json!("#E74856")).unwrap(),
+            FenceProp::TabColor(Some([0xE7, 0x48, 0x56]))
+        );
+        assert_eq!(
+            parse_fence_prop("tabColor", &serde_json::Value::Null).unwrap(),
+            FenceProp::TabColor(None)
+        );
+        assert_eq!(
+            parse_fence_prop("tintTitleOnly", &json!(true)).unwrap(),
+            FenceProp::TintTitleOnly(true)
+        );
+        assert_eq!(
+            parse_fence_prop("titleSize", &json!("extraLarge")).unwrap(),
+            FenceProp::TitleSize(Some(pecofence_core::TitleSize::ExtraLarge))
+        );
+        assert_eq!(
+            parse_fence_prop("hideWhenEmpty", &json!(true)).unwrap(),
+            FenceProp::HideWhenEmpty(true)
+        );
         assert_eq!(
             parse_fence_prop("opacity", &json!("transparent")).unwrap(),
             FenceProp::Opacity(Some(0.0))

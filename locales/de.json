@@ -299,7 +299,6 @@
   "默认：透出桌面。更厚实：多一层底色。全透明：鼠标悬停时才显示玻璃。": "Standard: Der Desktop scheint durch. Deckender: zusätzliche Grundfarbe. Vollständig transparent: Glas erst beim Daraufzeigen.",
   "给玻璃染上一层颜色，标签页的色条随之变化": "Glas und Tab-Markierungen passend einfärben",
   "要跟随色调，请先选一种色调": "Für „Wie Farbton“ zuerst einen Farbton wählen",
-  "标题栏高度随字号变化": "Titelleistenhöhe folgt der Schriftgröße",
   "显示标题栏": "Titelleiste anzeigen",
   "鼠标悬停时显示：平时收起标题行，指针移到栅栏上才出现": "Beim Daraufzeigen: Die Titelleiste bleibt eingeklappt, bis der Mauszeiger auf dem Bereich ist",
   "跟随常规设置": "Wie unter Allgemein",
@@ -476,5 +475,11 @@
   "检查更新失败，请稍后再试": "Die Suche nach Updates ist fehlgeschlagen. Versuche es später noch einmal.",
   "下载失败，请稍后再试": "Der Download ist fehlgeschlagen. Versuche es später noch einmal.",
   "为空时自动隐藏": "Ausblenden, wenn leer",
-  "里面没有图标时就不显示；桌面上一出现新图标，它会自己回来": "Bleibt ausgeblendet, solange er keine Symbole enthält, und erscheint wieder, sobald ein neues Symbol auf dem Desktop landet"
+  "里面没有图标时就不显示；桌面上一出现新图标，它会自己回来": "Bleibt ausgeblendet, solange er keine Symbole enthält, und erscheint wieder, sobald ein neues Symbol auf dem Desktop landet",
+  "只给标题栏上色": "Nur die Titelleiste einfärben",
+  "关掉的话，整个栅栏都会染上色调": "Ausgeschaltet färbt der Farbton den ganzen Bereich",
+  "标签页颜色": "Tab-Farbe",
+  "标签页文字下方那条色条的颜色，方便区分同一个栅栏里的标签页": "Die Markierung unter dem Tab-Namen, damit sich die Tabs eines Bereichs unterscheiden lassen",
+  "特大": "Sehr groß",
+  "栅栏标题和标签页文字的大小": "Größe von Bereichstitel und Tab-Namen"
 }

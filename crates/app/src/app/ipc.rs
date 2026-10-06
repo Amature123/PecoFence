@@ -1251,6 +1251,11 @@ impl App {
                 .get("tint")
                 .and_then(Value::as_str)
                 .map(|t| with_hash(t.to_string())),
+            tint_title_only: flag("tintTitleOnly"),
+            tab_color: opts
+                .get("tabColor")
+                .and_then(Value::as_str)
+                .map(|t| with_hash(t.to_string())),
             title_color: with_hash(text("titleColor")),
             title_size: text("titleSize"),
             title_on_hover: text("titleOnHover"),

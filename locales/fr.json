@@ -323,7 +323,6 @@
   "默认：透出桌面。更厚实：多一层底色。全透明：鼠标悬停时才显示玻璃。": "Par défaut : le Bureau transparaît. Plus opaque : ajoute une couleur de fond. Entièrement transparent : le verre n’apparaît qu’au survol.",
   "给玻璃染上一层颜色，标签页的色条随之变化": "Teinter le verre et les indicateurs d’onglets",
   "要跟随色调，请先选一种色调": "Pour « Selon la teinte », choisissez d’abord une teinte",
-  "标题栏高度随字号变化": "La hauteur du titre suit la taille du texte",
   "显示标题栏": "Afficher la barre de titre",
   "鼠标悬停时显示：平时收起标题行，指针移到栅栏上才出现": "Au survol : la ligne de titre reste repliée jusqu’à ce que le pointeur passe sur le groupe",
   "跟随常规设置": "Selon le réglage Général",
@@ -476,5 +475,11 @@
   "检查更新失败，请稍后再试": "Impossible de rechercher les mises à jour. Réessayez plus tard.",
   "下载失败，请稍后再试": "Impossible de télécharger la mise à jour. Réessayez plus tard.",
   "为空时自动隐藏": "Masquer quand il est vide",
-  "里面没有图标时就不显示；桌面上一出现新图标，它会自己回来": "Reste masqué tant qu’il ne contient aucune icône et réapparaît dès qu’une nouvelle icône arrive sur le Bureau"
+  "里面没有图标时就不显示；桌面上一出现新图标，它会自己回来": "Reste masqué tant qu’il ne contient aucune icône et réapparaît dès qu’une nouvelle icône arrive sur le Bureau",
+  "只给标题栏上色": "Teinter seulement la barre de titre",
+  "关掉的话，整个栅栏都会染上色调": "Désactivé, la teinte couvre tout le groupe",
+  "标签页颜色": "Couleur de l’onglet",
+  "标签页文字下方那条色条的颜色，方便区分同一个栅栏里的标签页": "La barre sous le nom de l’onglet, pour distinguer les onglets d’un même groupe",
+  "特大": "Très grande",
+  "栅栏标题和标签页文字的大小": "Taille du titre du groupe et des noms d’onglets"
 }

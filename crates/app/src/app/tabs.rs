@@ -14,7 +14,7 @@ impl App {
                 folder: self.state.portal_path(f.id),
                 // A navigated portal's tab names the subfolder actually shown / dropped into.
                 title: self.state.display_title(f),
-                color: f.appearance.as_ref().and_then(|a| a.tint_rgb),
+                color: f.appearance.as_ref().and_then(|a| a.tab_rgb.or(a.tint_rgb)),
                 title_size: fence_style_for(f).title_size,
                 title_color: fence_style_for(f).title_color,
             })

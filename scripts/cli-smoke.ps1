@@ -174,6 +174,23 @@ try {
     Check "fence set titleOnHover true -> invalid_value" ($r.Code -eq 1 -and $e.error.code -eq "invalid_value" -and ($e.error.details.allowed -contains "always")) "code=$($r.Code) $($r.Err)"
     $r = Invoke-Cli @("fence", "set", $id, "titleOnHover", "default")
     Check "fence set titleOnHover default" ($r.Code -eq 0 -and (Json $r.Out).fence.titleOnHover -eq "default") "$($r.Out) $($r.Err)"
+    # Issue #40: title-row-only tint, a tab bar colour of its own, extra-large titles.
+    $r = Invoke-Cli @("fence", "set", $id, "tintTitleOnly", "true")
+    Check "fence set tintTitleOnly true" ($r.Code -eq 0 -and (Json $r.Out).fence.tintTitleOnly -eq $true) "$($r.Out) $($r.Err)"
+    $r = Invoke-Cli @("fence", "set", $id, "tabColor", "#E74856")
+    Check "fence set tabColor #E74856" ($r.Code -eq 0 -and (Json $r.Out).fence.tabColor -eq "#E74856") "$($r.Out) $($r.Err)"
+    $r = Invoke-Cli @("fence", "set", $id, "titleSize", "extraLarge")
+    Check "fence set titleSize extraLarge" ($r.Code -eq 0 -and (Json $r.Out).fence.titleSize -eq "extraLarge") "$($r.Out) $($r.Err)"
+    foreach ($p in @(@("tintTitleOnly", "false"), @("tabColor", "null"), @("titleSize", "normal"))) {
+        Invoke-Cli @("fence", "set", $id, $p[0], $p[1]) | Out-Null
+    }
+    # Issue #39: the inbox cannot be deleted, but it can hide while empty.
+    $r = Invoke-Cli @("fence", "delete", "inbox")
+    Check "fence delete inbox -> refused with the hideWhenEmpty hint" ($r.Code -eq 1 -and $r.Err -match "hideWhenEmpty") "code=$($r.Code) $($r.Err)"
+    $r = Invoke-Cli @("fence", "set", "inbox", "hideWhenEmpty", "true")
+    Check "fence set inbox hideWhenEmpty true" ($r.Code -eq 0 -and (Json $r.Out).fence.hideWhenEmpty -eq $true) "$($r.Out) $($r.Err)"
+    $r = Invoke-Cli @("fence", "set", "inbox", "hideWhenEmpty", "false")
+    Check "fence set inbox hideWhenEmpty false" ($r.Code -eq 0 -and (Json $r.Out).fence.hideWhenEmpty -eq $false) "$($r.Out) $($r.Err)"
     $r = Invoke-Cli @("fence", "set", $id, "title", "2024", "--string")
     Check "fence set title 2024 --string" ($r.Code -eq 0 -and (Json $r.Out).fence.title -eq "2024") "$($r.Out) $($r.Err)"
     $r = Invoke-Cli @("fence", "set", "--all", "locked", "false")

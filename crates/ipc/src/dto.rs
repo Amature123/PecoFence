@@ -154,9 +154,15 @@ pub struct FenceDto {
     pub opacity: String,
     /// `#RRGGBB` or `null`.
     pub tint: Option<String>,
+    /// The tint washes only the title row.
+    #[serde(default)]
+    pub tint_title_only: bool,
+    /// This fence's bar in a tab strip: `#RRGGBB`, or `null` = its tint.
+    #[serde(default)]
+    pub tab_color: Option<String>,
     /// `theme` | `tint` | `white` | `black` | `#RRGGBB`.
     pub title_color: String,
-    /// `small` | `normal` | `large`.
+    /// `small` | `normal` | `large` | `extraLarge`.
     pub title_size: String,
     /// `default` (the global `rollUp.titleOnHover`) | `hover` | `always`.
     #[serde(default)]

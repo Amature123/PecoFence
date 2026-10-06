@@ -383,11 +383,13 @@ pub(super) fn fence_style_for(f: &pecofence_core::Fence) -> FenceStyle {
     let rgb = |c: [u8; 3]| pecofence_render::ColorF::from_rgba8(c[0], c[1], c[2], 0xFF);
     FenceStyle {
         tint: a.and_then(|a| a.tint_rgb).map(rgb),
+        tint_title_only: a.is_some_and(|a| a.tint_title_only),
         title_color: a.and_then(|a| a.title_rgb).map(rgb),
         title_size: match a.and_then(|a| a.title_size).unwrap_or_default() {
             TitleSize::Small => 0,
             TitleSize::Normal => 1,
             TitleSize::Large => 2,
+            TitleSize::ExtraLarge => 3,
         },
         // Global (标题对齐): the window takes it from `Behavior` at draw time.
         title_align: pecofence_core::TitleAlign::Left,

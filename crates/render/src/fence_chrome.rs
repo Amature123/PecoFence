@@ -44,14 +44,15 @@ pub struct FenceChrome {
     /// Header sort indicator (8 px chevron).
     sort_glyph_format: TextFormat,
     /// Same face, size and weight as standalone titles, centred inside their controls.
-    tab_formats: [TextFormat; 3],
+    tab_formats: [TextFormat; 4],
     /// Empty-state text: Body 14, top-aligned (Explorer "This folder is empty.").
     empty_format: TextFormat,
     /// 14 px Fluent glyph beside the title (portal folder icon).
     title_glyph_format: TextFormat,
-    /// Title at 12 / 16 px for the per-fence "title size" option (`title_format` is 14).
+    /// Title at 12 / 16 / 18 px for the per-fence "title size" option (`title_format` is 14).
     title_format_small: TextFormat,
     title_format_large: TextFormat,
+    title_format_xlarge: TextFormat,
     /// "按时间分组" section captions: Caption 12 / 600, leading, vertically centred.
     group_format: TextFormat,
 }
@@ -297,8 +298,10 @@ impl Px {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FenceStyle {
     pub tint: Option<ColorF>,
+    /// The tint washes only the title row.
+    pub tint_title_only: bool,
     pub title_color: Option<ColorF>,
-    /// 0 = small (12), 1 = normal (14), 2 = large (16).
+    /// 0 = small (12), 1 = normal (14), 2 = large (16), 3 = extra large (18).
     pub title_size: u8,
     /// Title position in the row (the global 标题对齐 setting).
     pub title_align: pecofence_core::TitleAlign,
@@ -411,7 +414,7 @@ pub struct TabDraw<'a> {
     pub hover: f32,
     /// Button held on this tab (TabViewItem pressed: layer fill, tertiary caption).
     pub pressed: bool,
-    /// The tab's fence tint, drawn as a thin bar under the caption.
+    /// The tab's colour (its own, else its fence tint), drawn as a thin bar under the caption.
     pub color: Option<ColorF>,
     /// Files are being dragged over this tab: drawn like a folder drop target (selection
     /// fill + accent ring), alpha 0..=1.
@@ -677,8 +680,28 @@ fn draw_plate(
     if let Some(mut tint) = style.tint {
         // Per-fence colour: a translucent wash so the glass still reads as glass.
         tint.a = 0.22 * plate_a;
-        let wash = session.create_solid_brush(tint)?;
-        session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &wash);
+        if style.tint_title_only {
+            // Only the title row (what of it the fold leaves): the plate's rounded top
+            // corners, a straight bottom edge where the icons start.
+            let band = theme.title_height.min(height) - plate_top;
+            if band > 0.0 {
+                let edge = band / outer.height().max(1.0);
+                let soft = (px.hair() / outer.height().max(1.0)).min(1.0 - edge.min(1.0));
+                let wash = session.create_linear_gradient(
+                    Vector2::new(0.0, plate_top),
+                    Vector2::new(0.0, outer.bottom),
+                    &[
+                        GradientStop::new(0.0, tint),
+                        GradientStop::new(edge.min(1.0), tint),
+                        GradientStop::new((edge + soft).min(1.0), ColorF::TRANSPARENT),
+                    ],
+                )?;
+                session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &wash);
+            }
+        } else {
+            let wash = session.create_solid_brush(tint)?;
+            session.fill_rounded_rect(&RoundedRect::uniform(outer, radius), &wash);
+        }
     }
 
     // A quiet, directional reflection gives sampled materials depth without adding a
@@ -1263,6 +1286,7 @@ impl FenceChrome {
             tab_format(FONT_SMALL, 12.0)?,
             tab_format(FONT_TEXT, 14.0)?,
             tab_format(FONT_TEXT, 16.0)?,
+            tab_format(FONT_TEXT, 18.0)?,
         ];
         let empty_format = TextFormat::with_locale(FONT_TEXT, 14.0, FontWeight::NORMAL, locale)?
             .with_alignment(TextAlignment::Center)
@@ -1282,6 +1306,11 @@ impl FenceChrome {
             .with_alignment(TextAlignment::Leading)
             .with_paragraph_alignment(ParagraphAlignment::Center)
             .with_word_wrapping(WordWrapping::NoWrap);
+        let title_format_xlarge =
+            TextFormat::with_locale(FONT_TEXT, 18.0, FontWeight(600), locale)?
+                .with_alignment(TextAlignment::Leading)
+                .with_paragraph_alignment(ParagraphAlignment::Center)
+                .with_word_wrapping(WordWrapping::NoWrap);
         let group_format = TextFormat::with_locale(FONT_SMALL, 12.0, FontWeight(600), locale)?
             .with_alignment(TextAlignment::Leading)
             .with_paragraph_alignment(ParagraphAlignment::Center)
@@ -1299,6 +1328,7 @@ impl FenceChrome {
             title_glyph_format,
             title_format_small,
             title_format_large,
+            title_format_xlarge,
             group_format,
         };
         // Labels follow the desktop's icon-title font from the start (12 px / 16 stays the
@@ -1364,13 +1394,14 @@ impl FenceChrome {
         match size {
             0 => &self.title_format_small,
             2 => &self.title_format_large,
+            3 => &self.title_format_xlarge,
             _ => &self.title_format,
         }
     }
 
     /// Layout, drawing and tooltip fitting all use the same title size.
     pub fn tab_format(&self, size: u8) -> &TextFormat {
-        &self.tab_formats[usize::from(size.min(2))]
+        &self.tab_formats[usize::from(size.min(3))]
     }
 
     /// Single-line row text format (for fitting names to the name column).

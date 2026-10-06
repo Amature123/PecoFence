@@ -29,8 +29,8 @@ const fixture = {
   },
   fences: [
     { id: 'fence-a', title: 'Documents', kind: 'virtual', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'default', tint: null, titleColor: 'theme', titleSize: 'normal', titleOnHover: 'default', portal: null },
-    { id: 'fence-b', title: 'Images', kind: 'virtual', host: 'Documents', iconSize: 96, spacing: 'loose', autoHeight: true, locked: false, excludeFromQuickHide: false, opacity: 'transparent', tint: null, titleColor: 'theme', titleSize: 'normal', titleOnHover: 'default', portal: null },
-    { id: 'inbox', title: 'Desktop', kind: 'inbox', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: true, excludeFromQuickHide: true, opacity: 'solid', tint: '0078D4', titleColor: 'tint', titleSize: 'large', titleOnHover: 'hover', hideWhenEmpty: true, portal: null },
+    { id: 'fence-b', title: 'Images', kind: 'virtual', host: 'Documents', iconSize: 96, spacing: 'loose', autoHeight: true, locked: false, excludeFromQuickHide: false, opacity: 'transparent', tint: null, tabColor: 'E74856', titleColor: 'theme', titleSize: 'normal', titleOnHover: 'default', portal: null },
+    { id: 'inbox', title: 'Desktop', kind: 'inbox', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: true, excludeFromQuickHide: true, opacity: 'solid', tint: '0078D4', tintTitleOnly: true, titleColor: 'tint', titleSize: 'large', titleOnHover: 'hover', hideWhenEmpty: true, portal: null },
     { id: 'portal', title: 'Portal', kind: 'portal', host: null, iconSize: 32, spacing: 'compact', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'clear', tint: '123456', titleColor: 'ABCDEF', titleSize: 'small', titleOnHover: 'always', portal: { navigate: true, titleIcon: false } },
   ],
   tintPalette: [{ name: '红', hex: 'E74856' }, { name: '蓝', hex: '0078D4' }, { name: '灰', hex: '7A7574' }],
@@ -189,14 +189,21 @@ async function runTests() {
     assert([...sel.options].map(o => o.textContent).join('|') === 'Documents|Images（Documents 的标签页）|Desktop（桌面）|Portal（文件夹）', 'Fence labels wrong: ' + [...sel.options].map(o => o.textContent).join('|'));
     assert(doc.getElementById('fencePortalGroup').style.display === 'none', 'Portal options shown for an ordinary fence');
     assert(doc.getElementById('fenceHideEmpty').style.display === 'none', 'Hide-when-empty offered for an ordinary fence');
+    assert(doc.getElementById('fenceTintTitleOnly').style.display === 'none', 'Title-only tint offered without a tint');
+    assert(doc.getElementById('fenceTabColor').style.display === 'none', 'Tab colour offered for a fence without tabs');
     assert(doc.querySelector('[data-fence=titleColor] [value=tint]').disabled, 'Follow-tint offered without a tint');
     change(doc, 'fenceSel', 'inbox');
     assert(doc.querySelector('[data-fence=locked]').classList.contains('on'), 'Lock state not shown');
     assert(doc.getElementById('fenceHideEmpty').style.display === '' && doc.querySelector('[data-fence=hideWhenEmpty]').classList.contains('on'), 'Inbox hide-when-empty not shown');
+    assert(doc.getElementById('fenceTintTitleOnly').style.display === '' && doc.querySelector('[data-fence=tintTitleOnly]').classList.contains('on'), 'Title-only tint not shown');
     assert(doc.querySelector('[data-fence=tint]').value === '0078D4', 'Palette tint not selected');
     assert(doc.querySelector('[data-fence=titleColor]').value === 'tint' && !doc.querySelector('[data-fence=titleColor] [value=tint]').disabled, 'Follow-tint title not shown');
     assert(doc.querySelector('[data-fence=titleSize]').value === 'large', 'Title size not shown');
+    assert(doc.querySelector('[data-fence=titleSize] [value=extraLarge]'), 'Extra large title size missing');
     assert(doc.querySelector('[data-fence=titleOnHover]').value === 'hover', 'Title on hover not shown');
+    change(doc, 'fenceSel', 'fence-b');
+    assert(doc.getElementById('fenceTabColor').style.display === '', 'Tab colour hidden for a tab');
+    assert(doc.querySelector('#fenceTabColorSwatches [data-value=E74856]').getAttribute('aria-checked') === 'true', 'Tab colour swatch not selected');
     change(doc, 'fenceSel', 'portal');
     assert(doc.getElementById('fencePortalGroup').style.display === '', 'Portal options hidden for a portal');
     assert(doc.querySelector('[data-fence=portalNavigate]').classList.contains('on') && !doc.querySelector('[data-fence=portalTitleIcon]').classList.contains('on'), 'Portal flags wrong');
@@ -226,6 +233,12 @@ async function runTests() {
     assert(!doc.querySelector('[data-fence=titleColor] [value=tint]').disabled, 'Follow-tint stays disabled after choosing a tint');
     change(doc, 'fenceTint', ''); await settle();
     assert(messages().at(-1).value === null, 'Clearing the tint did not post null');
+    change(doc, 'fenceSel', 'fence-b');
+    doc.querySelector('#fenceTabColorSwatches [data-value="0078D4"]').click(); await settle();
+    assert(messages().at(-1).id === 'fence-b' && messages().at(-1).prop === 'tabColor' && messages().at(-1).value === '0078D4', 'Tab colour not posted');
+    doc.querySelector('#fenceTabColorSwatches [data-value=""]').click(); await settle();
+    assert(messages().at(-1).prop === 'tabColor' && messages().at(-1).value === null, 'Following the tint did not post null');
+    change(doc, 'fenceSel', 'fence-a');
   });
   await test('showFence opens the fence page with that fence selected', async () => {
     doc.querySelector('[data-page=general]').click();
