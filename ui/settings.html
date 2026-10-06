@@ -818,7 +818,7 @@
       case 'filesOnly': return t("仅文件");
       case 'sizeMb': return v.min != null && v.max != null ? tf("大小 {0}–{1} MB", v.min, v.max)
         : v.min != null ? tf("大小 ≥ {0} MB", v.min) : v.max != null ? tf("大小 ≤ {0} MB", v.max) : t("大小");
-      case 'createdTime': return tf("创建时间 {0}–{1}", hm(v.fromMin), hm(v.toMin));
+      case 'createdTime': return tf("创建时间 {0}–{1}", hm(v.from_min), hm(v.to_min));
       case 'createdWeekday': return tf("创建于{0}", v.map(d => WEEK()[d] || d).join(t("、")));
       case 'origin': return t("来源：") + (v === 'publicDesktop' ? t("公共桌面") : t("用户桌面"));
       case 'idleDays': return tf("闲置 ≥ {0} 天", v.min);
@@ -937,7 +937,8 @@
       const from = document.getElementById('nrFrom'), to = document.getElementById('nrTo');
       if (!from.value || !from.validity.valid) return ruleError(t("请输入开始时间"), 'nrFrom');
       if (!to.value || !to.validity.valid) return ruleError(t("请输入结束时间"), 'nrTo');
-      cond = { cond: 'createdTime', value: { fromMin: toMin(from.value), toMin: toMin(to.value) } }; cls = 'time';
+      // Snake case like the core's Cond::CreatedTime: camelCase fields fail the whole setRules.
+      cond = { cond: 'createdTime', value: { from_min: toMin(from.value), to_min: toMin(to.value) } }; cls = 'time';
     }
     else if (kind === 'weekday') { const days = [...document.querySelectorAll('#nrWeek input:checked')].map(i => Number(i.value)); if (!days.length) return ruleError(t("请选择至少一天"), 'nrKind'); cond = { cond: 'createdWeekday', value: days }; cls = 'time'; }
     else if (kind === 'size') {

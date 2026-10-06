@@ -37,6 +37,15 @@ settings. Exit PecoFence from its tray menu first.
   folder beside the executable, which other copies do not read. Use **Export or
   import configuration** in Settings to carry it over.
 
+## Going back to 0.1.3 or earlier
+
+Versions after 0.1.3 know a monitor by its model and connection. 0.1.3 and
+earlier do not, so with a configuration a newer version has saved they show no
+fences. Nothing is lost: the fences come back as soon as the newer version runs
+again. To stay on the older version, restore a daily backup from before the
+upgrade in Settings → 布局与备份 (the files are in the `backups` folder next to
+`config.json`).
+
 ## Windows startup
 
 A normal release launch registers the `PecoFence` startup entry when required.
