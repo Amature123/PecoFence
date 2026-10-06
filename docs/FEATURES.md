@@ -132,6 +132,7 @@ JSON 输出报告实际改动，命令目录与 JSON Schema 帮助助手发现�
 | 桌面文件夹迁移 | 自动 | 桌面搬到 OneDrive / 其他盘后记录自动跟随；桌面盘不可用时不丢记录 |
 | 随 Windows 启动 | 设置 → 随 Windows 启动 | 只登记正式版路径 |
 | 恢复显示桌面图标 | 设置 → 关于 → 恢复显示桌面图标；托盘菜单 → 修复桌面图标 | 应急 |
+| 检查更新 | 设置 → 关于 → 检查更新 | 只在点按钮时访问 GitHub；安装版下载新安装包后运行，PecoFence 先退出、装完自动重开；ZIP 版（以及 release 没有安装包时）打开下载页；Store 版不显示（由 Store 更新）；正式版不会收到测试版（如 `v0.2.0-beta.1`）。设置了 `PECOFENCE_INSTANCE` 的测试实例可用 `PECOFENCE_UPDATE_URL=http://127.0.0.1:<端口>/…` 指向本地假 release |
 | 配置位置 | `%APPDATA%\PecoFence\config.json`；`--portable` 时放 exe 旁 | 设置 → 关于可直接打开；文件首行 `$schema` 指向 https://pecofence.jiang.jp/schema/config.json（`pecofence-cli describe --schema Config` 同一份），编辑器可据此补全校验 |
 | 反馈 | 设置 → 反馈；托盘 → 发送反馈…；上次崩溃后启动会弹通知，点击直接打开反馈页 | 发到 `api.pecofence.jiang.jp`（Cloudflare Worker，源码 `services/feedback`），在私有仓库 DayuanJiang/PecoFence-feedback 建 issue，开发者收到 GitHub 通知；默认附带可分享日志 `pecofence.share.log`：按设计只含代码里写好的固定文字、数字和错误码（`share_log.rs`，源码扫描测试保证），发送前可查看；IP 只用于限流（每分钟 3 条），不保存 |
 | 日志 | `%LOCALAPPDATA%\PecoFence\pecofence.log`（上一次运行的保留为 `pecofence.prev.log`） | `RUST_LOG` 控制级别；panic 与未处理异常（异常码、`module+rva` 调用栈）也写在这里，崩溃同时留下 `crash-<实例>-<ticks>.dmp` |

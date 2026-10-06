@@ -9,9 +9,11 @@ from ctypes import wintypes
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import time
 import tomllib
 import uuid
@@ -212,6 +214,25 @@ def main():
         setup(old, "reject-downgrade", success=False)
         assert reg_value(uninstall_key, "DisplayVersion") == "0.0.2"
         passed.append("numeric version downgrade is blocked")
+
+        # The in-app updater: setup waits for the exiting app, then starts it again; a failed
+        # update starts the old copy instead. Test installers only log the start.
+        def log_of(name):
+            return (stage / f"{name}.log").read_text(encoding="utf-8-sig", errors="replace")
+
+        start_line = f"would start {installed / 'pecofence.exe'}"
+        assert "would start" not in log_of("upgrade"), "a plain silent upgrade started the app"
+        exiting = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(3)"],
+                                   startupinfo=HIDDEN)
+        setup(new, "update", f"/UPDATE={exiting.pid}")
+        assert exiting.poll() is not None, "setup did not wait for the app"
+        waited = re.search(r"Update: waited (\d+) ms", log_of("update"))
+        assert waited and int(waited.group(1)) >= 2000, "setup did not wait for the app"
+        assert log_of("update").count("would start") == 1 and start_line in log_of("update")
+        setup(old, "update-refused", "/UPDATE=0", success=False)
+        assert log_of("update-refused").count("would start") == 1
+        assert start_line in log_of("update-refused")
+        passed.append("an update waits for the app, then restarts it once; a failed one restarts the old copy")
 
         other_command = f'"{stage / "another copy/pecofence.exe"}"'
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN) as key:

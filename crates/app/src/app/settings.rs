@@ -243,6 +243,7 @@ impl App {
             "itemCount": self.state.workspace_item_count(),
             "themeMode": if self.theme_mode == ThemeMode::Dark { "dark" } else { "light" },
             "accent": accent,
+            "update": self.update_json(),
         })
         .to_string()
     }
@@ -420,6 +421,9 @@ impl App {
                 }
                 Some(name @ ("feedbackInfo" | "feedbackResult")) => {
                     self.on_feedback_action(name, &v);
+                }
+                Some(name @ ("checkUpdate" | "installUpdate" | "openReleasePage")) => {
+                    self.on_update_action(name);
                 }
                 Some("repairIcons") => self.set_desktop_icons_hidden(false),
                 Some("hideDesktopIcons") => self.set_desktop_icons_hidden(true),

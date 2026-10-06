@@ -49,6 +49,7 @@ function bridge() {
   let receive;
   window.testSummary = (itemCount) => receive({ data: { type: 'workspaceSummary', fenceCount: state.fences.length, itemCount } });
   window.testRefresh = () => receive({ data: structuredClone(state) });
+  window.testUpdate = (update) => receive({ data: { type: 'update', update } });
   window.testState = state;
   window.chrome = {
     webview: {
@@ -632,6 +633,40 @@ async function runTests() {
   };
   const feedbackPage = async doc => { doc.querySelector('[data-page=feedback]').click(); await settle(); };
   const feedbackOutcomes = () => frame.contentWindow.testMessages.filter(m => m.name === 'feedbackResult').map(m => m.status);
+
+  await test('About page shows the update card for each edition and state', async () => {
+    doc = await reset();
+    doc.querySelector('[data-page=about]').click(); await settle();
+    const card = doc.getElementById('updateCard'), button = doc.getElementById('updateAction');
+    const status = doc.getElementById('updateStatus');
+    const lastAction = () => frame.contentWindow.testMessages.filter(m => m.type === 'action').at(-1)?.name;
+    assert(card.hidden, 'Update card shown without update info (Store edition)');
+    const show = async update => { current().update = update; frame.contentWindow.testUpdate(update); await settle(); };
+    const installer = { edition: 'installer', version: '0.1.4', hasSetup: true };
+    await show({ ...installer, state: 'idle', version: null });
+    assert(!card.hidden && button.textContent === '检查更新' && !button.disabled && status.textContent === '', 'Idle card wrong');
+    button.click(); assert(lastAction() === 'checkUpdate', 'Check not requested');
+    await show({ ...installer, state: 'checking', version: null });
+    assert(button.disabled && status.textContent === '正在检查更新…', 'Checking state wrong');
+    await show({ ...installer, state: 'available' });
+    assert(status.textContent.startsWith('有新版本 0.1.4。') && button.textContent === '下载并安装', 'Available (installer) wrong: ' + status.textContent);
+    button.click(); assert(lastAction() === 'installUpdate', 'Install not requested');
+    await show({ ...installer, state: 'downloading' });
+    assert(button.disabled && button.textContent === '下载并安装' && status.textContent === '正在下载新版本…', 'Downloading state wrong');
+    await show({ ...installer, state: 'available', hasSetup: false });
+    assert(button.textContent === '打开下载页', 'A release without setup offered an install');
+    await show({ ...installer, edition: 'zip', state: 'available' });
+    assert(status.textContent === '有新版本 0.1.4' && button.textContent === '打开下载页', 'ZIP card wrong: ' + status.textContent);
+    button.click(); assert(lastAction() === 'openReleasePage', 'Release page not requested');
+    await show({ ...installer, state: 'downloadFailed', version: null });
+    assert(status.textContent === '下载失败，请稍后再试' && button.textContent === '检查更新', 'Download failure wrong');
+    await show({ ...installer, state: 'checkFailed', version: null });
+    assert(status.textContent === '检查更新失败，请稍后再试' && button.textContent === '检查更新', 'Check failure wrong');
+    frame.contentWindow.testRefresh(); await settle();
+    assert(status.textContent === '检查更新失败，请稍后再试', 'State refresh lost the update card');
+    change(doc, 'language', 'en'); await settle();
+    assert(status.textContent === "Couldn't check for updates. Try again later." && button.textContent === 'Check for updates', 'English card wrong: ' + status.textContent);
+  });
 
   await test('Feedback page shows what will be sent and posts the report', async () => {
     doc = await reset();

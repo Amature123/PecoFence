@@ -219,7 +219,7 @@
   .page-lede { margin: -4px 2px 16px; color: var(--text2); }
   .fb-note { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; margin-bottom: 4px; border-radius: var(--r-card); background: var(--caution-bg); border: 1px solid var(--card-stroke); }
   .fb-note .ic { color: var(--caution); font-size: 16px; line-height: 20px; }
-  .fb-note[hidden], .fb-preview-box[hidden] { display: none; }
+  .fb-note[hidden], .fb-preview-box[hidden], .card[hidden] { display: none; }
   .fb-form { gap: 12px; }
   .fb-kinds { display: flex; flex-wrap: wrap; gap: 8px 24px; padding-left: 40px; }
   .fb-kinds label { display: flex; align-items: center; gap: 8px; }
@@ -478,6 +478,7 @@
         <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 8H14a6 6 0 0 0-6 6v13M37 8h13a6 6 0 0 1 6 6v13M8 37v13a6 6 0 0 0 6 6h13M56 37v13a6 6 0 0 1-6 6H37" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><rect x="22" y="22" width="8" height="8" rx="2" fill="currentColor"/><rect x="35" y="22" width="8" height="8" rx="2" fill="currentColor" opacity=".65"/><rect x="22" y="35" width="8" height="8" rx="2" fill="currentColor" opacity=".65"/><rect x="35" y="35" width="8" height="8" rx="2" fill="currentColor"/></svg>
         <div><div class="name">PecoFence <span id="ver"></span></div><div class="s">开源的 Windows 11 桌面整理工具</div><div class="s">Apache 2.0 许可证</div><div class="s" id="memDetail">—</div></div>
       </div>
+      <div class="card" id="updateCard" hidden><div class="l"><span class="ic">&#xE895;</span><div><div class="t">更新</div><div class="s" id="updateStatus"></div></div></div><button id="updateAction"></button></div>
       <div class="card"><div class="l"><span class="ic">&#xE8A5;</span><div><div class="t">配置文件</div><div class="s"><code id="cfgPath"></code></div></div></div><button id="openCfg">打开配置文件夹</button></div>
       <h3>疑难解答</h3>
       <div class="card"><div class="l"><span class="ic">&#xE90F;</span><div><div class="t">Windows 桌面图标</div><div class="s" id="desktopIconsStatus"></div></div></div>
@@ -1002,6 +1003,31 @@
   }
   document.getElementById('openCfg').onclick = () => send({ type: 'action', name: 'openConfigFolder' });
   document.getElementById('repairIcons').onclick = () => send({ type: 'action', name: 'repairIcons' });
+
+  // 关于 → 更新: an installed copy downloads and runs the new setup, a ZIP opens the release page.
+  let update = null;
+  const renderUpdate = () => {
+    const card = document.getElementById('updateCard');
+    card.hidden = !update;
+    if (!update) return;
+    const s = update.state, version = update.version;
+    const install = update.edition === 'installer' && update.hasSetup;
+    const status = document.getElementById('updateStatus');
+    status.textContent =
+      s === 'checking' ? t("正在检查更新…")
+      : s === 'upToDate' ? t("已是最新版本")
+      : s === 'available' ? (install ? tf("有新版本 {0}。安装时 PecoFence 会先退出，装好后自动重新打开。", version) : tf("有新版本 {0}", version))
+      : s === 'downloading' ? t("正在下载新版本…")
+      : s === 'checkFailed' ? t("检查更新失败，请稍后再试")
+      : s === 'downloadFailed' ? t("下载失败，请稍后再试")
+      : '';
+    const button = document.getElementById('updateAction');
+    const offered = s === 'available' || s === 'downloading';
+    const action = !offered ? 'checkUpdate' : install ? 'installUpdate' : 'openReleasePage';
+    button.textContent = action === 'checkUpdate' ? t("检查更新") : install ? t("下载并安装") : t("打开下载页");
+    button.disabled = s === 'checking' || s === 'downloading';
+    button.onclick = () => send({ type: 'action', name: action });
+  };
   document.getElementById('hideIconsAgain').onclick = () => send({ type: 'action', name: 'hideDesktopIcons' });
   function renderDesktopIconsStatus() {
     const hidden = !!(state.desktopIconsHidden ?? state.settings.hideRealIcons);
@@ -1105,6 +1131,7 @@
       renderWorkspaceSummary(m.fences.length, m.itemCount);
       document.getElementById('cfgPath').textContent = m.configPath;
       bindAll(); bindThemeStyle(); bindIconTint(); renderDependents(); renderFences(); renderRules(); renderLayout(); updateKind(); renderAppearance(); renderDesktopIconsStatus();
+      update = m.update; renderUpdate();
     } else if (m.type === 'workspaceSummary') {
       if (!state) return;
       state.itemCount = m.itemCount;
@@ -1113,6 +1140,7 @@
     else if (m.type === 'feedbackInfo') { fbInfo = m; fbCrash ||= !!m.crashed; renderFeedback(); }
     else if (m.type === 'showFeedback') showFeedback(!!m.crash);
     else if (m.type === 'toast') toast(m.text, !!m.error);
+    else if (m.type === 'update') { update = m.update; renderUpdate(); }
   });
   send({ type: 'ready' });
 })();
