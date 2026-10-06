@@ -109,6 +109,13 @@ impl App {
     /// every animation frame (a rectangle read per window; windows move only when their top
     /// changes).
     pub(super) fn reflow_pushed(&mut self) {
+        self.reflow_pushed_except(&[]);
+    }
+
+    /// [`Self::reflow_pushed`] with the `settling` fences (no spot on these monitors yet) left
+    /// at rest and pushing nothing: one that lands inside another fence is then moved out of the
+    /// way rather than taken for a fence that one pushes.
+    pub(super) fn reflow_pushed_except(&mut self, settling: &[FenceId]) {
         let enabled = self.state.config.settings.roll_up.push_neighbors;
         if !enabled && self.ctx.behavior.pushed.borrow().is_empty() {
             return;
@@ -154,9 +161,10 @@ impl App {
                 // A press on the title of a fence that pushes others already counts as a drag:
                 // what it pushed stays put rather than sliding back under it.
                 let frozen = by.iter().any(|h| dragged.contains(h));
+                let settles = settling.contains(&id);
                 let role = if is_dragged || frozen || sized == Some(hwnd) {
                     Role::Held
-                } else if self.state.fence(id).is_some_and(|f| f.locked) {
+                } else if settles || self.state.fence(id).is_some_and(|f| f.locked) {
                     Role::Locked
                 } else {
                     Role::Free
@@ -174,7 +182,7 @@ impl App {
                     gap: self.gap_px(hwnd),
                     work,
                     role,
-                    pushes: !is_dragged,
+                    pushes: !is_dragged && !settles,
                     y: r.top,
                     by,
                 });
@@ -377,6 +385,23 @@ mod tests {
         get(&mut s, 1).pushes = true;
         stack(&mut s, true);
         assert_eq!(ys(&s, &[2]), vec![408]);
+    }
+
+    #[test]
+    fn a_settling_fence_is_neither_pushed_nor_pushes() {
+        // A fence from another screen setup lands under the title row of an expanded one: it
+        // stays where it landed for the overlap pass to move, and the fence below stays put
+        // (pushed along, it would go from 420 to 452).
+        let mut s = vec![
+            slot(1, 0, 100, 300, 300),
+            slot(2, 0, 146, TITLE, TITLE),
+            slot(3, 0, 420, TITLE, TITLE),
+        ];
+        let m = get(&mut s, 2);
+        m.role = Role::Locked;
+        m.pushes = false;
+        stack(&mut s, true);
+        assert_eq!(ys(&s, &[2, 3]), vec![146, 420]);
     }
 
     #[test]
