@@ -15,6 +15,7 @@
 - After a crash, the next start shows a notification; clicking it opens the feedback page with the crashed run's log attached.
 - The previous run's log is kept as `pecofence.prev.log`. Starting PecoFence while it is already running no longer empties the running instance's log.
 - pecofence-cli: `paths` also lists `previousLog` and `shareLog`.
+- 「添加规则」 on the 「整理规则」 page adds the rule again. Clicking it did nothing for any kind of rule, so only the quick-add buttons and pecofence-cli could create rules (#33).
 
 ## 0.1.3
 

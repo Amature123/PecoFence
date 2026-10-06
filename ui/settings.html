@@ -908,6 +908,12 @@
     if (!wk.children.length) wk.innerHTML = WEEKDAYS().map(([v, l]) => `<label><input type="checkbox" value="${v}">${l}</label>`).join('');
   }
   const toMin = (hhmm) => { const [h, m] = (hhmm || '0:0').split(':').map(Number); return (h * 60 + (m || 0)) % 1440; };
+  // A v4 UUID by hand: the page is a data: URL, not a secure context, so crypto.randomUUID is missing.
+  const newId = () => {
+    const b = crypto.getRandomValues(new Uint8Array(16)); b[6] = b[6] & 15 | 64; b[8] = b[8] & 63 | 128;
+    const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  };
   function ruleError(text, id) {
     toast(text, true);
     openRuleForm();
@@ -951,7 +957,7 @@
     else if (kind === 'files') cond = { cond: 'filesOnly', value: null };
     else cond = { cond: 'foldersOnly', value: null };
     const fence = state.fences.find(f => f.id === target);
-    state.rules.list.push({ id: crypto.randomUUID(), name, enabled: true, target: fence && fence.kind === 'inbox' ? 'inbox' : { fence: target }, allOf: [cond], priorityClass: cls });
+    state.rules.list.push({ id: newId(), name, enabled: true, target: fence && fence.kind === 'inbox' ? 'inbox' : { fence: target }, allOf: [cond], priorityClass: cls });
     send({ type: 'setRules', rules: state.rules }); renderRules(); toast(t("已添加规则"));
     document.getElementById('nrName').value = ''; document.getElementById('nrValue').value = '';
   };
