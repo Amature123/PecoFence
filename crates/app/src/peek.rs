@@ -63,7 +63,7 @@ impl PeekOverlay {
             let handler: MessageHandler = {
                 let queue = queue.clone();
                 Box::new(
-                    move |_hwnd: HWND, message: u32, wparam: usize, lparam: isize| {
+                    move |hwnd: HWND, message: u32, wparam: usize, lparam: isize| {
                         match message {
                             msg::WM_LBUTTONDOWN | msg::WM_RBUTTONDOWN | msg::WM_MBUTTONDOWN => {
                                 queue.push(Command::EndPeek);
@@ -81,6 +81,17 @@ impl PeekOverlay {
                             }
                             msg::WM_SETFOCUS => {
                                 tracing::debug!("peek dimmer received keyboard focus");
+                                // Taking the focus raises the dimmer to the top of the topmost
+                                // band. That can land after the fences were put above it (the
+                                // focus handoff runs on another thread), leaving the dimmer over
+                                // them so a click on a fence hits the dimmer and ends the peek.
+                                // Ask the app to put the fences back on top.
+                                window::post_message(
+                                    control,
+                                    WM_APP_PEEK_FOCUSED,
+                                    hwnd.0 as usize,
+                                    0,
+                                );
                                 None
                             }
                             msg::WM_ACTIVATE if wparam & 0xFFFF == WA_INACTIVE => {
