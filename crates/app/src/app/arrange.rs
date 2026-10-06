@@ -181,8 +181,9 @@ impl App {
         if movers.is_empty() && !all {
             return;
         }
-        // A fence saved expanded pushes the ones below it before overlaps are judged.
-        self.reflow_pushed();
+        // A fence saved expanded pushes the ones below it before overlaps are judged; the movers
+        // sit this pass out, so one that lands inside a fence moves to free space instead.
+        self.reflow_pushed_except(&movers);
         self.resolve_overlaps(&movers, all);
         for id in movers {
             let Some(w) = self.fences.get(&id) else {
