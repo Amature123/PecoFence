@@ -629,7 +629,7 @@ impl App {
         Some(text)
     }
 
-    /// Deletes a fence (or a tab); a host's tabs become windows of their own again.
+    /// Deletes a fence (or a tab); a deleted host's next tab takes its place and keeps the rest.
     pub(super) fn delete_fence(&mut self, fence: FenceId) {
         if self.state.delete_fence(fence) {
             if let Some(w) = self.fences.remove(&fence) {

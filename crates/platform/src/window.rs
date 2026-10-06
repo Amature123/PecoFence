@@ -460,6 +460,16 @@ pub fn key_down_async(vk: u32) -> bool {
     unsafe { GetAsyncKeyState(vk as i32) < 0 }
 }
 
+/// Is the primary mouse button physically down ([`key_down_async`] sees physical buttons)?
+pub fn primary_button_down_async() -> bool {
+    let vk = if crate::rawinput::buttons_swapped() {
+        VK_RBUTTON
+    } else {
+        VK_LBUTTON
+    };
+    key_down_async(vk as u32)
+}
+
 /// Gives `hwnd` the keyboard focus (a no-op unless this thread owns the foreground queue).
 pub fn set_focus(hwnd: HWND) {
     // SAFETY: plain FFI call.

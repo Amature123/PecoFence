@@ -206,6 +206,9 @@ fn run_fence(ctx: &Ctx, cmd: FenceCmd) -> Result<Reply, IpcError> {
             left_of,
             size,
         } => {
+            // The app would resolve a relative folder against its own working directory.
+            let portal =
+                portal.map(|p| std::path::absolute(&p).map_or(p, |a| a.display().to_string()));
             let placement = [
                 (Side::Below, below),
                 (Side::Above, above),

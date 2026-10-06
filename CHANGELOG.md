@@ -16,6 +16,16 @@
 - The previous run's log is kept as `pecofence.prev.log`. Starting PecoFence while it is already running no longer empties the running instance's log.
 - pecofence-cli: `paths` also lists `previousLog` and `shareLog`.
 - 「添加规则」 on the 「整理规则」 page adds the rule again. Clicking it did nothing for any kind of rule, so only the quick-add buttons and pecofence-cli could create rules (#33).
+- Documents saved in Word, Excel or PowerPoint stay in their fence. These programs save by renaming the document to a temporary name and a fresh copy to the document's name, and the document used to drop out of its fence and be filed again by the rules on every save.
+- Desktops and folders whose path contains a letter such as the Turkish 「İ」 work: their icons were blank, and opening, renaming or deleting them failed.
+- Importing a configuration or restoring a backup shows the files of its folder portals right away. A restored portal used to stay empty until something changed in its folder.
+- Deleting the first tab of a tab group keeps the other tabs together in its place. They used to become separate fences stacked on the same spot.
+- Dragging a fence onto a monitor with a different scale merges it as a tab when it is dropped on another fence's title, and the other selected fences that moved with it keep their new positions after a restart.
+- With the right mouse button set as the primary button, double-clicking the desktop (quick hide) and dragging on it (selecting fences, drawing a new fence) use that button.
+- Files copied onto a fence all land in it when the copy takes longer than 15 seconds. The later ones used to go where the rules put them.
+- A crash could leave the desktop icons hidden after 「隐藏 Windows 桌面图标」 had been turned off and on, or a shutdown had been cancelled: two watchdogs restored the icons at once and undid each other.
+- Renaming an icon to its own name in lower case (README → readme) renames the file. It used to do nothing.
+- pecofence-cli: `fence create --portal` resolves a relative folder such as `.` against the current directory, not PecoFence's.
 
 ## 0.1.3
 

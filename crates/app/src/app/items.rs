@@ -103,8 +103,9 @@ impl App {
 
     /// After a desktop sync: honour an unexpired PendingCreation (plan §5.8 / task 12).
     pub(super) fn route_pending_creation(&mut self) {
+        let running = self.fileops_running > 0;
         self.pending_routes
-            .retain(|p| p.since.elapsed().as_secs() <= PENDING_CREATION_SECS);
+            .retain(|p| running || p.since.elapsed().as_secs() <= PENDING_CREATION_SECS);
         let mut landed = Vec::new();
         self.pending_routes
             .retain(|p| match self.state.item_id_for_path(&p.path) {
@@ -302,12 +303,10 @@ impl App {
         let new = parent.join(file_name);
         if ItemKey::from_path(&new.to_string_lossy()) == ItemKey::from_path(&old.to_string_lossy())
         {
-            // Same name, possibly different case: a no-op for the item table, but the file's
-            // spelling may change.
-            if old.file_name() != new.file_name() {
-                std::fs::rename(&old, &new).map_err(|e| RenameError::Io(e.to_string()))?;
-                self.refresh_fences_with(item);
-            }
+            // Same name, another case: a no-op for the item table, but the file's spelling
+            // changes. (`old` is the lower-cased key: callers already skipped unchanged names.)
+            std::fs::rename(&old, &new).map_err(|e| RenameError::Io(e.to_string()))?;
+            self.refresh_fences_with(item);
             return Ok(new);
         }
         if new.exists() {

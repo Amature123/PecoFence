@@ -76,8 +76,9 @@ impl App {
                     0,
                 );
             });
-        if let Err(e) = spawned {
-            tracing::warn!(error = %e, "file operation thread failed to start");
+        match spawned {
+            Ok(_) => self.fileops_running += 1,
+            Err(e) => tracing::warn!(error = %e, "file operation thread failed to start"),
         }
     }
 
@@ -89,6 +90,7 @@ impl App {
             .map(|mut d| d.drain(..).collect())
             .unwrap_or_default();
         for (then, result) in done {
+            self.fileops_running = self.fileops_running.saturating_sub(1);
             self.on_fileop_done(then, result);
         }
     }
@@ -132,7 +134,15 @@ impl App {
                 self.refresh_portals_in(&dirs);
             }
             FileOpThen::ToDesktop { routed, copy, what } => match result {
-                Ok(true) => tracing::info!(count = routed.len(), copy, what, "files transferred"),
+                Ok(true) => {
+                    tracing::info!(count = routed.len(), copy, what, "files transferred");
+                    // The expiry counts from the end of the copy for files still to appear.
+                    for r in self.pending_routes.iter_mut() {
+                        if routed.contains(&r.path) {
+                            r.since = Instant::now();
+                        }
+                    }
+                }
                 Ok(false) => {
                     tracing::info!("move to desktop cancelled by user");
                     self.pending_routes.retain(|r| !routed.contains(&r.path));

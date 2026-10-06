@@ -48,6 +48,8 @@ impl App {
         let new_settings = self.state.config.settings.clone();
         self.sync_desktop_if_available("config adopted");
         self.relayout_from_state();
+        // The file's portals need enumerating; runtime state of the replaced ones is pruned.
+        self.refresh_portals();
         // Re-apply the settings through the diff path so the anchor / Run-key side effects
         // (hide_real_icons, quick_hide.enabled, show_desktop, autostart) and the ctx.behavior
         // cells update exactly as if the user had changed them on the page.

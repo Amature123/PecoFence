@@ -3,6 +3,7 @@
 use crate::bindings::*;
 use windows_core::Result;
 
+/// Presses and releases of the primary button (the right one when the buttons are swapped).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MouseButtons {
     pub left_down: bool,
@@ -55,10 +56,22 @@ pub fn mouse_buttons_from_wm_input(lparam: isize) -> Option<MouseButtons> {
     // SAFETY: dwType says this is a mouse packet, so the `mouse` union member is valid; the
     // button flags live in the low word of `ulButtons`.
     let flags = unsafe { raw.data.mouse.Anonymous.ulButtons } & 0xffff;
+    // Raw input reports physical buttons.
+    let (down, up) = if buttons_swapped() {
+        (RI_MOUSE_RIGHT_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_UP)
+    } else {
+        (RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_LEFT_BUTTON_UP)
+    };
     Some(MouseButtons {
-        left_down: flags & RI_MOUSE_LEFT_BUTTON_DOWN as u32 != 0,
-        left_up: flags & RI_MOUSE_LEFT_BUTTON_UP as u32 != 0,
+        left_down: flags & down as u32 != 0,
+        left_up: flags & up as u32 != 0,
     })
+}
+
+/// Is the primary mouse button the right one (Settings › Mouse › Primary button)?
+pub fn buttons_swapped() -> bool {
+    // SAFETY: plain FFI call.
+    unsafe { GetSystemMetrics(SM_SWAPBUTTON) != 0 }
 }
 
 /// System double-click interval in milliseconds.

@@ -139,7 +139,7 @@ struct DesktopIcons {
     /// A hide was requested (setting on) but has not succeeded yet; retried from ensure_anchored.
     pending: bool,
     pending_attempts: u32,
-    /// Every watchdog started this run; each one waits for this process to exit.
+    /// The watchdog started this run (one at most); it waits for this process to exit.
     watchdogs: Vec<u32>,
 }
 
@@ -501,7 +501,7 @@ impl DesktopAnchor {
             // The press that activated the desktop reached Explorer before the sink existed: a
             // drag it starts still draws a marquee (from where the pointer is now). Activated
             // any other way, the desktop ends the fence selection like a click on it does.
-            if window::key_down_async(msg::VK_LBUTTON) {
+            if window::primary_button_down_async() {
                 self.begin_marquee(pt);
             } else {
                 self.emit_marquee(MarqueeEvent::Pressed {
@@ -712,7 +712,7 @@ impl DesktopAnchor {
         let Some(origin) = self.quick.marquee_origin else {
             return;
         };
-        if !window::key_down_async(msg::VK_LBUTTON) {
+        if !window::primary_button_down_async() {
             // The release went unseen: finish the marquee here.
             self.on_desktop_button_up();
             return;
@@ -862,6 +862,10 @@ impl DesktopAnchor {
 
     /// Starts `pecofence-watchdog.exe` (next to our exe) so a crash still restores the icons.
     fn spawn_watchdog(&mut self) {
+        // One per run: it checks the marker when we exit, whatever happened before.
+        if !self.icons.watchdogs.is_empty() {
+            return;
+        }
         let Ok(exe) = std::env::current_exe() else {
             return;
         };

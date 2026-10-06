@@ -199,6 +199,8 @@ pub struct App {
     fs_pending: Arc<Mutex<Vec<FsEvent>>>,
     /// Finished shell file operations from the worker threads (see `fileops.rs`).
     fileops_done: fileops::FileOpResults,
+    /// File operations still running: their PendingRoutes must not expire mid-copy.
+    fileops_running: usize,
     /// CLI requests waiting for the UI thread (see `ipc_server.rs` / `ipc.rs`).
     ipc_pending: PendingQueue,
     /// The named-pipe listener; `None` when the pipe name was unavailable.
@@ -875,6 +877,7 @@ impl App {
             portal_watchers: HashMap::new(),
             fs_pending,
             fileops_done: Arc::new(Mutex::new(Vec::new())),
+            fileops_running: 0,
             ipc_pending,
             _ipc: ipc,
             ipc_warnings: Vec::new(),
