@@ -406,23 +406,13 @@ pub(super) fn rolled_back_settings(requested: &Settings, applied: &Settings) -> 
         .collect()
 }
 
-/// `fenceCount` is the layout a restore would show on the current monitors (`device_paths`),
-/// matched like `Config::layout_for`; a restore falls back to the first layout otherwise.
-pub(super) fn snapshot_dto(s: &Snapshot, device_paths: &[String]) -> SnapshotDto {
-    let mut wanted: Vec<&str> = device_paths.iter().map(String::as_str).collect();
-    wanted.sort_unstable();
-    let current = s
-        .layouts
-        .iter()
-        .find(|l| {
-            let mut have: Vec<&str> = l
-                .fingerprint
-                .iter()
-                .map(|m| m.device_path.as_str())
-                .collect();
-            have.sort_unstable();
-            have == wanted
-        })
+/// `fenceCount` is the fences a restore would show: those of the layout shown last when the
+/// snapshot was taken (every monitor set shows them), else (snapshots from 0.1.3 and earlier)
+/// of the layout for the current monitors, else of the first.
+pub(super) fn snapshot_dto(s: &Snapshot, monitors: &[geometry::WorkArea]) -> SnapshotDto {
+    let current = pecofence_core::last_shown(&s.layouts)
+        .or_else(|| pecofence_core::layout_for(&s.layouts, monitors).map(|m| m.index))
+        .and_then(|i| s.layouts.get(i))
         .or_else(|| s.layouts.first());
     SnapshotDto {
         id: s.id,
@@ -566,13 +556,12 @@ impl App {
             }
             Method::RulesGet => to_json(&self.rule_list_dto()),
             Method::SnapshotsList => {
-                let paths = self.device_paths();
                 let list: Vec<SnapshotDto> = self
                     .state
                     .config
                     .snapshots
                     .iter()
-                    .map(|s| snapshot_dto(s, &paths))
+                    .map(|s| snapshot_dto(s, &self.state.work_areas))
                     .collect();
                 to_json(&list)
             }
@@ -806,14 +795,13 @@ impl App {
                 let id = self.state.save_snapshot(&name);
                 self.schedule_save();
                 self.push_settings_state();
-                let paths = self.device_paths();
                 let snap = self
                     .state
                     .config
                     .snapshots
                     .iter()
                     .find(|s| s.id == id)
-                    .map(|s| snapshot_dto(s, &paths))
+                    .map(|s| snapshot_dto(s, &self.state.work_areas))
                     .ok_or_else(|| IpcError::internal("snapshot vanished after saving"))?;
                 Ok(mutation(true, None, json!({ "snapshot": to_json(&snap)? })))
             }
@@ -1294,14 +1282,6 @@ impl App {
             .iter()
             .any(|w| w.device_path == f.geometry.monitor)
             .then(|| Rect::from(self.state.fence_px_rect(f)))
-    }
-
-    fn device_paths(&self) -> Vec<String> {
-        self.state
-            .work_areas
-            .iter()
-            .map(|w| w.device_path.clone())
-            .collect()
     }
 
     /// `{"fence": FenceDto}` for a mutation result.

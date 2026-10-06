@@ -14,6 +14,8 @@
 //! roll <title> | unroll <title>
 //! activate <title>           switch to a tab through the native command path
 //! housekeeping               run the same periodic maintenance as the one-minute timer
+//! monitors <id>@<x>,<y>,<w>,<h>@<dpi> …  debug-only: these monitors (work areas in physical
+//!                            px) stand in for the connected ones, then a display change
 //! bounds <title> <x> <y> <w> <h>  set a test window's physical rectangle
 //! size <title> <edge> <x> <y>     drag an edge (left, top-right, bottom …) to x / y through
 //!                            WM_SIZING, as the size loop does; `size-end <title>` releases it
@@ -231,6 +233,13 @@ impl App {
                             to,
                         });
                     }
+                }
+                #[cfg(debug_assertions)]
+                ["monitors", specs @ ..] => {
+                    let areas: Vec<_> = specs.iter().filter_map(|s| test_monitor(s)).collect();
+                    super::fences::TEST_MONITORS.with_borrow_mut(|m| *m = Some(areas));
+                    let display_change = pecofence_platform::msg::WM_DISPLAYCHANGE;
+                    window::post_message(self.control.hwnd(), display_change, 0, 0);
                 }
                 ["housekeeping"] => self.housekeeping(),
                 ["bounds", title, x, y, w, h] => {
@@ -642,6 +651,30 @@ impl App {
             self.fences.len(), self.dying.len(), self.state.config.settings.hide_real_icons,
             pecofence_platform::shell_icons::desktop_icons_hidden());
     }
+}
+
+/// `monitors` spec `<id>@<x>,<y>,<w>,<h>@<dpi>`: a monitor whose work area is that rectangle.
+#[cfg(debug_assertions)]
+fn test_monitor(spec: &str) -> Option<pecofence_core::geometry::WorkArea> {
+    let mut parts = spec.split('@');
+    let (id, rect, dpi) = (parts.next()?, parts.next()?, parts.next()?.parse().ok()?);
+    let n: Vec<i32> = rect.split(',').filter_map(|v| v.parse().ok()).collect();
+    let [x, y, w, h] = n[..] else {
+        return None;
+    };
+    Some(pecofence_core::geometry::WorkArea {
+        device_path: id.to_string(),
+        gdi_name: String::new(),
+        left: x,
+        top: y,
+        right: x + w,
+        bottom: y + h,
+        dpi,
+        mon_left: x,
+        mon_top: y,
+        mon_right: x + w,
+        mon_bottom: y + h,
+    })
 }
 
 /// The trailing options of `drop-files` / `drop-marshaled`: an item name to drop onto, and

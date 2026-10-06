@@ -37,6 +37,7 @@ mod ipc {
     fn work(device: &str, left: i32, top: i32, w: i32, h: i32, dpi: u32) -> WorkArea {
         WorkArea {
             device_path: device.into(),
+            gdi_name: String::new(),
             left,
             top,
             right: left + w,
@@ -393,9 +394,11 @@ mod ipc {
             anchor: pecofence_core::Anchor::LeftTop,
         };
         pecofence_core::Layout {
+            shown: 0,
             fingerprint: devices
                 .iter()
                 .map(|d| pecofence_core::MonitorIdentity {
+                    gdi_name: String::new(),
                     device_path: d.to_string(),
                     work_dip: [1920.0, 1032.0],
                     dpi: 96,
@@ -428,7 +431,7 @@ mod ipc {
     }
 
     #[test]
-    fn snapshot_counts_the_layout_of_the_current_monitors() {
+    fn snapshot_counts_the_fences_a_restore_shows() {
         // One layout per monitor combination seen: the old sum (6 here) read like 3x the fences.
         let mut s = snap("before-cleanup", 1);
         s.layouts = vec![
@@ -436,14 +439,21 @@ mod ipc {
             layout(&["\\\\.\\DISPLAY1", "\\\\.\\DISPLAY2"], 3),
             layout(&["\\\\.\\DISPLAY2"], 1),
         ];
-        let now = ["\\\\.\\DISPLAY2".to_string(), "\\\\.\\DISPLAY1".to_string()];
-        let dto = snapshot_dto(&s, &now);
-        assert_eq!(dto.fence_count, 3);
+        let at = |device: &str| work(device, 0, 0, 1920, 1032, 96);
+        let elsewhere = [at("\\\\.\\DISPLAY9")];
+        // Every monitor set shows the same fences, as the layout shown last has them.
+        s.layouts[1].shown = 4;
+        s.layouts[2].shown = 2;
+        assert_eq!(snapshot_dto(&s, &elsewhere).fence_count, 3);
+        // Snapshots from 0.1.3 kept fences per set: those of the current monitors' layout.
+        for l in &mut s.layouts {
+            l.shown = 0;
+        }
+        let now = [at("\\\\.\\DISPLAY2"), at("\\\\.\\DISPLAY1")];
+        assert_eq!(snapshot_dto(&s, &now).fence_count, 3);
         // No layout for these monitors: a restore would start from the first one.
-        let dto = snapshot_dto(&s, &["\\\\.\\DISPLAY9".to_string()]);
-        assert_eq!(dto.fence_count, 2);
-        let empty = snapshot_dto(&snap("x", 2), &now);
-        assert_eq!(empty.fence_count, 0);
+        assert_eq!(snapshot_dto(&s, &elsewhere).fence_count, 2);
+        assert_eq!(snapshot_dto(&snap("x", 2), &now).fence_count, 0);
     }
 
     #[test]

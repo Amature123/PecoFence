@@ -722,11 +722,12 @@ impl App {
         self.apply_icon_title_font();
         // Any broadcast that reaches us after the work area moved (taskbar, DPI, resolution
         // races) must re-layout, or every later set_fence_bounds normalizes against a stale
-        // work area and the saved geometry drifts by the taskbar height.
+        // work area and the saved geometry drifts by the taskbar height. Once the monitors
+        // settled, like a display change.
         let fresh = work_areas();
         if fresh != self.state.work_areas {
             tracing::info!("work areas changed behind a settings broadcast; re-laying out");
-            self.on_display_changed();
+            window::set_timer(self.control.hwnd(), TIMER_WORKAREA, DISPLAY_SETTLE_MS);
             return;
         }
         self.refresh_visuals(false);

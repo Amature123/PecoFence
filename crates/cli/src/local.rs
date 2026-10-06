@@ -165,9 +165,14 @@ pub fn check_config(path: &Path) -> Result<(Value, bool), IpcError> {
         .filter(|p| p.level == LintLevel::Error)
         .count();
     let warnings = problems.len() - errors;
-    let fences: usize = cfg.layouts.iter().map(|l| l.fences.len()).sum();
-    let portals: usize = cfg
-        .layouts
+    // Every monitor set shows the fences of the layout shown last; files from 0.1.3 and
+    // earlier kept separate fences per set.
+    let shown: Vec<&pecofence_core::Layout> = match pecofence_core::last_shown(&cfg.layouts) {
+        Some(i) => vec![&cfg.layouts[i]],
+        None => cfg.layouts.iter().collect(),
+    };
+    let fences: usize = shown.iter().map(|l| l.fences.len()).sum();
+    let portals: usize = shown
         .iter()
         .flat_map(|l| l.fences.iter())
         .filter(|f| f.kind == pecofence_core::FenceKind::FolderPortal)

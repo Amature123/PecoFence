@@ -89,6 +89,9 @@ const TIMER_HOUSEKEEPING: usize = 42;
 const TIMER_ICONS: usize = 43;
 const TIMER_WALLPAPER: usize = 44;
 const TIMER_WORKAREA: usize = 45;
+/// After a display change the fences wait this long for the monitors to settle (plugging,
+/// unplugging and a monitor waking pass through in-between sets) before they are laid out.
+const DISPLAY_SETTLE_MS: u32 = 1000;
 const TIMER_CMD_RETRY: usize = 46;
 /// The frame message arrived while the App was borrowed (modal loop); retry shortly.
 const TIMER_FRAME_RETRY: usize = 47;
@@ -319,6 +322,8 @@ impl App {
             let fs_armed = Cell::new(false);
             let fs_flushed: Cell<Option<Instant>> = Cell::new(None);
             let peek_focus_pending: Cell<Option<usize>> = Cell::new(None);
+            // A display change is waiting out DISPLAY_SETTLE_MS on TIMER_WORKAREA.
+            let display_settling = Cell::new(false);
             // This lives outside App so nested/modal loops cannot lose a wallpaper signal.
             let wallpaper_schedule = Rc::new(Cell::new(RefreshSchedule::default()));
             let last_desktop_id = Cell::new(wallpaper::desktop_id());
@@ -603,6 +608,7 @@ impl App {
                                     if let Ok(mut guard) = cell.try_borrow_mut()
                                         && let Some(app) = guard.as_mut()
                                     {
+                                        display_settling.set(false);
                                         tracing::info!("work area changed; re-laying out fences");
                                         app.on_display_changed();
                                     } else {
@@ -636,8 +642,14 @@ impl App {
                         }
                         msg::WM_SETTINGCHANGE if wparam == SPI_SETWORKAREA => {
                             // Taskbar moved/resized/auto-hide toggled. The shell may broadcast
-                            // several times while the taskbar animates; coalesce.
-                            window::set_timer(hwnd, TIMER_WORKAREA, 250);
+                            // several times while the taskbar animates; coalesce (and never cut
+                            // a display change's wait short).
+                            let wait = if display_settling.get() {
+                                DISPLAY_SETTLE_MS
+                            } else {
+                                250
+                            };
+                            window::set_timer(hwnd, TIMER_WORKAREA, wait);
                             None
                         }
                         msg::WM_SETTINGCHANGE
@@ -651,11 +663,9 @@ impl App {
                             None
                         }
                         msg::WM_DISPLAYCHANGE => {
-                            if let Ok(mut guard) = cell.try_borrow_mut()
-                                && let Some(app) = guard.as_mut()
-                            {
-                                app.on_display_changed();
-                            }
+                            // Each change restarts the wait: lay out once the monitors settled.
+                            display_settling.set(true);
+                            window::set_timer(hwnd, TIMER_WORKAREA, DISPLAY_SETTLE_MS);
                             Some(0)
                         }
                         m if m == taskbar_created && m != 0 => {
@@ -1002,10 +1012,8 @@ impl App {
         app.sync_desktop_if_available("startup");
         app.state.refresh_all_portals();
         app.sync_fence_windows();
-        // A fence saved expanded pushes the ones below it before overlaps are judged.
-        app.reflow_pushed();
         // Fences never stay on top of each other: pull apart any overlap the layout brings.
-        app.resolve_overlaps();
+        app.settle_unplaced(true);
         if let Some(folder) = args.portal.as_deref() {
             let (cx, cy) = app
                 .state

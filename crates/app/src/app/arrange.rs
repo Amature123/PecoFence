@@ -129,53 +129,69 @@ impl App {
         }
     }
 
-    /// Startup: fences that already overlap are pulled apart once. Larger fences stay; each
-    /// smaller one that covers a fence kept so far moves to the nearest spot free of every
-    /// other fence (or, failing that, of the kept ones), so the fewest and smallest move.
-    pub(super) fn resolve_overlaps(&mut self) {
-        let mut order: Vec<(FenceId, RECT)> =
-            self.fences.iter().map(|(id, w)| (*id, w.rect())).collect();
-        let area = |r: &RECT| (r.right - r.left) as i64 * (r.bottom - r.top) as i64;
-        order.sort_by_key(|(_, r)| (std::cmp::Reverse(area(r)), r.top, r.left));
-        let mut kept: Vec<RECT> = Vec::new();
-        for i in 0..order.len() {
-            let (id, r) = order[i];
+    /// Pulls overlapping fences apart ([`clearance::pull_apart`]): any fence with `all` (at
+    /// startup), else only `movers`. Fences at their own spot are kept first, then the movers
+    /// whose monitor is connected, then those whose monitor is gone.
+    fn resolve_overlaps(&mut self, movers: &[FenceId], all: bool) {
+        let fences: Vec<(FenceId, clearance::Resting)> = self
+            .fences
+            .iter()
+            .map(|(id, w)| {
+                let rect = w.rect();
+                let connected = |f: &pecofence_core::Fence| {
+                    let on = |a: &WorkArea| a.device_path == f.geometry.monitor;
+                    self.state.work_areas.iter().any(on)
+                };
+                let rank = match self.state.fence(*id) {
+                    _ if !movers.contains(id) => 0,
+                    Some(f) if connected(f) => 1,
+                    _ => 2,
+                };
+                let work = self
+                    .work_area_at((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2)
+                    .map(|wa| RECT {
+                        left: wa.left,
+                        top: wa.top,
+                        right: wa.right,
+                        bottom: wa.bottom,
+                    });
+                let rest = clearance::Resting {
+                    rect,
+                    work,
+                    gap: self.gap_px(w.hwnd()),
+                    rank,
+                    movable: all || movers.contains(id),
+                };
+                (*id, rest)
+            })
+            .collect();
+        let rests: Vec<clearance::Resting> = fences.iter().map(|(_, r)| *r).collect();
+        for (i, spot) in clearance::pull_apart(&rests) {
+            let (id, from) = (fences[i].0, fences[i].1.rect);
+            tracing::info!(%id, from = ?(from.left, from.top), to = ?(spot.left, spot.top), "overlapping fence moved");
+            self.relocate(id, spot);
+        }
+    }
+
+    /// Startup (`all`: every overlap the layout brings is pulled apart) and new monitors: the
+    /// fences with no spot on these monitors yet ([`AppState::unplaced`]) move out of the
+    /// others' way and are recorded where they end up, on the monitor they are on now.
+    pub(super) fn settle_unplaced(&mut self, all: bool) {
+        let movers = std::mem::take(&mut self.state.unplaced);
+        if movers.is_empty() && !all {
+            return;
+        }
+        // A fence saved expanded pushes the ones below it before overlaps are judged.
+        self.reflow_pushed();
+        self.resolve_overlaps(&movers, all);
+        for id in movers {
             let Some(w) = self.fences.get(&id) else {
                 continue;
             };
-            let gap = self.gap_px(w.hwnd());
-            if !kept.iter().any(|k| clearance::overlaps(&r, k, gap)) {
-                kept.push(r);
-                continue;
-            }
-            let Some(wa) = self.work_area_at((r.left + r.right) / 2, (r.top + r.bottom) / 2) else {
-                kept.push(r);
-                continue;
-            };
-            let work = RECT {
-                left: wa.left,
-                top: wa.top,
-                right: wa.right,
-                bottom: wa.bottom,
-            };
-            let all: Vec<RECT> = order
-                .iter()
-                .enumerate()
-                .filter(|(j, _)| *j != i)
-                .map(|(_, (_, o))| *o)
-                .collect();
-            let spot = clearance::nearest_free(&r, &all, &work, gap)
-                .or_else(|| clearance::nearest_free(&r, &kept, &work, gap));
-            match spot {
-                Some(spot) => {
-                    tracing::info!(%id, from = ?(r.left, r.top), to = ?(spot.left, spot.top), "overlapping fence moved at startup");
-                    self.relocate(id, spot);
-                    order[i].1 = spot;
-                    kept.push(spot);
-                }
-                None => kept.push(r),
-            }
+            let (rect, rolled, expanded) = (w.rect(), w.is_rolled(), w.expanded_height_px());
+            self.record_bounds(id, rect, rolled, expanded);
         }
+        self.schedule_save();
     }
 
     /// Lowest bottom edge host `id` at `r` may grow to without running into a fence below.
