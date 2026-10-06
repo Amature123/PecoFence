@@ -371,6 +371,11 @@ pub struct MonitorIdentity {
     /// Work-area size in DIPs at save time.
     pub work_dip: [f32; 2],
     pub dpi: u32,
+    /// Resolution in physical px (taskbar included). With `dpi` it is part of the set: the
+    /// same monitors at another resolution or scale have a layout of their own. `[0, 0]` in
+    /// layouts saved before that; such a layout takes the resolution it is next shown at.
+    #[serde(default)]
+    pub screen_px: [i32; 2],
 }
 
 impl MonitorIdentity {
@@ -380,7 +385,17 @@ impl MonitorIdentity {
             gdi_name: work.gdi_name.clone(),
             work_dip: [work.width_dip(), work.height_dip()],
             dpi: work.dpi,
+            screen_px: work.screen_px(),
         }
+    }
+
+    fn knows_mode(&self) -> bool {
+        self.screen_px != [0, 0]
+    }
+
+    /// `now` runs at the resolution and scale this was saved at (or it was saved without).
+    fn same_mode(&self, now: &WorkArea) -> bool {
+        !self.knows_mode() || (self.screen_px == now.screen_px() && self.dpi == now.dpi)
     }
 
     fn gdi_name(&self) -> &str {
@@ -416,6 +431,8 @@ pub struct Layout {
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayoutMatch {
     pub index: usize,
+    /// Per saved monitor, the index of the connected one it is.
+    pub pairs: Vec<usize>,
     /// Saved id → connected id, for the monitors found under another id.
     pub renamed: Vec<(String, String)>,
 }
@@ -1101,24 +1118,38 @@ impl Layout {
 /// one each. A saved monitor is found by its id; else by model when exactly one saved and one
 /// connected monitor left are that model (another port or a dock gives a monitor a new
 /// instance); else, when either side has no EDID model (files from 0.1.3 and earlier saved
-/// only GDI names), by GDI name. The layout with the most monitors found by id wins.
+/// only GDI names), by GDI name. Each must also run at the resolution and scale it was saved
+/// at. The layout with the most monitors found by id wins, then the one that knows the
+/// resolutions over one saved without them.
 pub fn layout_for(layouts: &[Layout], monitors: &[WorkArea]) -> Option<LayoutMatch> {
-    let mut best: Option<(usize, LayoutMatch)> = None;
+    let mut best: Option<((usize, usize), LayoutMatch)> = None;
     for (index, l) in layouts.iter().enumerate() {
         let Some((pairs, by_id)) = pair_monitors(&l.fingerprint, monitors) else {
             continue;
         };
-        if best.as_ref().is_some_and(|(b, _)| *b >= by_id) {
+        let saved = l.fingerprint.iter().zip(&pairs);
+        if !saved.clone().all(|(m, &j)| m.same_mode(&monitors[j])) {
             continue;
         }
-        let renamed = l
-            .fingerprint
-            .iter()
-            .zip(pairs)
-            .filter(|(saved, j)| saved.device_path != monitors[*j].device_path)
-            .map(|(saved, j)| (saved.device_path.clone(), monitors[j].device_path.clone()))
+        let score = (
+            by_id,
+            l.fingerprint.iter().filter(|m| m.knows_mode()).count(),
+        );
+        if best.as_ref().is_some_and(|(b, _)| *b >= score) {
+            continue;
+        }
+        let renamed = saved
+            .filter(|(m, j)| m.device_path != monitors[**j].device_path)
+            .map(|(m, &j)| (m.device_path.clone(), monitors[j].device_path.clone()))
             .collect();
-        best = Some((by_id, LayoutMatch { index, renamed }));
+        best = Some((
+            score,
+            LayoutMatch {
+                index,
+                pairs,
+                renamed,
+            },
+        ));
     }
     best.map(|(_, m)| m)
 }
@@ -1498,6 +1529,7 @@ mod tests {
             shown: 0,
             fingerprint: vec![MonitorIdentity {
                 gdi_name: String::new(),
+                screen_px: [0, 0],
                 device_path: "m".into(),
                 work_dip: [1920.0, 1040.0],
                 dpi: 96,
@@ -1787,6 +1819,43 @@ mod tests {
     }
 
     const D3: &str = r"\\.\DISPLAY3";
+
+    #[test]
+    fn another_resolution_or_scale_is_another_layout() {
+        let at = |w: i32, h: i32, dpi: u32| WorkArea {
+            right: w,
+            bottom: h - 48,
+            mon_right: w,
+            mon_bottom: h,
+            dpi,
+            ..monitor("GSM7787#A", D1)
+        };
+        let big = at(3840, 2160, 192);
+        let known = saved(&[]);
+        let known = Layout {
+            fingerprint: vec![MonitorIdentity::of(&big)],
+            ..known
+        };
+        let layouts = [known.clone()];
+        assert!(layout_for(&layouts, std::slice::from_ref(&big)).is_some());
+        // A taller taskbar is the same setup.
+        let taskbar = WorkArea {
+            bottom: 2160 - 96,
+            ..big.clone()
+        };
+        assert!(layout_for(&layouts, &[taskbar]).is_some());
+        assert!(layout_for(&layouts, &[at(1920, 1080, 96)]).is_none());
+        assert!(layout_for(&layouts, &[at(3840, 2160, 144)]).is_none());
+        // Saved before resolutions were: any fits, but the layout that knows them wins.
+        let mut old = known.clone();
+        old.fingerprint[0].screen_px = [0, 0];
+        let both = [old, known];
+        assert_eq!(
+            layout_for(&both, std::slice::from_ref(&big)).unwrap().index,
+            1
+        );
+        assert_eq!(layout_for(&both, &[at(1920, 1080, 96)]).unwrap().index, 0);
+    }
 
     #[test]
     fn showing_another_set_carries_the_fences_and_keeps_its_spots() {

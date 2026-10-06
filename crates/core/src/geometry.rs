@@ -39,6 +39,13 @@ impl WorkArea {
     pub fn model(&self) -> Option<&str> {
         monitor_model(&self.device_path)
     }
+    /// Monitor resolution in physical px (taskbar included).
+    pub fn screen_px(&self) -> [i32; 2] {
+        [
+            self.mon_right - self.mon_left,
+            self.mon_bottom - self.mon_top,
+        ]
+    }
 }
 
 /// `GSM7787` from a monitor id (see [`WorkArea::device_path`]); `None` for a GDI name.

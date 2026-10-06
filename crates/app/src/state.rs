@@ -329,7 +329,7 @@ impl AppState {
         let found = self.config.layout_for(&self.work_areas);
         let target = match &found {
             Some(m) => {
-                self.rename_monitors(m.index, &m.renamed);
+                self.update_monitors(m);
                 m.index
             }
             None => {
@@ -380,21 +380,25 @@ impl AppState {
         self.layout = target;
     }
 
-    /// The connected monitors found under another id (another port, or a file that saved GDI
-    /// names) take that id in layout `index` and in its fences' geometry.
-    fn rename_monitors(&mut self, index: usize, renamed: &[(String, String)]) {
+    /// The matched layout takes the connected monitors as they are: one found under another id
+    /// (another port, or a file that saved GDI names) takes the new id there and in its fences'
+    /// geometry, and a layout saved without resolutions takes the current ones.
+    fn update_monitors(&mut self, found: &pecofence_core::LayoutMatch) {
+        let layout = &mut self.config.layouts[found.index];
+        for (saved, &j) in layout.fingerprint.iter_mut().zip(&found.pairs) {
+            let now = MonitorIdentity::of(&self.work_areas[j]);
+            let differs = saved.device_path != now.device_path
+                || saved.gdi_name != now.gdi_name
+                || saved.screen_px != now.screen_px
+                || saved.dpi != now.dpi;
+            if differs {
+                *saved = now;
+                self.dirty = true;
+            }
+        }
+        let renamed = &found.renamed;
         if renamed.is_empty() {
             return;
-        }
-        let layout = &mut self.config.layouts[index];
-        for m in &mut layout.fingerprint {
-            if let Some(w) = renamed
-                .iter()
-                .find(|(old, _)| *old == m.device_path)
-                .and_then(|(_, new)| self.work_areas.iter().find(|w| w.device_path == *new))
-            {
-                *m = MonitorIdentity::of(w);
-            }
         }
         for f in &mut layout.fences {
             if let Some((_, new)) = renamed.iter().find(|(old, _)| *old == f.geometry.monitor) {
@@ -402,7 +406,6 @@ impl AppState {
             }
         }
         tracing::info!(?renamed, "monitors found under another id");
-        self.dirty = true;
     }
 
     /// Stardock-style first-run layout: right column 程序 / 文件夹 / 文件与文档 / 桌面(inbox).
@@ -1994,8 +1997,10 @@ mod tests {
         other.fences.push(own.clone());
         other.fingerprint[0].device_path = r"\\.\DISPLAY2".into();
         state.config.layouts.push(other);
+        // As 0.1.3 saved them: no "shown last" stamp, no resolutions.
         for l in &mut state.config.layouts {
             l.shown = 0;
+            l.fingerprint[0].screen_px = [0, 0];
         }
         state.ensure_layout();
         assert_eq!(state.layout, 0);
@@ -2006,6 +2011,32 @@ mod tests {
         state.ensure_layout();
         assert_eq!(state.layout, 1);
         assert!(state.fence(own.id).is_none());
+    }
+
+    /// The same monitor at 4K / 200 % and at 1080p / 100 %: each keeps its own spots.
+    #[test]
+    fn each_resolution_keeps_its_own_spots() {
+        let id = "GSM7787#5&2C948443&0&UID24832";
+        let mut state = state_on(vec![monitor(id, 0, 3840, 2064, 192)]);
+        let at_4k = state.fences().to_vec();
+        let first = at_4k[0].id;
+        state.work_areas = vec![monitor(id, 0, 1920, 1032, 96)];
+        state.ensure_layout();
+        assert_eq!((state.layout, state.config.layouts.len()), (1, 2));
+        assert_eq!(state.unplaced.len(), at_4k.len());
+        state.set_fence_bounds(first, rect(20, 20, 300, 200), false, 200);
+
+        state.work_areas = vec![monitor(id, 0, 3840, 2064, 192)];
+        state.ensure_layout();
+        assert_eq!(state.layout, 0);
+        assert!(state.unplaced.is_empty());
+        assert_eq!(state.fence(first).unwrap().geometry, at_4k[0].geometry);
+
+        state.work_areas = vec![monitor(id, 0, 1920, 1032, 96)];
+        state.ensure_layout();
+        assert_eq!(state.layout, 1);
+        let g = &state.fence(first).unwrap().geometry;
+        assert_eq!((g.x, g.y), (20.0, 20.0));
     }
 
     #[test]

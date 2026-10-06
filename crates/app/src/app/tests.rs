@@ -399,6 +399,7 @@ mod ipc {
                 .iter()
                 .map(|d| pecofence_core::MonitorIdentity {
                     gdi_name: String::new(),
+                    screen_px: [0, 0],
                     device_path: d.to_string(),
                     work_dip: [1920.0, 1032.0],
                     dpi: 96,
