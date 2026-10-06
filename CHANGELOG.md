@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 「打开配置文件夹」 opens the right folder in the Store edition (#45). Windows keeps what a Store app writes under %APPDATA% in the package's own `LocalCache\Roaming` folder, and Explorer cannot see the file at the %APPDATA% path, so the button opened Documents. The settings page (and `pecofence-cli status` / `paths`) now show the real location, and the button opens it with config.json selected.
+
 ## 0.1.4
 
 - More ways to colour fences and read their titles (#40). 「只给标题栏上色」 in 栅栏选项 puts a fence's tint on its title row only, so the icons sit on plain glass that blends with the desktop. On a fence with tabs, 「标签页颜色」 gives each tab its own colour bar under its name (it follows the tint until you pick one). 「标题字号」 has a fourth size, 「特大」 (18 instead of 16), for fence and tab titles on high-resolution screens. pecofence-cli: `fence set <fence> tintTitleOnly true`, `tabColor "#RRGGBB"`, `titleSize extraLarge`.

@@ -240,7 +240,7 @@ impl App {
             "monitors": monitors,
             "tintPalette": fence_options::tint_palette_json(),
             "version": env!("CARGO_PKG_VERSION"),
-            "configPath": self.state.config_path().to_string_lossy(),
+            "configPath": self.state.config_path_on_disk().to_string_lossy(),
             "memoryMb": mem_mb,
             "itemCount": self.state.workspace_item_count(),
             "themeMode": if self.theme_mode == ThemeMode::Dark { "dark" } else { "light" },
@@ -345,10 +345,18 @@ impl App {
                     }
                 }
                 Some("openConfigFolder") => {
-                    let dir = self.state.config_path();
-                    if let Some(dir) = dir.parent() {
-                        let _ = std::process::Command::new("explorer.exe").arg(dir).spawn();
+                    // Explorer opens Documents for a path it cannot see: hand it the real one.
+                    use std::os::windows::process::CommandExt;
+                    let path = self.state.config_path_on_disk();
+                    let mut explorer = std::process::Command::new("explorer.exe");
+                    if path.is_file() {
+                        // Quoted as a whole (what `arg` does once a space appears), the
+                        // `/select` argument opens Documents too.
+                        explorer.raw_arg(format!("/select,\"{}\"", path.display()));
+                    } else {
+                        explorer.arg(path.parent().unwrap_or(&path));
                     }
+                    let _ = explorer.spawn();
                 }
                 Some("saveSnapshot") => {
                     let name = v.get("snapshotName").and_then(|n| n.as_str()).unwrap_or("");
