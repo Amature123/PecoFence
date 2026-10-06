@@ -1245,6 +1245,7 @@ impl App {
             spacing: text("spacing"),
             auto_height: flag("autoHeight"),
             exclude_from_quick_hide: flag("excludeFromQuickHide"),
+            hide_when_empty: flag("hideWhenEmpty"),
             opacity: text("opacity"),
             tint: opts
                 .get("tint")
@@ -1670,7 +1671,7 @@ impl App {
         let f = self.fence_or_err(id)?.clone();
         if f.kind == FenceKind::Inbox {
             return Err(unsupported(format!(
-                "{:?} is the inbox fence (the desktop itself) and cannot be deleted",
+                "{:?} is the inbox fence (the desktop itself) and cannot be deleted; fence set inbox hideWhenEmpty true hides it while it is empty",
                 f.title
             )));
         }

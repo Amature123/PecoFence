@@ -68,6 +68,7 @@ pub(super) const FENCE_PROPS: &[&str] = &[
     "labelLines",
     "portalNavigate",
     "portalTitleIcon",
+    "hideWhenEmpty",
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,6 +99,8 @@ pub(super) enum FenceProp {
     TitleOnHover(Option<bool>),
     PortalNavigate(bool),
     PortalTitleIcon(bool),
+    /// Inbox only: 为空时自动隐藏.
+    HideWhenEmpty(bool),
     Layout(ViewLayout),
     Sort(SortMode),
     Reverse(bool),
@@ -224,6 +227,7 @@ pub(super) fn parse_fence_prop(
         }
         "portalNavigate" => FenceProp::PortalNavigate(as_bool()?),
         "portalTitleIcon" => FenceProp::PortalTitleIcon(as_bool()?),
+        "hideWhenEmpty" => FenceProp::HideWhenEmpty(as_bool()?),
         _ => {
             return Err(IpcError::invalid_value(
                 format!("unknown fence property {prop:?}"),
@@ -281,6 +285,13 @@ impl App {
         {
             a.set_quick_hide_excluded(w.hwnd(), on);
         }
+        self.schedule_save();
+    }
+
+    /// The inbox's 为空时自动隐藏 (other fences keep the flag but never hide).
+    pub(super) fn set_fence_hide_when_empty(&mut self, fence: FenceId, on: bool) {
+        self.state.set_hide_when_empty(fence, on);
+        self.sync_inbox_window();
         self.schedule_save();
     }
 
@@ -459,6 +470,7 @@ impl App {
             "titleColor": title_color,
             "titleSize": title_size,
             "titleOnHover": title_on_hover,
+            "hideWhenEmpty": f.hide_when_empty,
             "portal": portal,
         })
     }
@@ -538,6 +550,7 @@ impl App {
             FenceProp::TitleOnHover(on) => self.set_fence_title_on_hover(fence, on),
             FenceProp::PortalNavigate(on) => self.set_fence_portal_navigate(fence, on),
             FenceProp::PortalTitleIcon(on) => self.set_fence_title_icon(fence, on),
+            FenceProp::HideWhenEmpty(on) => self.set_fence_hide_when_empty(fence, on),
             FenceProp::Layout(layout) => {
                 // Same steps as the fence menu's 视图 items.
                 self.state.set_layout(fence, layout);

@@ -58,8 +58,11 @@ impl App {
         // hundreds of milliseconds before the new window appeared.
         self.ensure_portal_watchers();
         self.state.normalize_tabs();
-        // Only host fences own a window; fences hosted as tabs live inside their host's.
-        let hosts = self.state.host_fences();
+        // Only host fences own a window; fences hosted as tabs live inside their host's. An
+        // empty inbox set to 为空时自动隐藏 has none until something lands in it.
+        let hidden = self.state.hidden_inbox();
+        let mut hosts = self.state.host_fences();
+        hosts.retain(|f| Some(f.id) != hidden);
         let ids: Vec<FenceId> = hosts.iter().map(|f| f.id).collect();
         let gone: Vec<FenceId> = self
             .fences
@@ -153,6 +156,22 @@ impl App {
         }
         self.apply_portal_deco(host);
         self.apply_auto_height(host);
+        self.sync_inbox_window();
+    }
+
+    /// 为空时自动隐藏: the inbox window goes with its last item and comes back with the next
+    /// one (or when the flag is switched off).
+    pub(super) fn sync_inbox_window(&mut self) {
+        let Some(inbox) = self
+            .state
+            .inbox_id()
+            .filter(|id| self.state.fence(*id).is_some_and(|f| f.tab_host.is_none()))
+        else {
+            return;
+        };
+        if self.fences.contains_key(&inbox) == self.state.hidden_inbox().is_some() {
+            self.resync_windows();
+        }
     }
 
     /// Pushes the persisted per-fence flags (lock, quick-hide exclusion, appearance override,
@@ -241,6 +260,7 @@ impl App {
             }
             self.apply_auto_height(id);
         }
+        self.sync_inbox_window();
         // Cut items that were moved away (Explorer pasted them) stop being dimmed.
         let before = self.cut_items.len();
         self.cut_items.retain(|id| self.state.item(*id).is_some());

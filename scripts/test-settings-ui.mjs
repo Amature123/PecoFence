@@ -30,7 +30,7 @@ const fixture = {
   fences: [
     { id: 'fence-a', title: 'Documents', kind: 'virtual', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'default', tint: null, titleColor: 'theme', titleSize: 'normal', titleOnHover: 'default', portal: null },
     { id: 'fence-b', title: 'Images', kind: 'virtual', host: 'Documents', iconSize: 96, spacing: 'loose', autoHeight: true, locked: false, excludeFromQuickHide: false, opacity: 'transparent', tint: null, titleColor: 'theme', titleSize: 'normal', titleOnHover: 'default', portal: null },
-    { id: 'inbox', title: 'Desktop', kind: 'inbox', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: true, excludeFromQuickHide: true, opacity: 'solid', tint: '0078D4', titleColor: 'tint', titleSize: 'large', titleOnHover: 'hover', portal: null },
+    { id: 'inbox', title: 'Desktop', kind: 'inbox', host: null, iconSize: 48, spacing: 'normal', autoHeight: false, locked: true, excludeFromQuickHide: true, opacity: 'solid', tint: '0078D4', titleColor: 'tint', titleSize: 'large', titleOnHover: 'hover', hideWhenEmpty: true, portal: null },
     { id: 'portal', title: 'Portal', kind: 'portal', host: null, iconSize: 32, spacing: 'compact', autoHeight: false, locked: false, excludeFromQuickHide: false, opacity: 'clear', tint: '123456', titleColor: 'ABCDEF', titleSize: 'small', titleOnHover: 'always', portal: { navigate: true, titleIcon: false } },
   ],
   tintPalette: [{ name: '红', hex: 'E74856' }, { name: '蓝', hex: '0078D4' }, { name: '灰', hex: '7A7574' }],
@@ -188,9 +188,11 @@ async function runTests() {
     assert(sel.options.length === 4, 'Fence list incomplete');
     assert([...sel.options].map(o => o.textContent).join('|') === 'Documents|Images（Documents 的标签页）|Desktop（桌面）|Portal（文件夹）', 'Fence labels wrong: ' + [...sel.options].map(o => o.textContent).join('|'));
     assert(doc.getElementById('fencePortalGroup').style.display === 'none', 'Portal options shown for an ordinary fence');
+    assert(doc.getElementById('fenceHideEmpty').style.display === 'none', 'Hide-when-empty offered for an ordinary fence');
     assert(doc.querySelector('[data-fence=titleColor] [value=tint]').disabled, 'Follow-tint offered without a tint');
     change(doc, 'fenceSel', 'inbox');
     assert(doc.querySelector('[data-fence=locked]').classList.contains('on'), 'Lock state not shown');
+    assert(doc.getElementById('fenceHideEmpty').style.display === '' && doc.querySelector('[data-fence=hideWhenEmpty]').classList.contains('on'), 'Inbox hide-when-empty not shown');
     assert(doc.querySelector('[data-fence=tint]').value === '0078D4', 'Palette tint not selected');
     assert(doc.querySelector('[data-fence=titleColor]').value === 'tint' && !doc.querySelector('[data-fence=titleColor] [value=tint]').disabled, 'Follow-tint title not shown');
     assert(doc.querySelector('[data-fence=titleSize]').value === 'large', 'Title size not shown');

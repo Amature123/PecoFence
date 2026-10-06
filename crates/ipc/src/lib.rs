@@ -148,7 +148,7 @@ pub enum Method {
     /// (`iconSize` 32|48|64|96, `spacing`, `autoHeight`, `locked`, `excludeFromQuickHide`,
     /// `opacity` default|clear|solid|transparent, `tint` "#RRGGBB"|null, `titleColor`, `titleSize`,
     /// `titleOnHover` default|hover|always, `layout` icons|list|details, `sort`, `reverse`, `groupByDate`, `labelLines`,
-    /// `portalNavigate`, `portalTitleIcon`). Result: `{changed, fence}`.
+    /// `portalNavigate`, `portalTitleIcon`, `hideWhenEmpty`). Result: `{changed, fence}`.
     #[serde(rename = "fences.setOption")]
     FencesSetOption {
         fence: String,

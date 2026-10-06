@@ -665,6 +665,10 @@ pub struct Fence {
     /// Folder portal: hide the folder glyph before the title.
     #[serde(default)]
     pub hide_title_icon: bool,
+    /// Inbox: no window while it holds no items (为空时自动隐藏); the next item to land on the
+    /// desktop brings it back at its saved spot.
+    #[serde(default)]
+    pub hide_when_empty: bool,
     #[serde(default)]
     pub items: Vec<ItemRef>,
 }
@@ -688,6 +692,7 @@ impl Fence {
             tab_order: Vec::new(),
             portal_navigate: true,
             hide_title_icon: false,
+            hide_when_empty: false,
             items: Vec::new(),
         }
     }

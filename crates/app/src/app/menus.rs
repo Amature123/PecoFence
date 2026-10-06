@@ -30,6 +30,8 @@ const CMD_SHELL_LAST: u32 = 0x6FFF;
 const CMD_FENCE_ROLL: u32 = 301;
 const CMD_FENCE_DELETE: u32 = 303;
 const CMD_FENCE_NEW: u32 = 304;
+/// The inbox's 为空时自动隐藏 (in place of 删除栅栏).
+const CMD_FENCE_HIDE_EMPTY: u32 = 305;
 const CMD_FENCE_ICON_32: u32 = 310;
 const CMD_FENCE_ICON_48: u32 = 311;
 const CMD_FENCE_ICON_64: u32 = 312;
@@ -643,13 +645,24 @@ impl App {
             .submenu(
                 pecofence_core::i18n::text("在桌面显示文件夹"),
                 Self::show_folder_submenu(CMD_FENCE_SHOW_FOLDER),
-            )
-            .item(
+            );
+        // The inbox cannot go (new desktop items land there), but it can stay out of sight
+        // while it is empty.
+        if f.kind == FenceKind::Inbox {
+            menu.item(
+                CMD_FENCE_HIDE_EMPTY,
+                pecofence_core::i18n::text("为空时自动隐藏"),
+                f.hide_when_empty,
+                false,
+            );
+        } else {
+            menu.item(
                 CMD_FENCE_DELETE,
                 pecofence_core::i18n::text("删除栅栏"),
                 false,
-                f.kind == FenceKind::Inbox,
+                false,
             );
+        }
         let owner = self
             .fences
             .get(&host)
@@ -775,6 +788,7 @@ impl App {
                 self.create_fence_at(rect, None);
             }
             CMD_FENCE_DELETE => self.delete_fence_from_menu(fence),
+            CMD_FENCE_HIDE_EMPTY => self.set_fence_hide_when_empty(fence, !f.hide_when_empty),
             _ => return,
         }
         // An open settings page shows these fences too; keep it current.

@@ -474,5 +474,7 @@
   "有新版本 {0}。安装时 PecoFence 会先退出，装好后自动重新打开。": "La versión {0} está disponible. PecoFence se cerrará durante la instalación y se volverá a abrir al terminar.",
   "正在下载新版本…": "Descargando la nueva versión…",
   "检查更新失败，请稍后再试": "No se pudieron buscar actualizaciones. Inténtalo de nuevo más tarde.",
-  "下载失败，请稍后再试": "No se pudo descargar la actualización. Inténtalo de nuevo más tarde."
+  "下载失败，请稍后再试": "No se pudo descargar la actualización. Inténtalo de nuevo más tarde.",
+  "为空时自动隐藏": "Ocultar si está vacío",
+  "里面没有图标时就不显示；桌面上一出现新图标，它会自己回来": "Permanece oculto mientras no tenga iconos y vuelve en cuanto aparece un icono nuevo en el escritorio"
 }

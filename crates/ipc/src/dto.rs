@@ -147,6 +147,9 @@ pub struct FenceDto {
     pub spacing: String,
     pub auto_height: bool,
     pub exclude_from_quick_hide: bool,
+    /// Inbox only: no window while it is empty (`windowRect` is `null` then).
+    #[serde(default)]
+    pub hide_when_empty: bool,
     /// `default` | `clear` | `solid` | `transparent`.
     pub opacity: String,
     /// `#RRGGBB` or `null`.
