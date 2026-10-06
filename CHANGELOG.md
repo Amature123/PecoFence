@@ -18,6 +18,7 @@
 - The previous run's log is kept as `pecofence.prev.log`. Starting PecoFence while it is already running no longer empties the running instance's log.
 - pecofence-cli: `paths` also lists `previousLog` and `shareLog`.
 - 「添加规则」 on the 「整理规则」 page adds the rule again. Clicking it did nothing for any kind of rule, so only the quick-add buttons and pecofence-cli could create rules (#33).
+- Rules on the creation time made on the 「整理规则」 page are saved. They used to show up in the list but were never stored, and while one was in the list no other rule change was stored either.
 - Documents saved in Word, Excel or PowerPoint stay in their fence. These programs save by renaming the document to a temporary name and a fresh copy to the document's name, and the document used to drop out of its fence and be filed again by the rules on every save.
 - Desktops and folders whose path contains a letter such as the Turkish 「İ」 work: their icons were blank, and opening, renaming or deleting them failed.
 - Importing a configuration or restoring a backup shows the files of its folder portals right away. A restored portal used to stay empty until something changed in its folder.

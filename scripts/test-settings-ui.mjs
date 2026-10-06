@@ -295,7 +295,9 @@ async function runTests() {
     await add(doc);
     assert(ruleCount(doc) === count + 1, 'Overnight rule rejected');
     const value = current().rules.list.at(-1).allOf[0].value;
-    assert(value.fromMin === 1080 && value.toMin === 360, 'Overnight bounds changed');
+    // The core reads `from_min` / `to_min`; any other spelling makes the host drop all rules.
+    assert(value.from_min === 1080 && value.to_min === 360, 'Overnight bounds changed');
+    assert([...doc.querySelectorAll('#ruleList .conds')].at(-1).textContent.includes('18:00–06:00'), 'Overnight rule described wrongly');
   });
   await test('Rule target and unfinished name survive a host refresh', async () => {
     change(doc, 'nrTarget', 'fence-b'); change(doc, 'nrName', 'Unfinished draft');
