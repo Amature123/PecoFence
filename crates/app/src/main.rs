@@ -167,6 +167,14 @@ fn main() -> Result<()> {
     let mut args = parse_args();
     args.instance = instance;
     let exit_after = args.exit_after_ms;
+    // Back after an update closed it. Not named test instances: their environment would be
+    // lost and the restart would take the main instance's place.
+    if args.instance.is_none()
+        && exit_after.is_none()
+        && let Err(e) = pecofence_platform::process::register_restart_after_update()
+    {
+        tracing::warn!(error = %e, "restart after updates not registered");
+    }
 
     window::set_process_dpi_awareness_v2();
     let _ole = OleGuard::init()?;

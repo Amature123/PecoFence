@@ -36,6 +36,24 @@ pub fn is_packaged() -> bool {
     status != APPMODEL_ERROR_NO_PACKAGE
 }
 
+/// Asks Windows to start this program again (without arguments) after it closed for an update:
+/// a Store package update or an installer using Restart Manager. Not after a crash, a hang or
+/// a reboot, where the watchdog and the startup entry take care of it.
+pub fn register_restart_after_update() -> Result<()> {
+    const RESTART_NO_CRASH: u32 = 1;
+    const RESTART_NO_HANG: u32 = 2;
+    const RESTART_NO_REBOOT: u32 = 8;
+    windows_core::link!("kernel32.dll" "system" fn RegisterApplicationRestart(pwzcommandline: PCWSTR, dwflags: u32) -> windows_core::HRESULT);
+    // SAFETY: a null command line is documented as valid (restart without arguments).
+    unsafe {
+        RegisterApplicationRestart(
+            PCWSTR::null(),
+            RESTART_NO_CRASH | RESTART_NO_HANG | RESTART_NO_REBOOT,
+        )
+    }
+    .ok()
+}
+
 /// Starts `exe` with `args` as a detached process (no console window). Returns its pid.
 pub fn spawn_detached(exe: &str, args: &[&str]) -> Result<u32> {
     let mut cmd = format!("\"{exe}\"");
