@@ -240,7 +240,9 @@ pub(super) fn on_mousemove(
                     })
                 });
                 // Nested message loop until the button is released.
+                crate::peek::set_drag_click_through(true);
                 let effect = dragdrop::do_drag_drop(hwnd, &obj, dragdrop::ALL_EFFECTS);
+                crate::peek::set_drag_click_through(false);
                 drag_returned = Some(Instant::now());
                 INTERNAL_DRAG.with(|s| *s.borrow_mut() = None);
                 Some(effect)

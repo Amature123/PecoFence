@@ -18,6 +18,16 @@ use pecofence_render::motion::{self, Curve, Motion, Tween};
 use std::time::{Duration, Instant};
 use windows_core::Result;
 
+/// While a file drag from a fence runs, the dimmer lets the pointer through: it covers the whole
+/// monitor above every other window, so without this a drop onto another application (a browser
+/// page, a mail compose window) would land on the dimmer, which accepts nothing.
+static DRAG_CLICK_THROUGH: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_drag_click_through(on: bool) {
+    DRAG_CLICK_THROUGH.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
 pub const PEEK_CLASS: &str = "PecoFence.PeekDimmer";
 const WA_INACTIVE: usize = 0;
 /// 30 % black (WinUI `SmokeFillColorDefault` #4D000000), the resting alpha of the dimmer.
@@ -78,6 +88,12 @@ impl PeekOverlay {
                             {
                                 queue.push(Command::EndPeek);
                                 Some(0)
+                            }
+                            msg::WM_NCHITTEST
+                                if DRAG_CLICK_THROUGH
+                                    .load(std::sync::atomic::Ordering::Relaxed) =>
+                            {
+                                Some(msg::HTTRANSPARENT)
                             }
                             msg::WM_SETFOCUS => {
                                 tracing::debug!("peek dimmer received keyboard focus");
