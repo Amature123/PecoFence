@@ -49,12 +49,12 @@
   ],
   "keywords": [
     "desktop organizer",
-    "desktop icons",
-    "glass panels",
-    "file organization",
-    "AI agent",
-    "desktop tabs",
-    "productivity"
+    "desktop icon organizer",
+    "organize desktop icons",
+    "desktop partitions",
+    "clean desktop",
+    "icon groups",
+    "desktop folders"
   ],
   "trailerTitle": "PecoFence — organize your desktop, or let your AI do it",
   "releaseNotes": "What's new: fences keep their places when you plug in or unplug a monitor. Every screen setup shows the same fences and remembers where they sit, and a different resolution or scale counts as its own setup. Fences below a rolled-up fence slide out of its way while it is open. Tint only a fence's title bar, give each tab its own color, and pick extra-large titles. The Desktop fence can hide while it is empty. Send feedback or a problem report from Settings. Outlook mail, files from zip archives and apps from the Start menu can be dropped onto fences and onto folders shown on the desktop. Fixes: Add rule works again and rules on the creation time are saved, PecoFence closes properly when a Store update or the end of the session needs it to, fences no longer float above apps running as administrator, Office documents stay in their fence when you save them, and folders whose path contains letters such as İ work."
