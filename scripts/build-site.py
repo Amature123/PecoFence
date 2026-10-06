@@ -19,6 +19,7 @@ FEATURES = ["groups", "peek", "tabs", "rules", "portal", "hide"]
 DETAILS = ["glass", "files", "space", "back", "footprint", "safe"]
 FEATURE_ICONS = ["grid", "cursor", "layers", "spark", "folder", "expand"]
 DETAIL_ICONS = ["spark", "cursor", "expand", "restore", "feather", "shield"]
+STORE = "https://apps.microsoft.com/detail/9MV6WG3XNWSX"
 PLACEHOLDER = re.compile(r"\{\{(t|raw):([\w.]+)\}\}|\{\{(\w+)\}\}")
 OG_LOCALES = {
     "en": "en_US", "zh-CN": "zh_CN", "zh-TW": "zh_TW", "ja": "ja_JP", "ko": "ko_KR",
@@ -153,12 +154,32 @@ def main():
             f'{html.escape(lang["name"])}</option>'
             for lang in languages
         )
+        canonical = f"{origin}/{directory}"
+        hero_image = f"{origin}/assets/hero-{code}.png?v={hero_version}"
+        # schema.org data for search engines; "</" is escaped so the JSON cannot close the script tag.
+        structured_data = json.dumps({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "PecoFence",
+            "description": strings["meta.description"],
+            "url": canonical,
+            "image": hero_image,
+            "inLanguage": code,
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Windows 11",
+            "isAccessibleForFree": True,
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+            "license": "https://www.apache.org/licenses/LICENSE-2.0",
+            "downloadUrl": STORE,
+            "sameAs": [repository, STORE],
+        }, ensure_ascii=False).replace("</", "<\\/")
         values = {
             "lang": code,
             "root": root,
             "origin": origin,
-            "canonical": f"{origin}/{directory}",
-            "hero_image": f"{origin}/assets/hero-{code}.png?v={hero_version}",
+            "canonical": canonical,
+            "hero_image": hero_image,
+            "structured_data": structured_data,
             "alternates": alternates,
             "og_locale": OG_LOCALES.get(code, code.replace("-", "_")),
             "repository": repository,
