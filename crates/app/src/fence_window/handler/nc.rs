@@ -568,20 +568,21 @@ pub(super) fn on_exitsizemove(
     } = h;
     let fence_id = h.fence_id;
     in_size_move.set(false);
-    h.behavior.size_move.replace(None);
+    // A title drag, not a resize. (Comparing sizes would call a move onto a monitor with
+    // another scale a resize: WM_DPICHANGED rescales the window inside the loop.)
+    let moved = h
+        .behavior
+        .size_move
+        .replace(None)
+        .is_some_and(|m| m.moving && m.hwnd == hwnd);
     hide_drag_feedback(&h.behavior);
     let rect = window::window_rect(hwnd);
     let at_enter = rect_at_enter.get();
-    let same_size = (rect.right - rect.left, rect.bottom - rect.top)
-        == (
-            at_enter.right - at_enter.left,
-            at_enter.bottom - at_enter.top,
-        );
     // Esc in the system move loop restores the rect but leaves the cursor
     // where it is (possibly on another fence's title): never merge then.
     let cancelled = rect == at_enter || window::key_down(msg::VK_ESCAPE);
     let group = std::mem::take(&mut *h.group.borrow_mut());
-    let merge_into = if same_size && !cancelled && group.is_empty() {
+    let merge_into = if moved && !cancelled && group.is_empty() {
         merge_target_under_cursor(hwnd)
     } else {
         None
@@ -613,7 +614,7 @@ pub(super) fn on_exitsizemove(
             None => false,
         }
     };
-    if same_size && !cancelled {
+    if moved && !cancelled {
         // Moved: where it was dropped is where it rests.
         h.behavior.release_push(hwnd);
     }
@@ -624,7 +625,7 @@ pub(super) fn on_exitsizemove(
             into,
             x: window::cursor_pos().x,
         });
-    } else if same_size && !cancelled {
+    } else if moved && !cancelled {
         queue.push(Command::FenceDropped(fence_id));
         commit_members(queue, &h.behavior, &group);
     }

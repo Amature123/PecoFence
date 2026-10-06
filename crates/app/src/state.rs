@@ -1149,10 +1149,19 @@ impl AppState {
     /// Re-keys an item after a rename so it stays in its fence. Returns false if unknown.
     pub fn rename_item(&mut self, old: &Path, new: &Path) -> bool {
         let old_key = ItemKey::from_path(&old.to_string_lossy());
+        let new_key = ItemKey::from_path(&new.to_string_lossy());
+        // Safe-save (Word, Excel): the document is renamed to a temporary name and a fresh copy
+        // is renamed over its name. The item already on the new key (the document's) is kept;
+        // the sync finds the file again.
+        let to_temp = new
+            .file_name()
+            .is_some_and(|n| pecofence_core::rules::is_temporary(&n.to_string_lossy()));
+        if to_temp || (new_key != old_key && self.catalog.contains_key(&new_key)) {
+            return false;
+        }
         let Some(id) = self.catalog.remove(&old_key) else {
             return false;
         };
-        let new_key = ItemKey::from_path(&new.to_string_lossy());
         let Some(item) = self.config.items.get_mut(&id) else {
             return false;
         };
@@ -1169,18 +1178,6 @@ impl AppState {
         let (icon_key, _) = crate::icons::icon_key_for(new, is_folder, item.mtime);
         item.icon_key = icon_key;
         item.orphaned_since = None;
-        // A stale item already keyed by the new path (e.g. deleted then re-created under the old
-        // name) would otherwise leave two items with one key; drop it first.
-        if let Some(&other) = self.catalog.get(&new_key)
-            && other != id
-        {
-            self.config.items.remove(&other);
-            for layout in &mut self.config.layouts {
-                for f in &mut layout.fences {
-                    f.items.retain(|r| r.item_id != other);
-                }
-            }
-        }
         self.catalog.insert(new_key, id);
         self.dirty = true;
         true
@@ -1722,6 +1719,9 @@ impl AppState {
         if inbox == id {
             return false;
         }
+        // Out of its tab group first: a deleted host hands its place to the next tab, which
+        // keeps the others (they would otherwise all open on the host's rect).
+        self.detach_tab(id);
         let Some(pos) = self.fences().iter().position(|f| f.id == id) else {
             return false;
         };
@@ -2043,6 +2043,50 @@ mod tests {
         // A sorted fence refuses.
         state.set_sort(fence, SortMode::Name);
         assert!(!state.reorder_items(fence, &[a], 0));
+    }
+
+    fn desktop_entry(name: &str) -> DesktopEntry {
+        DesktopEntry {
+            path: PathBuf::from(format!("C:/Users/Me/Desktop/{name}")),
+            file_name: name.to_string(),
+            origin: EntryOrigin::UserDesktop,
+            is_folder: false,
+            attributes: 0,
+            mtime: 1,
+            size: 0,
+            created: 1,
+        }
+    }
+
+    #[test]
+    fn safe_save_keeps_the_document_in_its_fence() {
+        let desk = |name: &str| PathBuf::from(format!("C:/Users/Me/Desktop/{name}"));
+        let mut state = test_state();
+        let (inbox, work) = (state.inbox_id().unwrap(), state.fences()[1].id);
+        let doc = add_item(&mut state, work, "report");
+        // Word: the document goes to ~WRL0001.tmp, the new copy ~WRD0000.tmp takes its name.
+        state.rename_item(&desk("report.txt"), &desk("~WRL0001.tmp"));
+        state.rename_item(&desk("~WRD0000.tmp"), &desk("report.txt"));
+        state.sync_desktop(&[desktop_entry("report.txt")]);
+        assert_eq!(state.item_id_for_path(&desk("report.txt")), Some(doc));
+        assert_eq!(state.config.fence_of_item(0, doc), Some(work));
+        // Excel: a catalogued temporary copy without an extension is renamed over the document.
+        let copy = add_item(&mut state, inbox, "6A1B2C3D");
+        state.rename_item(&desk("report.txt"), &desk("A1B2C3D4.tmp"));
+        state.rename_item(&desk("6A1B2C3D.txt"), &desk("report.txt"));
+        state.sync_desktop(&[desktop_entry("report.txt")]);
+        assert_eq!(state.item_id_for_path(&desk("report.txt")), Some(doc));
+        assert_eq!(state.config.fence_of_item(0, doc), Some(work));
+        assert!(state.config.items[&copy].orphaned_since.is_some());
+        // The renames in two batches, with a sync between them and the copy catalogued.
+        let copy = add_item(&mut state, inbox, "~WRD0001");
+        state.rename_item(&desk("report.txt"), &desk("~WRL0002.tmp"));
+        state.sync_desktop(&[desktop_entry("~WRD0001.txt")]);
+        state.rename_item(&desk("~WRD0001.txt"), &desk("report.txt"));
+        state.sync_desktop(&[desktop_entry("report.txt")]);
+        assert_eq!(state.item_id_for_path(&desk("report.txt")), Some(doc));
+        assert_eq!(state.config.fence_of_item(0, doc), Some(work));
+        assert!(state.config.items[&copy].orphaned_since.is_some());
     }
 
     #[test]

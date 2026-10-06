@@ -2050,7 +2050,7 @@ impl App {
                 format!("{name}{old_ext}")
             }
         };
-        if target.eq_ignore_ascii_case(&old_file_name) && target == old_file_name {
+        if target == item_file_name(it) {
             return Ok(mutation(false, None, self.item_extra(id)?));
         }
         let new_path = self.rename_item_to(id, &target).map_err(|e| match e {

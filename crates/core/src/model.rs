@@ -668,7 +668,19 @@ pub enum ItemKey {
 impl ItemKey {
     /// Normalizes a filesystem path into the canonical key form.
     pub fn from_path(path: &str) -> Self {
-        let mut s = path.replace('/', "\\").to_lowercase();
+        // The key doubles as the path the shell opens: a letter whose lowercase is more than
+        // one char ('İ' → "i\u{307}") stays as it is, or NTFS would not find the file.
+        let mut s: String = path
+            .replace('/', "\\")
+            .chars()
+            .map(|c| {
+                let mut lower = c.to_lowercase();
+                match (lower.next(), lower.next()) {
+                    (Some(l), None) => l,
+                    _ => c,
+                }
+            })
+            .collect();
         while s.ends_with('\\') && s.len() > 3 {
             s.pop();
         }
@@ -1134,6 +1146,13 @@ pub fn now_unix() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn item_keys_still_name_the_file() {
+        // 'İ' lower-cases to "i\u{307}", a spelling NTFS never matches back.
+        let key = ItemKey::from_path("C:/Users/İbrahim/Desktop/Plan.TXT");
+        assert_eq!(key.as_path(), Some("c:\\users\\İbrahim\\desktop\\plan.txt"));
+    }
 
     #[test]
     fn unused_settings_are_real_fields_and_may_be_missing() {
