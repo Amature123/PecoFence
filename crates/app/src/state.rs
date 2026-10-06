@@ -124,6 +124,23 @@ impl AppState {
         self.store.primary_path()
     }
 
+    /// `config_path` where Explorer can find it. The Store package's writes under %APPDATA%
+    /// land in its `LocalCache\Roaming`, so only this process sees the file at the %APPDATA%
+    /// path; the final path of the opened file names the real one.
+    pub fn config_path_on_disk(&self) -> PathBuf {
+        let path = self.config_path();
+        match std::fs::canonicalize(&path) {
+            Ok(real) => {
+                let s = real.to_string_lossy();
+                match s.strip_prefix(r"\\?\UNC\") {
+                    Some(unc) => PathBuf::from(format!(r"\\{unc}")),
+                    None => PathBuf::from(s.strip_prefix(r"\\?\").unwrap_or(&s)),
+                }
+            }
+            Err(_) => path,
+        }
+    }
+
     pub fn backup_files(&self) -> Vec<PathBuf> {
         let mut v = self.store.list_backups();
         v.sort();

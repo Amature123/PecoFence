@@ -1118,7 +1118,11 @@ impl App {
             protocol: PROTOCOL_VERSION,
             pid: std::process::id(),
             instance: self.instance.clone(),
-            config_path: self.state.config_path().to_string_lossy().into_owned(),
+            config_path: self
+                .state
+                .config_path_on_disk()
+                .to_string_lossy()
+                .into_owned(),
             fence_count: self.state.fences().len(),
             item_count: self.state.workspace_item_count(),
             memory_mb,
@@ -2050,7 +2054,9 @@ impl App {
                 format!("{target:?} already exists in that folder"),
             )
             .hint("Pick another name, or move the existing item first"),
-            RenameError::Io(msg) => IpcError::internal(format!("rename failed: {msg}")),
+            RenameError::Denied(msg) | RenameError::Io(msg) => {
+                IpcError::internal(format!("rename failed: {msg}"))
+            }
         })?;
         // Portal ids are path hashes and change with the name; desktop ids are stable.
         let new_id = if self.state.item(id).is_some() {

@@ -27,6 +27,9 @@ pub(super) enum FileOpThen {
     },
     /// Paste into the folder the files already live in ("xxx - 副本").
     Duplicate,
+    /// A rename the filesystem refused, retried through the shell for its permission prompt.
+    /// The folder watcher pairs the rename, so the item keeps its fence.
+    Rename,
 }
 
 pub(super) struct FileOp {
@@ -53,6 +56,25 @@ impl App {
             owner,
             then,
         } = op;
+        self.run_fileop(owner, then, move |owner| {
+            shell::transfer_to_folder(&paths, &dest, owner, copy, rename_on_collision)
+        });
+    }
+
+    /// Renames `path` to `new_name` through the shell on a worker thread (see
+    /// [`FileOpThen::Rename`]).
+    pub(super) fn start_shell_rename(&mut self, path: PathBuf, new_name: String, owner: HWND) {
+        self.run_fileop(Some(owner), FileOpThen::Rename, move |owner| {
+            shell::rename_with_prompt(&path, &new_name, owner)
+        });
+    }
+
+    fn run_fileop(
+        &mut self,
+        owner: Option<HWND>,
+        then: FileOpThen,
+        job: impl FnOnce(Option<HWND>) -> pecofence_platform::Result<bool> + Send + 'static,
+    ) {
         let owner = owner.map(|h| h.0 as isize);
         let results = self.fileops_done.clone();
         let control = self.control.hwnd().0 as isize;
@@ -63,9 +85,7 @@ impl App {
                 // this thread, parented to the fence window.
                 let _sta = OleGuard::init();
                 let owner = owner.map(|h| HWND(h as *mut core::ffi::c_void));
-                let result =
-                    shell::transfer_to_folder(&paths, &dest, owner, copy, rename_on_collision)
-                        .map_err(|e| e.to_string());
+                let result = job(owner).map_err(|e| e.to_string());
                 if let Ok(mut r) = results.lock() {
                     r.push((then, result));
                 }
@@ -170,6 +190,17 @@ impl App {
                 }
                 self.refresh_portals();
             }
+            FileOpThen::Rename => match &result {
+                Ok(true) => tracing::info!("item renamed through the shell"),
+                Ok(false) => tracing::info!("rename cancelled by user"),
+                Err(e) => {
+                    tracing::warn!(error = %e, "rename through the shell failed");
+                    self.toast(pecofence_core::i18n::format(
+                        "重命名失败：{0}",
+                        std::slice::from_ref(e),
+                    ));
+                }
+            },
         }
     }
 }
