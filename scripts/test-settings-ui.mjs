@@ -50,6 +50,8 @@ function bridge() {
   window.testSummary = (itemCount) => receive({ data: { type: 'workspaceSummary', fenceCount: state.fences.length, itemCount } });
   window.testRefresh = () => receive({ data: structuredClone(state) });
   window.testState = state;
+  // The real page is a data: URL, not a secure context: secure-only APIs are missing there.
+  delete Crypto.prototype.randomUUID;
   window.chrome = {
     webview: {
       addEventListener(_type, handler) { receive = handler; },
