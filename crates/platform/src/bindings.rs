@@ -476,6 +476,13 @@ pub unsafe fn DispatchMessageW(lpmsg: *const MSG) -> LRESULT {
     unsafe { DispatchMessageW(lpmsg) }
 }
 #[inline]
+pub unsafe fn DisplayConfigGetDeviceInfo(
+    requestpacket: *mut DISPLAYCONFIG_DEVICE_INFO_HEADER,
+) -> i32 {
+    windows_core::link!("user32.dll" "system" fn DisplayConfigGetDeviceInfo(requestpacket : *mut DISPLAYCONFIG_DEVICE_INFO_HEADER) -> i32);
+    unsafe { DisplayConfigGetDeviceInfo(requestpacket as _) }
+}
+#[inline]
 pub unsafe fn DragQueryFileW(
     hdrop: HDROP,
     ifile: u32,
@@ -710,6 +717,21 @@ where
 pub unsafe fn GetDesktopWindow() -> HWND {
     windows_core::link!("user32.dll" "system" fn GetDesktopWindow() -> HWND);
     unsafe { GetDesktopWindow() }
+}
+#[inline]
+pub unsafe fn GetDisplayConfigBufferSizes(
+    flags: u32,
+    numpatharrayelements: *mut u32,
+    nummodeinfoarrayelements: *mut u32,
+) -> i32 {
+    windows_core::link!("user32.dll" "system" fn GetDisplayConfigBufferSizes(flags : u32, numpatharrayelements : *mut u32, nummodeinfoarrayelements : *mut u32) -> i32);
+    unsafe {
+        GetDisplayConfigBufferSizes(
+            flags,
+            numpatharrayelements as _,
+            nummodeinfoarrayelements as _,
+        )
+    }
 }
 #[inline]
 pub unsafe fn GetDoubleClickTime() -> u32 {
@@ -1308,6 +1330,27 @@ pub unsafe fn PostThreadMessageW(
 ) -> windows_core::BOOL {
     windows_core::link!("user32.dll" "system" fn PostThreadMessageW(idthread : u32, msg : u32, wparam : WPARAM, lparam : LPARAM) -> windows_core::BOOL);
     unsafe { PostThreadMessageW(idthread, msg, wparam, lparam) }
+}
+#[inline]
+pub unsafe fn QueryDisplayConfig(
+    flags: u32,
+    numpatharrayelements: *mut u32,
+    patharray: *mut DISPLAYCONFIG_PATH_INFO,
+    nummodeinfoarrayelements: *mut u32,
+    modeinfoarray: *mut DISPLAYCONFIG_MODE_INFO,
+    currenttopologyid: *mut DISPLAYCONFIG_TOPOLOGY_ID,
+) -> i32 {
+    windows_core::link!("user32.dll" "system" fn QueryDisplayConfig(flags : u32, numpatharrayelements : *mut u32, patharray : *mut DISPLAYCONFIG_PATH_INFO, nummodeinfoarrayelements : *mut u32, modeinfoarray : *mut DISPLAYCONFIG_MODE_INFO, currenttopologyid : *mut DISPLAYCONFIG_TOPOLOGY_ID) -> i32);
+    unsafe {
+        QueryDisplayConfig(
+            flags,
+            numpatharrayelements as _,
+            patharray as _,
+            nummodeinfoarrayelements as _,
+            modeinfoarray as _,
+            currenttopologyid as _,
+        )
+    }
 }
 #[inline]
 pub unsafe fn ReadDirectoryChangesW(
@@ -2922,6 +2965,322 @@ pub type DESKTOP_WALLPAPER_POSITION = i32;
 pub const DIB_RGB_COLORS: i32 = 0;
 pub type DISPATCHERQUEUE_THREAD_APARTMENTTYPE = i32;
 pub type DISPATCHERQUEUE_THREAD_TYPE = i32;
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_2DREGION {
+    pub cx: u32,
+    pub cy: u32,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_DESKTOP_IMAGE_INFO {
+    pub PathSourceSize: POINTL,
+    pub DesktopImageRegion: RECTL,
+    pub DesktopImageClip: RECTL,
+}
+pub const DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME: DISPLAYCONFIG_DEVICE_INFO_TYPE = 1;
+pub const DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME: DISPLAYCONFIG_DEVICE_INFO_TYPE = 2;
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_DEVICE_INFO_HEADER {
+    pub r#type: DISPLAYCONFIG_DEVICE_INFO_TYPE,
+    pub size: u32,
+    pub adapterId: LUID,
+    pub id: u32,
+}
+pub type DISPLAYCONFIG_DEVICE_INFO_TYPE = i32;
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DISPLAYCONFIG_MODE_INFO {
+    pub infoType: DISPLAYCONFIG_MODE_INFO_TYPE,
+    pub id: u32,
+    pub adapterId: LUID,
+    pub Anonymous: DISPLAYCONFIG_MODE_INFO_0,
+}
+impl Default for DISPLAYCONFIG_MODE_INFO {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union DISPLAYCONFIG_MODE_INFO_0 {
+    pub targetMode: DISPLAYCONFIG_TARGET_MODE,
+    pub sourceMode: DISPLAYCONFIG_SOURCE_MODE,
+    pub desktopImageInfo: DISPLAYCONFIG_DESKTOP_IMAGE_INFO,
+}
+impl Default for DISPLAYCONFIG_MODE_INFO_0 {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+pub type DISPLAYCONFIG_MODE_INFO_TYPE = i32;
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DISPLAYCONFIG_PATH_INFO {
+    pub sourceInfo: DISPLAYCONFIG_PATH_SOURCE_INFO,
+    pub targetInfo: DISPLAYCONFIG_PATH_TARGET_INFO,
+    pub flags: u32,
+}
+impl Default for DISPLAYCONFIG_PATH_INFO {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DISPLAYCONFIG_PATH_SOURCE_INFO {
+    pub adapterId: LUID,
+    pub id: u32,
+    pub Anonymous: DISPLAYCONFIG_PATH_SOURCE_INFO_0,
+    pub statusFlags: u32,
+}
+impl Default for DISPLAYCONFIG_PATH_SOURCE_INFO {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union DISPLAYCONFIG_PATH_SOURCE_INFO_0 {
+    pub modeInfoIdx: u32,
+    pub Anonymous: DISPLAYCONFIG_PATH_SOURCE_INFO_0_0,
+}
+impl Default for DISPLAYCONFIG_PATH_SOURCE_INFO_0 {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_PATH_SOURCE_INFO_0_0 {
+    pub _bitfield: u32,
+}
+impl DISPLAYCONFIG_PATH_SOURCE_INFO_0_0 {
+    pub fn cloneGroupId(&self) -> u32 {
+        (self._bitfield << 16) >> 16
+    }
+    pub fn set_cloneGroupId(&mut self, value: u32) {
+        self._bitfield = (self._bitfield & !65535) | (value & 65535);
+    }
+    pub fn sourceModeInfoIdx(&self) -> u32 {
+        self._bitfield >> 16
+    }
+    pub fn set_sourceModeInfoIdx(&mut self, value: u32) {
+        self._bitfield = (self._bitfield & !(65535 << 16)) | ((value & 65535) << 16);
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DISPLAYCONFIG_PATH_TARGET_INFO {
+    pub adapterId: LUID,
+    pub id: u32,
+    pub Anonymous: DISPLAYCONFIG_PATH_TARGET_INFO_0,
+    pub outputTechnology: DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY,
+    pub rotation: DISPLAYCONFIG_ROTATION,
+    pub scaling: DISPLAYCONFIG_SCALING,
+    pub refreshRate: DISPLAYCONFIG_RATIONAL,
+    pub scanLineOrdering: DISPLAYCONFIG_SCANLINE_ORDERING,
+    pub targetAvailable: windows_core::BOOL,
+    pub statusFlags: u32,
+}
+impl Default for DISPLAYCONFIG_PATH_TARGET_INFO {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union DISPLAYCONFIG_PATH_TARGET_INFO_0 {
+    pub modeInfoIdx: u32,
+    pub Anonymous: DISPLAYCONFIG_PATH_TARGET_INFO_0_0,
+}
+impl Default for DISPLAYCONFIG_PATH_TARGET_INFO_0 {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_PATH_TARGET_INFO_0_0 {
+    pub _bitfield: u32,
+}
+impl DISPLAYCONFIG_PATH_TARGET_INFO_0_0 {
+    pub fn desktopModeInfoIdx(&self) -> u32 {
+        (self._bitfield << 16) >> 16
+    }
+    pub fn set_desktopModeInfoIdx(&mut self, value: u32) {
+        self._bitfield = (self._bitfield & !65535) | (value & 65535);
+    }
+    pub fn targetModeInfoIdx(&self) -> u32 {
+        self._bitfield >> 16
+    }
+    pub fn set_targetModeInfoIdx(&mut self, value: u32) {
+        self._bitfield = (self._bitfield & !(65535 << 16)) | ((value & 65535) << 16);
+    }
+}
+pub type DISPLAYCONFIG_PIXELFORMAT = i32;
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_RATIONAL {
+    pub Numerator: u32,
+    pub Denominator: u32,
+}
+pub type DISPLAYCONFIG_ROTATION = i32;
+pub type DISPLAYCONFIG_SCALING = i32;
+pub type DISPLAYCONFIG_SCANLINE_ORDERING = i32;
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_SOURCE_DEVICE_NAME {
+    pub header: DISPLAYCONFIG_DEVICE_INFO_HEADER,
+    pub viewGdiDeviceName: [u16; 32],
+}
+impl Default for DISPLAYCONFIG_SOURCE_DEVICE_NAME {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_SOURCE_MODE {
+    pub width: u32,
+    pub height: u32,
+    pub pixelFormat: DISPLAYCONFIG_PIXELFORMAT,
+    pub position: POINTL,
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DISPLAYCONFIG_TARGET_DEVICE_NAME {
+    pub header: DISPLAYCONFIG_DEVICE_INFO_HEADER,
+    pub flags: DISPLAYCONFIG_TARGET_DEVICE_NAME_FLAGS,
+    pub outputTechnology: DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY,
+    pub edidManufactureId: u16,
+    pub edidProductCodeId: u16,
+    pub connectorInstance: u32,
+    pub monitorFriendlyDeviceName: [u16; 64],
+    pub monitorDevicePath: [u16; 128],
+}
+impl Default for DISPLAYCONFIG_TARGET_DEVICE_NAME {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DISPLAYCONFIG_TARGET_DEVICE_NAME_FLAGS {
+    pub Anonymous: DISPLAYCONFIG_TARGET_DEVICE_NAME_FLAGS_0,
+}
+impl Default for DISPLAYCONFIG_TARGET_DEVICE_NAME_FLAGS {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union DISPLAYCONFIG_TARGET_DEVICE_NAME_FLAGS_0 {
+    pub Anonymous: DISPLAYCONFIG_TARGET_DEVICE_NAME_FLAGS_0_0,
+    pub value: u32,
+}
+impl Default for DISPLAYCONFIG_TARGET_DEVICE_NAME_FLAGS_0 {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_TARGET_DEVICE_NAME_FLAGS_0_0 {
+    pub _bitfield: u32,
+}
+impl DISPLAYCONFIG_TARGET_DEVICE_NAME_FLAGS_0_0 {
+    pub fn friendlyNameFromEdid(&self) -> bool {
+        self._bitfield & 1 != 0
+    }
+    pub fn set_friendlyNameFromEdid(&mut self, value: bool) {
+        self._bitfield = (self._bitfield & !1) | (value as u32);
+    }
+    pub fn friendlyNameForced(&self) -> bool {
+        (self._bitfield >> 1) & 1 != 0
+    }
+    pub fn set_friendlyNameForced(&mut self, value: bool) {
+        self._bitfield = (self._bitfield & !(1 << 1)) | ((value as u32) << 1);
+    }
+    pub fn edidIdsValid(&self) -> bool {
+        (self._bitfield >> 2) & 1 != 0
+    }
+    pub fn set_edidIdsValid(&mut self, value: bool) {
+        self._bitfield = (self._bitfield & !(1 << 2)) | ((value as u32) << 2);
+    }
+    pub fn reserved(&self) -> u32 {
+        self._bitfield >> 3
+    }
+    pub fn set_reserved(&mut self, value: u32) {
+        self._bitfield = (self._bitfield & !(536870911 << 3)) | ((value & 536870911) << 3);
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DISPLAYCONFIG_TARGET_MODE {
+    pub targetVideoSignalInfo: DISPLAYCONFIG_VIDEO_SIGNAL_INFO,
+}
+impl Default for DISPLAYCONFIG_TARGET_MODE {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+pub type DISPLAYCONFIG_TOPOLOGY_ID = i32;
+pub type DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY = i32;
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DISPLAYCONFIG_VIDEO_SIGNAL_INFO {
+    pub pixelRate: u64,
+    pub hSyncFreq: DISPLAYCONFIG_RATIONAL,
+    pub vSyncFreq: DISPLAYCONFIG_RATIONAL,
+    pub activeSize: DISPLAYCONFIG_2DREGION,
+    pub totalSize: DISPLAYCONFIG_2DREGION,
+    pub Anonymous: DISPLAYCONFIG_VIDEO_SIGNAL_INFO_0,
+    pub scanLineOrdering: DISPLAYCONFIG_SCANLINE_ORDERING,
+}
+impl Default for DISPLAYCONFIG_VIDEO_SIGNAL_INFO {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union DISPLAYCONFIG_VIDEO_SIGNAL_INFO_0 {
+    pub AdditionalSignalInfo: DISPLAYCONFIG_VIDEO_SIGNAL_INFO_0_0,
+    pub videoStandard: u32,
+}
+impl Default for DISPLAYCONFIG_VIDEO_SIGNAL_INFO_0 {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DISPLAYCONFIG_VIDEO_SIGNAL_INFO_0_0 {
+    pub _bitfield: u32,
+}
+impl DISPLAYCONFIG_VIDEO_SIGNAL_INFO_0_0 {
+    pub fn videoStandard(&self) -> u32 {
+        (self._bitfield << 16) >> 16
+    }
+    pub fn set_videoStandard(&mut self, value: u32) {
+        self._bitfield = (self._bitfield & !65535) | (value & 65535);
+    }
+    pub fn vSyncFreqDivider(&self) -> u32 {
+        (self._bitfield << 10) >> 26
+    }
+    pub fn set_vSyncFreqDivider(&mut self, value: u32) {
+        self._bitfield = (self._bitfield & !(63 << 16)) | ((value & 63) << 16);
+    }
+    pub fn reserved(&self) -> u32 {
+        self._bitfield >> 22
+    }
+    pub fn set_reserved(&mut self, value: u32) {
+        self._bitfield = (self._bitfield & !(1023 << 22)) | ((value & 1023) << 22);
+    }
+}
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DISPLAY_DEVICEW {
@@ -13736,6 +14095,12 @@ pub struct LRESULT(pub isize);
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct LSTATUS(pub i32);
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct LUID {
+    pub LowPart: u32,
+    pub HighPart: i32,
+}
 pub const LWA_ALPHA: i32 = 2;
 pub const LWA_COLORKEY: i32 = 1;
 #[repr(C, align(16))]
@@ -14664,6 +15029,7 @@ pub type PTRANSLATE_ADDRESS_ROUTINE64 = Option<
     unsafe extern "system" fn(hprocess: HANDLE, hthread: HANDLE, lpaddr: *const ADDRESS64) -> u64,
 >;
 pub type PWCHAR = *mut u16;
+pub const QDC_ONLY_ACTIVE_PATHS: i32 = 2;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RAWHID {
@@ -14760,6 +15126,14 @@ pub struct RAWMOUSE_0_0 {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct RECT {
+    pub left: i32,
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct RECTL {
     pub left: i32,
     pub top: i32,
     pub right: i32,

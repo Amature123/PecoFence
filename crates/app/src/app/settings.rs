@@ -203,7 +203,7 @@ impl App {
                     "name": s.name,
                     "ts": s.ts,
                     "date": pecofence_platform::fileinfo::format_local_datetime(s.ts),
-                    "fenceCount": s.layouts.iter().map(|l| l.fences.len()).sum::<usize>(),
+                    "fenceCount": super::ipc::snapshot_dto(s, &self.state.work_areas).fence_count,
                 })
             })
             .collect();

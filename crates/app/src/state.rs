@@ -26,6 +26,9 @@ pub struct AppState {
     /// Portal fence → subfolder it has navigated into (absent = its root folder).
     portal_cwd: HashMap<FenceId, PathBuf>,
     pub work_areas: Vec<WorkArea>,
+    /// Fences with no spot saved on the current monitors (see [`Self::ensure_layout`]): they
+    /// sit where their spot elsewhere puts them until the App moves them out of the others' way.
+    pub unplaced: Vec<FenceId>,
     pub first_run: bool,
     pub recovered_from: Option<PathBuf>,
     /// Where an unreadable `config.json` was moved at load (see `ConfigStore::load_reporting`).
@@ -106,6 +109,7 @@ impl AppState {
             portal_members: HashMap::new(),
             portal_cwd: HashMap::new(),
             work_areas,
+            unplaced: Vec::new(),
             first_run,
             recovered_from,
             unreadable_moved_to,
@@ -317,41 +321,87 @@ impl AppState {
             .collect();
     }
 
-    fn device_paths(&self) -> Vec<String> {
-        self.work_areas
-            .iter()
-            .map(|w| w.device_path.clone())
-            .collect()
+    /// Selects the layout for the current monitors, creating it on first use (the wizard
+    /// default on the very first), and shows the fences there as the layout shown last has
+    /// them: every monitor set shows the same fences, a layout keeps where they sit. Fences
+    /// with no spot on these monitors yet are left in [`Self::unplaced`].
+    pub fn ensure_layout(&mut self) {
+        let found = self.config.layout_for(&self.work_areas);
+        let target = match &found {
+            Some(m) => {
+                self.rename_monitors(m.index, &m.renamed);
+                m.index
+            }
+            None => {
+                let fences = if self.config.layouts.is_empty() {
+                    self.default_fences()
+                } else {
+                    Vec::new()
+                };
+                let fingerprint = self.work_areas.iter().map(MonitorIdentity::of).collect();
+                self.config.layouts.push(Layout {
+                    fingerprint,
+                    fences,
+                    shown: 0,
+                });
+                self.dirty = true;
+                self.config.layouts.len() - 1
+            }
+        };
+        let source = self.config.last_shown().unwrap_or_else(|| {
+            // Files from 0.1.3 and earlier kept separate fences per monitor set: the layout of
+            // these monitors (or the first) takes in the others'.
+            let base = if found.is_some() { target } else { 0 };
+            if self.config.layouts.len() > 1 {
+                self.config.merge_layout_fences(base);
+            }
+            base
+        });
+        let mut unplaced = if source == target {
+            Vec::new()
+        } else {
+            self.config.carry_fences(source, target)
+        };
+        // A spot on a monitor that is not connected is no spot (older versions cloned a whole
+        // layout onto a new monitor set).
+        for f in &self.config.layouts[target].fences {
+            let connected = self
+                .work_areas
+                .iter()
+                .any(|w| w.device_path == f.geometry.monitor);
+            if !connected && f.tab_host.is_none() && !unplaced.contains(&f.id) {
+                unplaced.push(f.id);
+            }
+        }
+        self.unplaced = unplaced;
+        if self.config.mark_shown(target) || source != target {
+            self.dirty = true;
+        }
+        self.layout = target;
     }
 
-    /// Selects the layout for the current monitors, creating the default one on first use.
-    pub fn ensure_layout(&mut self) {
-        let paths = self.device_paths();
-        if let Some(i) = self.config.layout_for(&paths) {
-            self.layout = i;
+    /// The connected monitors found under another id (another port, or a file that saved GDI
+    /// names) take that id in layout `index` and in its fences' geometry.
+    fn rename_monitors(&mut self, index: usize, renamed: &[(String, String)]) {
+        if renamed.is_empty() {
             return;
         }
-        // Reuse the first existing layout's fences if monitors changed (best effort), else
-        // build the wizard default.
-        let fences = if let Some(existing) = self.config.layouts.first() {
-            existing.fences.clone()
-        } else {
-            self.default_fences()
-        };
-        let fingerprint = self
-            .work_areas
-            .iter()
-            .map(|w| MonitorIdentity {
-                device_path: w.device_path.clone(),
-                work_dip: [w.width_dip(), w.height_dip()],
-                dpi: w.dpi,
-            })
-            .collect();
-        self.config.layouts.push(Layout {
-            fingerprint,
-            fences,
-        });
-        self.layout = self.config.layouts.len() - 1;
+        let layout = &mut self.config.layouts[index];
+        for m in &mut layout.fingerprint {
+            if let Some(w) = renamed
+                .iter()
+                .find(|(old, _)| *old == m.device_path)
+                .and_then(|(_, new)| self.work_areas.iter().find(|w| w.device_path == *new))
+            {
+                *m = MonitorIdentity::of(w);
+            }
+        }
+        for f in &mut layout.fences {
+            if let Some((_, new)) = renamed.iter().find(|(old, _)| *old == f.geometry.monitor) {
+                f.geometry.monitor = new.clone();
+            }
+        }
+        tracing::info!(?renamed, "monitors found under another id");
         self.dirty = true;
     }
 
@@ -364,6 +414,7 @@ impl AppState {
             .cloned()
             .unwrap_or(WorkArea {
                 device_path: "primary".into(),
+                gdi_name: String::new(),
                 left: 0,
                 top: 0,
                 right: 1920,
@@ -1417,6 +1468,7 @@ impl AppState {
             .cloned()
             .unwrap_or(WorkArea {
                 device_path: String::new(),
+                gdi_name: String::new(),
                 left: 0,
                 top: 0,
                 right: 1920,
@@ -1828,19 +1880,27 @@ mod tests {
     use super::*;
     use pecofence_core::geometry::WorkArea;
 
-    fn test_state() -> AppState {
-        let work = WorkArea {
-            device_path: "test".into(),
-            left: 0,
+    fn monitor(id: &str, left: i32, w: i32, h: i32, dpi: u32) -> WorkArea {
+        WorkArea {
+            device_path: id.into(),
+            gdi_name: String::new(),
+            left,
             top: 0,
-            right: 1920,
-            bottom: 1040,
-            dpi: 96,
-            mon_left: 0,
+            right: left + w,
+            bottom: h,
+            dpi,
+            mon_left: left,
             mon_top: 0,
-            mon_right: 1920,
-            mon_bottom: 1040,
-        };
+            mon_right: left + w,
+            mon_bottom: h + 60,
+        }
+    }
+
+    fn test_state() -> AppState {
+        state_on(vec![monitor("test", 0, 1920, 1040, 96)])
+    }
+
+    fn state_on(work_areas: Vec<WorkArea>) -> AppState {
         let dir = std::env::temp_dir().join(format!(
             "pecofence-state-test-{}-{}",
             std::process::id(),
@@ -1855,13 +1915,118 @@ mod tests {
             portal_items: HashMap::new(),
             portal_members: HashMap::new(),
             portal_cwd: HashMap::new(),
-            work_areas: vec![work],
+            work_areas,
+            unplaced: Vec::new(),
             first_run: true,
             recovered_from: None,
             unreadable_moved_to: None,
         };
         state.ensure_layout();
         state
+    }
+
+    fn rect(left: i32, top: i32, w: i32, h: i32) -> RECT {
+        RECT {
+            left,
+            top,
+            right: left + w,
+            bottom: top + h,
+        }
+    }
+
+    /// Issue #24: unplugging the big monitor, working on the laptop, plugging it back in.
+    #[test]
+    fn every_monitor_set_shows_the_same_fences_at_its_own_spots() {
+        let big = monitor("GSM7787#5&2C948443&0&UID24832", 0, 3840, 2088, 144);
+        let laptop = monitor("BOE0A1B#4&1A&0&UID1", -1920, 1920, 1020, 120);
+        let mut state = state_on(vec![big.clone(), laptop.clone()]);
+        let docked: Vec<Fence> = state.fences().to_vec();
+        let first = docked[0].id;
+        assert!(state.unplaced.is_empty());
+        let ids = |s: &AppState| s.fences().iter().map(|f| f.id).collect::<Vec<_>>();
+
+        state.work_areas = vec![laptop.clone()];
+        state.ensure_layout();
+        assert_eq!(state.layout, 1);
+        // The same fences; all were on the big monitor, so none has a spot here yet.
+        assert_eq!(ids(&state), docked.iter().map(|f| f.id).collect::<Vec<_>>());
+        assert_eq!(state.unplaced.len(), docked.len());
+        state.set_fence_bounds(first, rect(-1900, 20, 300, 200), false, 200);
+        state.rename_fence(first, "Laptop title");
+        let made = state
+            .new_fence("Made on the laptop", rect(-1500, 600, 300, 200))
+            .unwrap();
+
+        state.work_areas = vec![laptop.clone(), big.clone()];
+        state.ensure_layout();
+        assert_eq!(state.layout, 0);
+        // Back at the docked spots, plus the new fence, which has no spot here yet.
+        let f = state.fence(first).unwrap();
+        assert_eq!(f.title, "Laptop title");
+        assert_eq!(f.geometry, docked[0].geometry);
+        assert_eq!(state.unplaced, vec![made]);
+        assert_eq!(
+            state.fence(made).unwrap().geometry.monitor,
+            laptop.device_path
+        );
+        assert!(state.delete_fence(made));
+
+        state.work_areas = vec![laptop.clone()];
+        state.ensure_layout();
+        assert!(state.fence(made).is_none());
+        assert_eq!(
+            state.fence(first).unwrap().geometry.monitor,
+            laptop.device_path
+        );
+        assert!(!state.unplaced.contains(&first));
+    }
+
+    /// Files from 0.1.3 kept separate fences per monitor set: the first start merges them.
+    #[test]
+    fn old_per_set_fences_are_merged_once() {
+        let mut state = state_on(vec![monitor(r"\\.\DISPLAY1", 0, 2560, 1392, 96)]);
+        let mut other = state.config.layouts[0].clone();
+        let own = Fence::new(
+            "Only on the laptop",
+            FenceKind::Virtual,
+            other.fences[0].geometry.clone(),
+        );
+        other.fences.push(own.clone());
+        other.fingerprint[0].device_path = r"\\.\DISPLAY2".into();
+        state.config.layouts.push(other);
+        for l in &mut state.config.layouts {
+            l.shown = 0;
+        }
+        state.ensure_layout();
+        assert_eq!(state.layout, 0);
+        assert!(state.fence(own.id).is_some());
+        // Merged once: a fence deleted now stays deleted on the other set.
+        assert!(state.delete_fence(own.id));
+        state.work_areas = vec![monitor(r"\\.\DISPLAY2", 0, 1920, 1020, 96)];
+        state.ensure_layout();
+        assert_eq!(state.layout, 1);
+        assert!(state.fence(own.id).is_none());
+    }
+
+    #[test]
+    fn a_monitor_on_another_port_keeps_its_layout() {
+        let mut state = state_on(vec![monitor(
+            "GSM7787#5&2C948443&0&UID24832",
+            0,
+            2560,
+            1392,
+            96,
+        )]);
+        let before = state.fences()[0].geometry.clone();
+        let moved = "GSM7787#7&257C0199&0&UID16640";
+        state.work_areas = vec![monitor(moved, 0, 2560, 1392, 96)];
+        state.ensure_layout();
+        assert_eq!((state.layout, state.config.layouts.len()), (0, 1));
+        assert!(state.unplaced.is_empty());
+        let after = &state.fences()[0].geometry;
+        assert_eq!(after.monitor, moved);
+        assert_eq!((after.x, after.y), (before.x, before.y));
+        assert_eq!(state.config.layouts[0].fingerprint[0].device_path, moved);
     }
 
     #[test]

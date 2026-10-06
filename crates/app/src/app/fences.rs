@@ -3,11 +3,27 @@
 
 use super::*;
 
+#[cfg(debug_assertions)]
+thread_local! {
+    /// `--test-script` `monitors`: stands in for the connected monitors.
+    pub(super) static TEST_MONITORS: std::cell::RefCell<Option<Vec<WorkArea>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
 pub(super) fn work_areas() -> Vec<WorkArea> {
+    #[cfg(debug_assertions)]
+    if let Some(areas) = TEST_MONITORS.with_borrow(Clone::clone) {
+        return areas;
+    }
+    let targets = monitors::display_targets();
     monitors::enumerate()
         .into_iter()
         .map(|m| WorkArea {
-            device_path: m.device_name.clone(),
+            device_path: monitor_id(
+                &m.device_name,
+                targets.iter().find(|t| t.gdi_name == m.device_name),
+            ),
+            gdi_name: m.device_name.clone(),
             left: m.work_area.left,
             top: m.work_area.top,
             right: m.work_area.right,
@@ -19,6 +35,19 @@ pub(super) fn work_areas() -> Vec<WorkArea> {
             mon_bottom: m.bounds.bottom,
         })
         .collect()
+}
+
+/// See [`WorkArea::device_path`].
+fn monitor_id(gdi_name: &str, target: Option<&monitors::DisplayTarget>) -> String {
+    match target {
+        Some(t) if !t.instance.is_empty() => t.instance.clone(),
+        Some(monitors::DisplayTarget {
+            model: Some(model),
+            connector: (tech, index),
+            ..
+        }) => format!("{model}#{tech}.{index}"),
+        _ => gdi_name.to_string(),
+    }
 }
 
 impl App {
@@ -356,6 +385,9 @@ impl App {
                 });
             }
         }
+        // Fences new to these monitors (or whose monitor is gone) move out of the others' way;
+        // the rest stay where this layout saved them.
+        self.settle_unplaced(false);
         for w in self.fences.values() {
             w.repaint_shadow();
         }
@@ -428,6 +460,7 @@ impl App {
             }
             self.apply_fence_view(fence.id);
         }
+        self.settle_unplaced(false);
         self.refresh_all();
         self.push_settings_state();
     }

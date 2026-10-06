@@ -933,6 +933,54 @@ pub mod clearance {
         best.map(|(_, c)| c)
     }
 
+    /// One fence for [`pull_apart`].
+    #[derive(Clone, Copy, Debug)]
+    pub struct Resting {
+        pub rect: RECT,
+        /// Its monitor's work area.
+        pub work: Option<RECT>,
+        pub gap: i32,
+        /// Kept in this order: 0 for a fence at its own spot, higher for ones placed later.
+        pub rank: u8,
+        pub movable: bool,
+    }
+
+    /// Pulls overlapping fences apart. In order of rank, then the larger first, each fence
+    /// stays where it is unless it covers one kept before it; then, if it may move, it goes to
+    /// the nearest spot free of every other fence (or, failing that, of the kept ones), so the
+    /// fewest and smallest move. With no free spot it stays. Returns (index, new rect) moves.
+    pub fn pull_apart(fences: &[Resting]) -> Vec<(usize, RECT)> {
+        let area = |r: &RECT| (r.right - r.left) as i64 * (r.bottom - r.top) as i64;
+        let mut order: Vec<usize> = (0..fences.len()).collect();
+        order.sort_by_key(|&i| {
+            let r = &fences[i].rect;
+            (fences[i].rank, std::cmp::Reverse(area(r)), r.top, r.left)
+        });
+        let mut rects: Vec<RECT> = fences.iter().map(|f| f.rect).collect();
+        let mut kept: Vec<RECT> = Vec::new();
+        let mut moves = Vec::new();
+        for i in order {
+            let (f, r) = (&fences[i], rects[i]);
+            let covers = kept.iter().any(|k| overlaps(&r, k, f.gap));
+            let Some(work) = f.work.filter(|_| covers && f.movable) else {
+                kept.push(r);
+                continue;
+            };
+            let others: Vec<RECT> = (0..rects.len())
+                .filter(|&j| j != i)
+                .map(|j| rects[j])
+                .collect();
+            let spot = nearest_free(&r, &others, &work, f.gap)
+                .or_else(|| nearest_free(&r, &kept, &work, f.gap));
+            if let Some(spot) = spot {
+                rects[i] = spot;
+                moves.push((i, spot));
+            }
+            kept.push(rects[i]);
+        }
+        moves
+    }
+
     /// How far each edge of a window being resized from `cur` to `proposed` may go.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct EdgeLimits {
@@ -1018,6 +1066,54 @@ mod tests {
         assert_eq!((spot.left, spot.right), (592, 692));
         // Nowhere to go.
         assert_eq!(nearest_free(&rc(10, 10, 110, 110), &[work], &work, 8), None);
+    }
+
+    /// Issue #24: a 4K@150% layout lands on a 1920×1080@125% laptop by its anchored edges, the
+    /// right-hand column piled up. Every fence ends up apart inside the work area; the largest
+    /// stays, and a fence at its own spot stays even when it is smaller.
+    #[test]
+    fn fences_from_a_bigger_screen_are_pulled_apart() {
+        use clearance::{Resting, overlaps, pull_apart};
+        let work = rc(0, 0, 1920, 1020);
+        let fence = |rect, rank| Resting {
+            rect,
+            work: Some(work),
+            gap: 10,
+            rank,
+            movable: rank > 0,
+        };
+        let mut fences = vec![
+            fence(rc(592, 27, 1516, 607), 2),   // 新栅栏
+            fence(rc(1528, 27, 1900, 597), 2),  // 程序
+            fence(rc(1603, 297, 1901, 595), 2), // 文件与文档
+            fence(rc(1235, 514, 1533, 762), 2), // 文件夹
+            fence(rc(1604, 210, 1902, 995), 2), // 桌面
+        ];
+        let settle = |fences: &mut Vec<Resting>| {
+            for (i, spot) in pull_apart(fences) {
+                fences[i].rect = spot;
+            }
+        };
+        settle(&mut fences);
+        assert_eq!(fences[0].rect, rc(592, 27, 1516, 607));
+        for (i, a) in fences.iter().enumerate() {
+            let r = a.rect;
+            assert!(
+                r.left >= 0 && r.top >= 0 && r.right <= 1920 && r.bottom <= 1020,
+                "{r:?}"
+            );
+            for b in &fences[i + 1..] {
+                assert!(!overlaps(&r, &b.rect, 10), "{r:?} covers {:?}", b.rect);
+            }
+        }
+        // A fence the user put there (rank 0) wins over a bigger one placed for it.
+        let mut fences = vec![
+            fence(rc(0, 0, 400, 400), 2),
+            fence(rc(100, 100, 300, 300), 0),
+        ];
+        settle(&mut fences);
+        assert_eq!(fences[1].rect, rc(100, 100, 300, 300));
+        assert!(!overlaps(&fences[0].rect, &fences[1].rect, 10));
     }
 
     /// Dragged edges stop at neighbours beyond them, and a neighbour already inside the gap

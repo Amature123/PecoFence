@@ -1,5 +1,6 @@
 //! Persistent data model (plan §7). Pure data + serde; no Windows types.
 
+use crate::geometry::{WorkArea, monitor_model};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -360,20 +361,63 @@ impl Default for SnappingSettings {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct MonitorIdentity {
-    /// Device path (`GSM1388#4&125707d6&0&UID8388688`), falling back to `\\.\DISPLAYn`.
+    /// The monitor's id: its device instance (`GSM7787#5&2C948443&0&UID24832`), else its EDID
+    /// model and connector (`GSM7787#5.0`), else `\\.\DISPLAYn` (all that files from 0.1.3 and
+    /// earlier have).
     pub device_path: String,
+    /// GDI name (`\\.\DISPLAY1`) at save time.
+    #[serde(default)]
+    pub gdi_name: String,
     /// Work-area size in DIPs at save time.
     pub work_dip: [f32; 2],
     pub dpi: u32,
 }
 
+impl MonitorIdentity {
+    pub fn of(work: &WorkArea) -> Self {
+        Self {
+            device_path: work.device_path.clone(),
+            gdi_name: work.gdi_name.clone(),
+            work_dip: [work.width_dip(), work.height_dip()],
+            dpi: work.dpi,
+        }
+    }
+
+    fn gdi_name(&self) -> &str {
+        if !self.gdi_name.is_empty() {
+            &self.gdi_name
+        } else if self.device_path.starts_with('\\') {
+            &self.device_path
+        } else {
+            ""
+        }
+    }
+}
+
+/// Where the fences sit on one set of monitors. Every set shows the same fences (titles,
+/// items, tabs, views): the layout shown last holds them as they are, and showing another
+/// layout carries them over, keeping that layout's geometry and roll state for each fence it
+/// had.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct Layout {
-    /// Sorted monitor identities; a layout applies when the current set matches by device path.
+    /// Monitor identities; the layout applies when they are the connected monitors (each found
+    /// by id, model or GDI name).
     pub fingerprint: Vec<MonitorIdentity>,
     pub fences: Vec<Fence>,
+    /// Raised each time the layout is shown; the highest one is the layout shown last. 0 in
+    /// files from 0.1.3 and earlier, which kept separate fences per monitor set.
+    #[serde(default)]
+    pub shown: u64,
+}
+
+/// [`Config::layout_for`]'s answer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayoutMatch {
+    pub index: usize,
+    /// Saved id → connected id, for the monitors found under another id.
+    pub renamed: Vec<(String, String)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1053,20 +1097,181 @@ impl Layout {
     }
 }
 
+/// The layout for the connected `monitors`: one whose saved monitors are all found among them,
+/// one each. A saved monitor is found by its id; else by model when exactly one saved and one
+/// connected monitor left are that model (another port or a dock gives a monitor a new
+/// instance); else, when either side has no EDID model (files from 0.1.3 and earlier saved
+/// only GDI names), by GDI name. The layout with the most monitors found by id wins.
+pub fn layout_for(layouts: &[Layout], monitors: &[WorkArea]) -> Option<LayoutMatch> {
+    let mut best: Option<(usize, LayoutMatch)> = None;
+    for (index, l) in layouts.iter().enumerate() {
+        let Some((pairs, by_id)) = pair_monitors(&l.fingerprint, monitors) else {
+            continue;
+        };
+        if best.as_ref().is_some_and(|(b, _)| *b >= by_id) {
+            continue;
+        }
+        let renamed = l
+            .fingerprint
+            .iter()
+            .zip(pairs)
+            .filter(|(saved, j)| saved.device_path != monitors[*j].device_path)
+            .map(|(saved, j)| (saved.device_path.clone(), monitors[j].device_path.clone()))
+            .collect();
+        best = Some((by_id, LayoutMatch { index, renamed }));
+    }
+    best.map(|(_, m)| m)
+}
+
+/// Per saved monitor, the index of the connected one it is (see [`layout_for`]), and how many
+/// were found by id. `None` unless every saved and every connected monitor pairs up.
+fn pair_monitors(saved: &[MonitorIdentity], now: &[WorkArea]) -> Option<(Vec<usize>, usize)> {
+    if saved.len() != now.len() {
+        return None;
+    }
+    let mut pairs: Vec<Option<usize>> = vec![None; saved.len()];
+    let mut taken = vec![false; now.len()];
+    for (i, s) in saved.iter().enumerate() {
+        if let Some(j) = (0..now.len()).find(|&j| !taken[j] && now[j].device_path == s.device_path)
+        {
+            (pairs[i], taken[j]) = (Some(j), true);
+        }
+    }
+    let by_id = pairs.iter().flatten().count();
+    for i in 0..saved.len() {
+        let Some(model) = monitor_model(&saved[i].device_path).filter(|_| pairs[i].is_none())
+        else {
+            continue;
+        };
+        let rivals = (0..saved.len())
+            .filter(|&k| pairs[k].is_none() && monitor_model(&saved[k].device_path) == Some(model))
+            .count();
+        let found: Vec<usize> = (0..now.len())
+            .filter(|&j| !taken[j] && now[j].model() == Some(model))
+            .collect();
+        if let ([j], 1) = (found.as_slice(), rivals) {
+            (pairs[i], taken[*j]) = (Some(*j), true);
+        }
+    }
+    for i in 0..saved.len() {
+        let gdi = saved[i].gdi_name();
+        if pairs[i].is_some() || gdi.is_empty() {
+            continue;
+        }
+        let saved_model = monitor_model(&saved[i].device_path);
+        if let Some(j) = (0..now.len()).find(|&j| {
+            !taken[j]
+                && now[j].gdi_name == gdi
+                && (saved_model.is_none() || now[j].model().is_none())
+        }) {
+            (pairs[i], taken[j]) = (Some(j), true);
+        }
+    }
+    let pairs: Option<Vec<usize>> = pairs.into_iter().collect();
+    pairs.map(|p| (p, by_id))
+}
+
+/// The layout shown last (it holds the fences as they are), `None` in files from 0.1.3 and
+/// earlier.
+pub fn last_shown(layouts: &[Layout]) -> Option<usize> {
+    layouts
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.shown > 0)
+        .max_by_key(|(_, l)| l.shown)
+        .map(|(i, _)| i)
+}
+
 impl Config {
-    /// Finds the layout whose fingerprint matches `device_paths` (order-insensitive), if any.
-    pub fn layout_for(&self, device_paths: &[String]) -> Option<usize> {
-        let mut wanted: Vec<&str> = device_paths.iter().map(String::as_str).collect();
-        wanted.sort_unstable();
-        self.layouts.iter().position(|l| {
-            let mut have: Vec<&str> = l
-                .fingerprint
-                .iter()
-                .map(|m| m.device_path.as_str())
-                .collect();
-            have.sort_unstable();
-            have == wanted
-        })
+    /// See [`layout_for`].
+    pub fn layout_for(&self, monitors: &[WorkArea]) -> Option<LayoutMatch> {
+        layout_for(&self.layouts, monitors)
+    }
+
+    /// See [`last_shown`].
+    pub fn last_shown(&self) -> Option<usize> {
+        last_shown(&self.layouts)
+    }
+
+    /// Makes `index` the layout shown last; false when it already was.
+    pub fn mark_shown(&mut self, index: usize) -> bool {
+        let top = self.layouts.iter().map(|l| l.shown).max().unwrap_or(0);
+        let tied = self
+            .layouts
+            .iter()
+            .enumerate()
+            .any(|(i, l)| i != index && l.shown == top);
+        if top > 0 && self.layouts[index].shown == top && !tied {
+            return false;
+        }
+        self.layouts[index].shown = top + 1;
+        true
+    }
+
+    /// Gives layout `to` the fences of layout `from` as they are, each with the geometry and
+    /// roll state `to` saved for it. Returns the fences `to` had no spot for: they keep the one
+    /// they had in `from`.
+    pub fn carry_fences(&mut self, from: usize, to: usize) -> Vec<FenceId> {
+        let spots: HashMap<FenceId, (NormGeometry, bool, f32)> = self.layouts[to]
+            .fences
+            .iter()
+            .map(|f| (f.id, (f.geometry.clone(), f.rolled_up, f.expanded_h)))
+            .collect();
+        let mut fences = self.layouts[from].fences.clone();
+        let mut unplaced = Vec::new();
+        for f in &mut fences {
+            match spots.get(&f.id) {
+                Some((geometry, rolled_up, expanded_h)) => {
+                    f.geometry = geometry.clone();
+                    f.rolled_up = *rolled_up;
+                    f.expanded_h = *expanded_h;
+                }
+                None => unplaced.push(f.id),
+            }
+        }
+        self.layouts[to].fences = fences;
+        unplaced
+    }
+
+    /// Files from 0.1.3 and earlier kept separate fences per monitor set. Brings the other
+    /// layouts' fences into `into` so that none is lost: a fence only another set has is added
+    /// (so one deleted on just one set comes back), and an item `into` holds only because it
+    /// was routed there goes where another set had it placed by hand.
+    pub fn merge_layout_fences(&mut self, into: usize) {
+        let others: Vec<Layout> = (0..self.layouts.len())
+            .filter(|&i| i != into)
+            .map(|i| self.layouts[i].clone())
+            .collect();
+        let target = &mut self.layouts[into].fences;
+        let has_inbox = target.iter().any(|f| f.kind == FenceKind::Inbox);
+        for f in others.iter().flat_map(|l| &l.fences) {
+            if target.iter().any(|t| t.id == f.id) || (f.kind == FenceKind::Inbox && has_inbox) {
+                continue;
+            }
+            let mut f = f.clone();
+            f.items.clear();
+            target.push(f);
+        }
+        for f in others.iter().flat_map(|l| &l.fences) {
+            if !target.iter().any(|t| t.id == f.id) {
+                continue;
+            }
+            for r in f.items.iter().filter(|r| r.assigned_by == AssignedBy::User) {
+                let held = target
+                    .iter()
+                    .flat_map(|t| &t.items)
+                    .find(|t| t.item_id == r.item_id);
+                if held.is_some_and(|h| h.assigned_by == AssignedBy::User) {
+                    continue;
+                }
+                for t in target.iter_mut() {
+                    t.items.retain(|x| x.item_id != r.item_id);
+                }
+                if let Some(t) = target.iter_mut().find(|t| t.id == f.id) {
+                    t.items.push(r.clone());
+                }
+            }
+        }
     }
 
     pub fn fence_mut(&mut self, layout: usize, id: FenceId) -> Option<&mut Fence> {
@@ -1225,6 +1430,7 @@ mod tests {
             ..Default::default()
         });
         config.layouts.push(Layout {
+            shown: 0,
             fingerprint: vec![],
             fences: vec![fence],
         });
@@ -1289,7 +1495,9 @@ mod tests {
         });
         c.items.insert(item.id, item);
         c.layouts.push(Layout {
+            shown: 0,
             fingerprint: vec![MonitorIdentity {
+                gdi_name: String::new(),
                 device_path: "m".into(),
                 work_dip: [1920.0, 1040.0],
                 dpi: 96,
@@ -1313,6 +1521,7 @@ mod tests {
         let b = Fence::new("B", FenceKind::Inbox, geo());
         let (aid, bid) = (a.id, b.id);
         c.layouts.push(Layout {
+            shown: 0,
             fingerprint: vec![],
             fences: vec![a, b],
         });
@@ -1370,6 +1579,7 @@ mod tests {
                         fences[0].rolled_up = rolled;
                         let before = fences.clone();
                         let mut layout = Layout {
+                            shown: 0,
                             fingerprint: vec![],
                             fences,
                         };
@@ -1428,6 +1638,7 @@ mod tests {
         b.tab_host = Some(aid);
         a.tab_order = vec![aid, bid];
         let mut layout = Layout {
+            shown: 0,
             fingerprint: vec![],
             fences: vec![a, b],
         };
@@ -1448,6 +1659,7 @@ mod tests {
         layout.fences[0].tab_host = Some(bid);
         assert!(!layout.cancel_tab_detach(&change));
         let mut single = Layout {
+            shown: 0,
             fingerprint: vec![],
             fences: vec![Fence::new("only", FenceKind::Virtual, geo())],
         };
@@ -1464,6 +1676,7 @@ mod tests {
         c.tab_host = Some(bid); // chain: c hosted by a tab
         a.active_tab = Some(cid); // not (yet) a direct tab of a
         let mut l = Layout {
+            shown: 0,
             fingerprint: vec![],
             fences: vec![a, b, c],
         };
@@ -1488,6 +1701,7 @@ mod tests {
         b.tab_host = Some(aid);
         c.tab_host = Some(aid);
         let mut l = Layout {
+            shown: 0,
             fingerprint: vec![],
             fences: vec![a, b, c],
         };
@@ -1509,26 +1723,145 @@ mod tests {
         assert!(!l.normalize_tabs());
     }
 
-    #[test]
-    fn layout_lookup_is_order_insensitive() {
-        let mut c = Config::default();
-        c.layouts.push(Layout {
-            fingerprint: vec![
-                MonitorIdentity {
-                    device_path: "b".into(),
-                    work_dip: [1.0, 1.0],
-                    dpi: 96,
-                },
-                MonitorIdentity {
-                    device_path: "a".into(),
-                    work_dip: [1.0, 1.0],
-                    dpi: 96,
-                },
-            ],
+    fn monitor(id: &str, gdi: &str) -> WorkArea {
+        WorkArea {
+            device_path: id.into(),
+            gdi_name: gdi.into(),
+            left: 0,
+            top: 0,
+            right: 1920,
+            bottom: 1040,
+            dpi: 96,
+            mon_left: 0,
+            mon_top: 0,
+            mon_right: 1920,
+            mon_bottom: 1080,
+        }
+    }
+
+    fn saved(monitors: &[(&str, &str)]) -> Layout {
+        Layout {
+            fingerprint: monitors
+                .iter()
+                .map(|(id, gdi)| MonitorIdentity::of(&monitor(id, gdi)))
+                .collect(),
             fences: vec![],
-        });
-        assert_eq!(c.layout_for(&["a".into(), "b".into()]), Some(0));
-        assert_eq!(c.layout_for(&["a".into()]), None);
+            shown: 0,
+        }
+    }
+
+    fn found(layouts: &[Layout], now: &[(&str, &str)]) -> Option<LayoutMatch> {
+        let now: Vec<WorkArea> = now.iter().map(|(id, gdi)| monitor(id, gdi)).collect();
+        layout_for(layouts, &now)
+    }
+
+    const D1: &str = r"\\.\DISPLAY1";
+    const D2: &str = r"\\.\DISPLAY2";
+
+    #[test]
+    fn monitors_are_found_by_id_then_model_then_gdi_name() {
+        let both = [saved(&[("DEL1#B", D2), ("GSM7787#A", D1)])];
+        let m = found(&both, &[("GSM7787#A", D1), ("DEL1#B", D2)]).unwrap();
+        assert_eq!((m.index, m.renamed.len()), (0, 0));
+        assert!(found(&both, &[("GSM7787#A", D1)]).is_none());
+        // Another port or a dock: a new instance, the same model.
+        let m = found(&both, &[("GSM7787#C", D3), ("DEL1#B", D2)]).unwrap();
+        assert_eq!(m.renamed, vec![("GSM7787#A".into(), "GSM7787#C".into())]);
+        // Two monitors of one model that both moved cannot be told apart.
+        let twins = [saved(&[("GSM7787#A", D1), ("GSM7787#B", D2)])];
+        assert!(found(&twins, &[("GSM7787#A", D1), ("GSM7787#C", D2)]).is_some());
+        assert!(found(&twins, &[("GSM7787#C", D1), ("GSM7787#D", D2)]).is_none());
+        // Files from 0.1.3 saved GDI names; a monitor without EDID has nothing else.
+        let legacy = [saved(&[(D1, "")])];
+        let m = found(&legacy, &[("GSM7787#5.0", D1)]).unwrap();
+        assert_eq!(m.renamed, vec![(D1.into(), "GSM7787#5.0".into())]);
+        assert!(found(&[saved(&[("GSM7787#A", D1)])], &[(D1, D1)]).is_some());
+        // Another monitor on the same GDI source is another monitor.
+        assert!(found(&[saved(&[("DEL1#X", D1)])], &[("GSM7787#A", D1)]).is_none());
+        // The layout that knows the monitor by id wins over the legacy one.
+        let m = found(
+            &[saved(&[(D1, "")]), saved(&[("GSM7787#A", D1)])],
+            &[("GSM7787#A", D1)],
+        );
+        assert_eq!(m.unwrap().index, 1);
+    }
+
+    const D3: &str = r"\\.\DISPLAY3";
+
+    #[test]
+    fn showing_another_set_carries_the_fences_and_keeps_its_spots() {
+        let mut c = Config::default();
+        let mut a = Fence::new("A", FenceKind::Virtual, geo());
+        let b = Fence::new("B", FenceKind::Virtual, geo());
+        let mut on_laptop = a.clone();
+        on_laptop.geometry.x = 40.0;
+        on_laptop.rolled_up = true;
+        c.layouts.push(saved(&[("GSM7787#A", D1), ("BOE1#L", D2)]));
+        c.layouts.push(saved(&[("BOE1#L", D1)]));
+        c.layouts[1].fences = vec![on_laptop, b.clone()];
+        // On the big set: A renamed, B deleted, C created.
+        a.title = "A2".into();
+        let new = Fence::new("C", FenceKind::Virtual, geo());
+        c.layouts[0].fences = vec![a.clone(), new.clone()];
+        assert_eq!(c.carry_fences(0, 1), vec![new.id]);
+        let l = &c.layouts[1].fences;
+        assert_eq!(
+            l.iter().map(|f| f.id).collect::<Vec<_>>(),
+            vec![a.id, new.id]
+        );
+        assert_eq!(
+            (l[0].title.as_str(), l[0].geometry.x, l[0].rolled_up),
+            ("A2", 40.0, true)
+        );
+        assert_eq!(l[1].geometry, new.geometry);
+    }
+
+    #[test]
+    fn merging_old_per_set_fences_loses_none() {
+        let mut c = Config::default();
+        let item = |id: ItemId, by: AssignedBy| ItemRef {
+            item_id: id,
+            manual_index: None,
+            assigned_by: by,
+        };
+        let (x, y, z) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let mut inbox = Fence::new("桌面", FenceKind::Inbox, geo());
+        inbox.items = vec![item(y, AssignedBy::Migration)];
+        let mut a = Fence::new("A", FenceKind::Virtual, geo());
+        a.items = vec![item(x, AssignedBy::Rule(Uuid::new_v4()))];
+        let mut other_inbox = Fence::new("桌面", FenceKind::Inbox, geo());
+        other_inbox.items = vec![item(x, AssignedBy::User)];
+        let mut made_there = Fence::new("N", FenceKind::Virtual, geo());
+        made_there.items = vec![
+            item(y, AssignedBy::User),
+            item(z, AssignedBy::Rule(Uuid::new_v4())),
+        ];
+        c.layouts.push(saved(&[("GSM7787#A", D1)]));
+        c.layouts[0].fences = vec![inbox.clone(), a.clone()];
+        c.layouts.push(saved(&[("BOE1#L", D1)]));
+        c.layouts[1].fences = vec![other_inbox, a.clone(), made_there.clone()];
+        c.merge_layout_fences(0);
+        let l = &c.layouts[0];
+        let ids: Vec<FenceId> = l.fences.iter().map(|f| f.id).collect();
+        assert_eq!(ids, vec![inbox.id, a.id, made_there.id]);
+        // Placed by hand there, only routed here: it goes where the hand put it.
+        assert_eq!(c.fence_of_item(0, y), Some(made_there.id));
+        // A second inbox is not added, and what this set routed stays.
+        assert_eq!(c.fence_of_item(0, x), Some(a.id));
+        assert_eq!(c.fence_of_item(0, z), None);
+    }
+
+    #[test]
+    fn the_layout_shown_last_is_remembered() {
+        let mut c = Config::default();
+        c.layouts.push(saved(&[("A#1", D1)]));
+        c.layouts.push(saved(&[("B#1", D1)]));
+        assert_eq!(c.last_shown(), None);
+        assert!(c.mark_shown(1));
+        assert!(!c.mark_shown(1));
+        assert_eq!(c.last_shown(), Some(1));
+        assert!(c.mark_shown(0));
+        assert_eq!(c.last_shown(), Some(0));
     }
 }
 

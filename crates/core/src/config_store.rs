@@ -506,6 +506,7 @@ mod tests {
     fn sample() -> Config {
         let mut c = Config::default();
         c.layouts.push(Layout {
+            shown: 0,
             fingerprint: vec![],
             fences: vec![Fence::new(
                 "A",

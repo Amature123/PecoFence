@@ -9,7 +9,11 @@ pub const MAX_DIP: f32 = 8192.0;
 /// A monitor's work area in physical pixels plus its DPI.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorkArea {
+    /// The monitor's id: its device instance (`GSM7787#5&2C948443&0&UID24832`), else its EDID
+    /// model and connector (`GSM7787#5.0`), else the GDI name.
     pub device_path: String,
+    /// GDI name (`\\.\DISPLAY1`): all that files from 0.1.3 and earlier saved.
+    pub gdi_name: String,
     pub left: i32,
     pub top: i32,
     pub right: i32,
@@ -32,6 +36,19 @@ impl WorkArea {
     pub fn height_dip(&self) -> f32 {
         (self.bottom - self.top) as f32 / self.scale()
     }
+    pub fn model(&self) -> Option<&str> {
+        monitor_model(&self.device_path)
+    }
+}
+
+/// `GSM7787` from a monitor id (see [`WorkArea::device_path`]); `None` for a GDI name.
+pub fn monitor_model(id: &str) -> Option<&str> {
+    if id.starts_with('\\') {
+        return None;
+    }
+    id.split_once('#')
+        .map(|(model, _)| model)
+        .filter(|m| !m.is_empty())
 }
 
 /// A window rectangle in physical (virtual-screen) pixels.
@@ -164,6 +181,7 @@ mod tests {
     fn work(dpi: u32, w: i32, h: i32) -> WorkArea {
         WorkArea {
             device_path: "m".into(),
+            gdi_name: String::new(),
             left: 0,
             top: 0,
             right: w,
