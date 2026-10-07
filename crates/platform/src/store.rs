@@ -1,0 +1,64 @@
+//! The Microsoft Store's own rating dialog (`StoreContext.RequestRateAndReviewAppAsync`). Only
+//! the Store edition can use it: the Store finds the product through the package identity, so
+//! an unpackaged process gets an error back.
+
+use crate::HWND;
+use crate::store_bindings::{
+    self, IInitializeWithWindow, QUNS_ACCEPTS_NOTIFICATIONS, SHQueryUserNotificationState,
+    StoreContext, StoreRateAndReviewStatus,
+};
+use windows_core::{HRESULT, Interface, Result};
+
+const E_FAIL: HRESULT = HRESULT(0x8000_4005_u32 as i32);
+
+/// How the rating dialog ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RatingOutcome {
+    /// A rating or review was submitted; `updated` when it replaced the user's earlier one.
+    Rated {
+        updated: bool,
+    },
+    Cancelled,
+    NetworkError,
+    Failed(HRESULT),
+}
+
+/// Opens the rating dialog centred on `owner`, a window of the calling thread, which must pump
+/// messages (Desktop Bridge apps fail with ERROR_INVALID_WINDOW_HANDLE otherwise). The dialog
+/// only comes to the front while this process may set the foreground window, so call it in
+/// response to the user (a click on our window or tray balloon). Returns once the dialog is on
+/// its way; `done` runs on a system worker thread when it closes.
+pub fn request_rating(
+    owner: HWND,
+    done: impl FnOnce(RatingOutcome) + Send + 'static,
+) -> Result<()> {
+    // The dialog belongs to Explorer / StoreExperienceHost; hand them our foreground right.
+    // SAFETY: plain FFI call; fails harmlessly when we hold no such right.
+    let _ = unsafe { store_bindings::AllowSetForegroundWindow(store_bindings::ASFW_ANY) };
+    let context = StoreContext::GetDefault()?;
+    let init: IInitializeWithWindow = context.cast()?;
+    // SAFETY: plain COM call; the handle belongs to this thread and outlives the dialog.
+    unsafe { init.Initialize(store_bindings::HWND(owner.0)) }.ok()?;
+    let operation = context.RequestRateAndReviewAppAsync()?;
+    operation.when(move |result| {
+        let outcome = match result {
+            Ok(r) => match r.Status() {
+                Ok(StoreRateAndReviewStatus::Succeeded) => RatingOutcome::Rated {
+                    updated: r.WasUpdated().unwrap_or(false),
+                },
+                Ok(StoreRateAndReviewStatus::CanceledByUser) => RatingOutcome::Cancelled,
+                Ok(StoreRateAndReviewStatus::NetworkError) => RatingOutcome::NetworkError,
+                _ => RatingOutcome::Failed(r.ExtendedError().unwrap_or(E_FAIL)),
+            },
+            Err(error) => RatingOutcome::Failed(error.code()),
+        };
+        done(outcome);
+    })
+}
+
+/// Whether Windows would show a notification now: no full-screen app or presentation, no
+/// Focus session, nobody away from a locked screen. A fair moment to ask for something.
+pub fn user_accepts_notifications() -> bool {
+    // SAFETY: plain FFI call with an out parameter.
+    unsafe { SHQueryUserNotificationState() }.is_ok_and(|state| state == QUNS_ACCEPTS_NOTIFICATIONS)
+}

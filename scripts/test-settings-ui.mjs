@@ -165,7 +165,7 @@ async function runTests() {
   });
   await test('Every page fits the minimum settings window width', async () => {
     frame.style.width = '704px';
-    for (const page of ['general', 'fences', 'rules', 'layout', 'feedback', 'about']) {
+    for (const page of ['general', 'fences', 'rules', 'layout', 'about']) {
       doc.querySelector(`[data-page=${page}]`).click();
       await settle();
       const main = doc.querySelector('main');
@@ -524,7 +524,7 @@ async function runTests() {
       for (const mode of ['dark', 'light']) {
         current().themeMode = mode;
         frame.contentWindow.testRefresh();
-        for (const page of ['general', 'fences', 'rules', 'layout', 'feedback', 'about']) {
+        for (const page of ['general', 'fences', 'rules', 'layout', 'about']) {
           doc.querySelector(`[data-page=${page}]`).click();
           await settle();
           const main = doc.querySelector('main');
@@ -617,6 +617,21 @@ async function runTests() {
     assert(messages().length === 1 && messages()[0].a === 'two' && messages()[0].b === 'one', 'Display selections reset or swapped incorrectly');
   });
 
+  await test('The Store rating button appears only in the Store edition; both support buttons post', async () => {
+    doc.querySelector('[data-page=about]').click();
+    const rate = doc.getElementById('rateStore'), star = doc.getElementById('starRepo');
+    current().storeEdition = false;
+    frame.contentWindow.testRefresh(); await settle();
+    assert(rate.hidden && !star.hidden, 'Rating offered outside the Store edition');
+    current().storeEdition = true;
+    frame.contentWindow.testRefresh(); await settle();
+    assert(!rate.hidden && rate.offsetWidth > 0, 'Rating button missing in the Store edition');
+    const actions = () => frame.contentWindow.testMessages.filter(m => m.type === 'action').map(m => m.name);
+    rate.click(); star.click(); await settle();
+    assert(actions().slice(-2).join() === 'rateInStore,openRepository', 'Support buttons did not post their actions');
+    current().storeEdition = false;
+    frame.contentWindow.testRefresh();
+  });
   await test('Desktop icons can be restored, hidden again, and restored repeatedly', async () => {
     doc.querySelector('[data-page=about]').click();
     const restore = doc.getElementById('repairIcons'), hide = doc.getElementById('hideIconsAgain');
@@ -650,7 +665,7 @@ async function runTests() {
     };
     return requests;
   };
-  const feedbackPage = async doc => { doc.querySelector('[data-page=feedback]').click(); await settle(); };
+  const feedbackPage = async doc => { doc.querySelector('[data-page=about]').click(); await settle(); };
   const feedbackOutcomes = () => frame.contentWindow.testMessages.filter(m => m.name === 'feedbackResult').map(m => m.status);
 
   await test('About page shows the update card for each edition and state', async () => {
@@ -690,7 +705,7 @@ async function runTests() {
   await test('Feedback page shows what will be sent and posts the report', async () => {
     doc = await reset();
     await feedbackPage(doc);
-    assert(doc.getElementById('page-feedback').classList.contains('on'), 'Feedback page not shown');
+    assert(doc.getElementById('page-about').classList.contains('on'), 'About page (with the feedback form) not shown');
     assert(frame.contentWindow.testMessages.some(m => m.name === 'feedbackInfo'), 'Diagnostics were not requested');
     const preview = doc.getElementById('fbPreview').textContent;
     assert(preview.includes('windows: build 26200') && preview.includes('config loaded fences=4'), 'Preview misses the diagnostics: ' + preview);
@@ -744,10 +759,12 @@ async function runTests() {
     doc = await reset();
     current().crashed = true;
     frame.contentWindow.testShowFeedback(true); await settle();
-    assert(doc.getElementById('page-feedback').classList.contains('on'), 'Feedback page not shown');
+    assert(doc.getElementById('page-about').classList.contains('on'), 'About page (with the feedback form) not shown');
     assert(doc.querySelector('input[name=fbKind][value=bug]').checked, 'Problem not selected');
     assert(!doc.getElementById('fbCrashNote').hidden, 'Crash note hidden');
     assert(doc.activeElement === doc.getElementById('fbMessage'), 'Message field not focused');
+    const heading = doc.getElementById('feedbackHeading').getBoundingClientRect(), view = doc.querySelector('main').getBoundingClientRect();
+    assert(heading.top >= view.top - 1 && heading.top < view.top + view.height / 2, 'Feedback section not scrolled into view');
     const requests = stubFetch(201);
     doc.getElementById('fbMessage').value = 'It crashed while dragging';
     doc.getElementById('fbSend').click(); await settle();
@@ -776,7 +793,7 @@ async function runTests() {
       assert(current().fences[0].title === '名称' && current().rules.list[0].name === '保存快照' && current().snapshots[0].name === '桌面 {1}', 'User data changed: ' + language);
       assert(doc.querySelector('#ruleList .t').textContent === '保存快照', 'User rule name translated: ' + language);
       assert(win.PecoFenceI18n.format('{0} 个栅栏', 'title {1}').includes('title {1}'), 'User placeholder was reinterpreted');
-      for (const page of ['general', 'fences', 'rules', 'layout', 'feedback', 'about']) {
+      for (const page of ['general', 'fences', 'rules', 'layout', 'about']) {
         doc.querySelector(`[data-page=${page}]`).click();
         const main = doc.querySelector('main');
         assert(main.scrollWidth <= main.clientWidth + 1, language + '/' + page + ' overflows');

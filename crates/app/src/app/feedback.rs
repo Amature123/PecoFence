@@ -1,4 +1,4 @@
-//! The settings page's 「反馈」 page: what it may send along with the user's text (system facts
+//! The 「反馈」 section of the settings page's 「关于」 page: what it may send along with the user's text (system facts
 //! and the shareable log, see `crate::share_log`) and the offer to report a crash on the next
 //! start. The page itself posts to the feedback service; nothing here touches the network.
 
@@ -18,7 +18,7 @@ pub(super) struct FeedbackState {
     focus: Option<bool>,
     /// The previous run ended in a panic or an unhandled exception (its shareable log says so).
     previous_run_crashed: bool,
-    /// The crash balloon is up; clicking it opens the feedback page.
+    /// The crash balloon is up; clicking it opens the feedback form.
     crash_offer_pending: bool,
 }
 
@@ -83,7 +83,7 @@ impl App {
         self.feedback.crash_offer_pending = false;
     }
 
-    /// Opens the settings window on the 「反馈」 page; `crash` says it reports the last crash.
+    /// Opens the settings window at the 「反馈」 form (on 「关于」); `crash` says it reports the last crash.
     pub(super) fn open_feedback(&mut self, crash: bool) {
         let already_open = self.settings.is_some();
         self.open_settings();
@@ -98,7 +98,7 @@ impl App {
         }
     }
 
-    /// `ready` from a freshly loaded page: show the feedback page if that is why it opened.
+    /// `ready` from a freshly loaded page: show the feedback form if that is why it opened.
     pub(super) fn show_pending_feedback(&mut self) {
         if let Some(crash) = self.feedback.focus.take() {
             self.post_show_feedback(crash);

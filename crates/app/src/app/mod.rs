@@ -60,6 +60,7 @@ mod motion;
 mod peek;
 mod portals;
 mod push;
+mod rating;
 mod settings;
 mod sync;
 mod tabs;
@@ -220,9 +221,11 @@ pub struct App {
     settings: Option<SettingsHost>,
     /// Fence to select on the settings page once it reports `ready` (opened via 栅栏选项…).
     settings_focus_fence: Option<FenceId>,
-    /// The 「反馈」 page: pending focus and the crash offer (see `feedback.rs`).
+    /// The 「反馈」 form on 「关于」: pending focus and the crash offer (see `feedback.rs`).
     feedback: feedback::FeedbackState,
     updates: updates::Updates,
+    /// The one-time Store rating offer (see `rating.rs`).
+    rating: rating::RatingPrompt,
     web_env: Option<WebEnvironment>,
     settings_class: WindowClass,
     theme_mode: ThemeMode,
@@ -405,20 +408,20 @@ impl App {
                         }
                         WM_APP_TRAY => {
                             let ev = tray::decode_tray_message(wparam, lparam);
-                            if ev.event == tray::TRAY_EVENT_CONTEXTMENU
-                                || ev.event == tray::TRAY_EVENT_SELECT
-                                || ev.event == tray::TRAY_EVENT_KEYSELECT
-                            {
+                            // Right click (or Shift+F10) = menu; left click (or Enter) =
+                            // settings, at once: no double-click action to wait for.
+                            if ev.event == tray::TRAY_EVENT_CONTEXTMENU {
                                 if let Ok(mut guard) = cell.try_borrow_mut()
                                     && let Some(app) = guard.as_mut()
                                 {
                                     app.show_tray_menu(ev.x, ev.y);
                                 }
-                            } else if ev.event == tray::TRAY_EVENT_LBUTTONDBLCLK
+                            } else if (ev.event == tray::TRAY_EVENT_SELECT
+                                || ev.event == tray::TRAY_EVENT_KEYSELECT)
                                 && let Ok(mut guard) = cell.try_borrow_mut()
                                 && let Some(app) = guard.as_mut()
                             {
-                                app.toggle_all_fences();
+                                app.open_settings();
                             } else if ev.event == tray::TRAY_EVENT_BALLOONUSERCLICK
                                 && let Ok(mut guard) = cell.try_borrow_mut()
                                 && let Some(app) = guard.as_mut()
@@ -882,6 +885,10 @@ impl App {
             control.hwnd(),
             ipc_pending.clone(),
         );
+        let rating = rating::RatingPrompt::load(
+            state.config_path().parent().unwrap_or(Path::new(".")),
+            pecofence_platform::process::is_packaged(),
+        );
 
         let mut app = App {
             state,
@@ -908,6 +915,7 @@ impl App {
             settings_focus_fence: None,
             feedback: Default::default(),
             updates: Default::default(),
+            rating,
             web_env: None,
             settings_class,
             theme_mode,
@@ -1179,6 +1187,7 @@ impl App {
                 }
             }
         }
+        self.offer_rating_if_due();
     }
 
     /// Drains and executes queued commands. Loops because handlers may enqueue more.
@@ -1524,6 +1533,7 @@ impl App {
                 self.dying.retain(|w| w.hwnd() != hwnd);
             }
             Command::SettingsMessage(json) => self.on_settings_message(&json),
+            Command::Notice(event) => self.on_notice(event),
         }
     }
 

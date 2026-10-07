@@ -1,0 +1,18 @@
+--out crates/platform/src/store_bindings.rs
+--flat --dead-code
+
+// Microsoft Store rating dialog (`store.rs`). Interfaces carry the methods; the class entries
+// alone would only be name shells.
+--filter
+    Windows.Services.Store.StoreContext
+    Windows.Services.Store.IStoreContextStatics.GetDefault
+    Windows.Services.Store.IStoreContext4.RequestRateAndReviewAppAsync
+    Windows.Services.Store.StoreRateAndReviewResult
+    Windows.Services.Store.IStoreRateAndReviewResult
+    Windows.Services.Store.StoreRateAndReviewStatus
+    IInitializeWithWindow
+    AllowSetForegroundWindow
+    ASFW_ANY
+    SHQueryUserNotificationState
+    QUERY_USER_NOTIFICATION_STATE
+    QUNS_ACCEPTS_NOTIFICATIONS
