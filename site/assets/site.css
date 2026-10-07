@@ -1087,7 +1087,7 @@ h2 {
     }
 }
 
-/* AI configuration is a primary entry point, directly after the hero. */
+/* AI configuration: the hero links to it; its section follows the feature gallery. */
 .hero-eyebrow {
     padding: 8px 12px;
     border: 1px solid #66599d35;

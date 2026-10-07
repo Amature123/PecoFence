@@ -39,7 +39,7 @@ JavaScript the native controls are shown from the start. The portable download i
 secondary text link.
 
 The hero also links directly to AI configuration through its CLI badge and a secondary action.
-The AI + CLI section follows the hero, before the feature gallery. It presents settings,
+The AI + CLI section follows the feature gallery. It presents settings,
 organization rules and configuration backup as everyday uses, alongside an illustrative PowerShell
 workflow and a localized prompt readers can copy into their coding agent. The CLI guide supplies
 the detailed setup instructions. Both copy buttons have independent feedback and select their own
