@@ -33,13 +33,19 @@
 <script src="demos/portal.js" defer></script>
 </head>
 <body>
-<header class="top">
-  <a class="brand" href="../"><img src="assets/mark.svg" alt="" width="22" height="22">PecoFence <span>使用手册</span></a>
-  <div class="top-nav">
-    <a class="home-link" href="../">返回官网</a>
-    <label class="lang-pick"><span class="visually-hidden">语言</span><select><!--manual:languages--></select></label>
-  </div>
-</header>
+<!--manual:header-->
+
+<div class="manual-hero">
+  <section class="intro">
+    <h1>PecoFence 使用手册</h1>
+    <p>每一节都配了一段动画，跟着做一遍就会。点任意一步，动画就跳到那里；看不清就点「慢放」。</p>
+    <a class="intro-ai" href="#ai">
+        <span class="intro-ai-mark" aria-hidden="true">AI</span>
+        <span class="intro-ai-text"><b>嫌一项项设置麻烦？</b>把想要的效果告诉 Claude Code、Codex 这类 AI 助手，它会帮你把 PecoFence 配好。</span>
+        <span class="intro-ai-go">看看怎么做 →</span>
+      </a>
+  </section>
+</div>
 
 <div class="layout">
   <nav class="toc" aria-label="目录">
@@ -100,17 +106,7 @@
    </details>
   </nav>
 
-  <main>
-    <section class="intro">
-      <h1>PecoFence 使用手册</h1>
-      <p>每一节都配了一段动画，跟着做一遍就会。点任意一步，动画就跳到那里；看不清就点「慢放」。</p>
-      <a class="intro-ai" href="#ai">
-        <span class="intro-ai-mark" aria-hidden="true">AI</span>
-        <span class="intro-ai-text"><b>嫌一项项设置麻烦？</b>把想要的效果告诉 Claude Code、Codex 这类 AI 助手，它会帮你把 PecoFence 配好。</span>
-        <span class="intro-ai-go">看看怎么做 →</span>
-      </a>
-    </section>
-
+  <main id="main">
     <article class="lesson" data-lesson="first-run" id="first-run">
       <header class="lesson-head">
         <p class="kicker">1.1 · 上手</p>
@@ -814,5 +810,7 @@
     </section>
   </main>
 </div>
+
+<!--manual:footer-->
 </body>
 </html>

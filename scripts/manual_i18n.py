@@ -411,8 +411,8 @@ def translate_js(source, data, key_literals=False):
 
 
 def build(out, code, data, chrome):
-    """Write one language's manual into `out` (a directory). `chrome(page) -> page` adds the
-    site header bits (language links, home link)."""
+    """Write one language's manual into `out` (a directory). `chrome(page) -> page` fills the
+    <!--manual:*--> placeholders (see fill)."""
     out = Path(out).resolve()
     if not any(out.is_relative_to(ROOT / d) and out != ROOT / d for d in (".cache", "dist")):
         raise SystemExit(f"Refusing to write the manual outside .cache/ or dist/: {out}")
@@ -433,27 +433,18 @@ def build(out, code, data, chrome):
     (out / "index.html").write_text(chrome(page), encoding="utf-8", newline="\n")
 
 
-def site_chrome(language, languages, origin):
-    """Fills the page's <!--manual:*--> placeholders: canonical + hreflang links and the
-    language picker. The manual lives at /<dir>manual/ beside each language's home page."""
-    up = "../../" if language["dir"] else "../"
-
-    def page(page_source):
-        options = "".join(
-            f'<option value="{lang["code"]}" data-href="{up}{lang["dir"]}manual/"'
-            f'{" selected" if lang["code"] == language["code"] else ""}>{html.escape(lang["name"])}</option>'
-            for lang in languages)
-        head = "\n".join(
-            [f'<link rel="canonical" href="{origin}/{language["dir"]}manual/">']
-            + [f'<link rel="alternate" hreflang="{lang["code"]}" href="{origin}/{lang["dir"]}manual/">' for lang in languages]
-            + [f'<link rel="alternate" hreflang="x-default" href="{origin}/manual/">'])
-        return page_source.replace("<!--manual:languages-->", options).replace("<!--manual:head-->", head)
-    return page
-
-
-def site_languages():
-    config = json.loads((ROOT / "site" / "site.json").read_text(encoding="utf-8"))
-    return config["languages"], f"https://{config['domain']}"
+def fill(parts):
+    """chrome(page) for build: the page's <!--manual:head-->, <!--manual:header--> and
+    <!--manual:footer--> become parts["head"] ... (build-site.py passes the site's header
+    and footer; a preview leaves them empty)."""
+    def chrome(page):
+        for name in ("head", "header", "footer"):
+            mark = f"<!--manual:{name}-->"
+            if mark not in page:
+                raise SystemExit(f"site/manual/page.html has no {mark}")
+            page = page.replace(mark, parts.get(name, ""))
+        return page
+    return chrome
 
 
 def main():
@@ -465,11 +456,9 @@ def main():
     ap.add_argument("--out", default=None, help="preview directory (default .cache/manual-build/<LANG>)")
     args = ap.parse_args()
     if args.build:
-        languages, origin = site_languages()
-        language = next(lang for lang in languages if lang["code"] == args.build)
         out = Path(args.out) if args.out else ROOT / ".cache" / "manual-build" / args.build
         data = {"page": {}, "stage": {}} if args.build == "zh-CN" else load(args.build)
-        build(out.resolve(), args.build, data, site_chrome(language, languages, origin))
+        build(out.resolve(), args.build, data, fill({}))
         print(f"built {args.build} manual into {out}")
     if args.source:
         page_keys, stage = source_strings()

@@ -491,6 +491,7 @@
         const only = params.get('only');
         if (only) document.body.classList.add('only');
         if (params.has('bare')) document.body.classList.add('bare');
+        if (params.has('embed')) document.body.classList.add('bare', 'embed');
         if (only) document.querySelectorAll('.lesson').forEach(s => s.id !== only && s.remove());
         document.querySelectorAll('[data-lesson]').forEach(root => {
             if (only && root.dataset.lesson !== only) {
@@ -547,11 +548,6 @@
         }, { passive: true });
         addEventListener('resize', mark);
         mark();
-        // Language picker: go to the same lesson in the other language.
-        document.querySelector('.lang-pick select')?.addEventListener('change', e => {
-            const href = e.target.selectedOptions[0]?.dataset.href;
-            if (href) location.href = href + location.hash;
-        });
 
         const box = document.querySelector('.toc-box');
         const narrow = matchMedia('(max-width: 1360px)');

@@ -23,16 +23,14 @@
 <script type="application/ld+json">{{structured_data}}</script>
 <meta name="theme-color" content="#f6f7fb">
 <link rel="icon" href="{{root}}assets/mark.svg?v={{v}}" type="image/svg+xml">
+<link rel="stylesheet" href="{{root}}assets/base.css?v={{v}}">
 <link rel="stylesheet" href="{{root}}assets/site.css?v={{v}}">
 <link rel="preload" href="{{root}}assets/promo.jpg" as="image" fetchpriority="high">
 </head>
 <body>
 <svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <symbol id="i-windows" viewBox="0 0 24 24"><path d="M3 4.5 10.5 3.5v8H3zm9-1.2L21 2v9.5h-9zM3 13h7.5v8L3 20zm9 0h9v9.5L12 21.3z" fill="currentColor" stroke="none"/></symbol>
-  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="m9 5 11 7-11 7z" fill="currentColor" stroke="none"/></symbol>
-  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18"/></symbol>
-  <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.61-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03a9.6 9.6 0 0 1 5 0c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.77c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h5l3 4h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></symbol>
@@ -45,30 +43,7 @@
   <symbol id="i-feather" viewBox="0 0 24 24"><path d="M20 4c-5-5-15 3-15 10v5h5C17 19 25 9 20 4ZM3 21 16 8M5 15h8"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/></symbol>
 </svg>
-<a class="skip-link" href="#main">{{t:nav.skip}}</a>
-
-<header id="top" class="masthead">
-  <div class="container header-inner">
-    <a class="brand" href="{{root}}"><img src="{{root}}assets/mark.svg?v={{v}}" alt="" width="30" height="30"><span>PecoFence<span class="brand-dot">.</span></span></a>
-    <nav class="primary-nav" aria-label="PecoFence">
-      <a href="#agents">{{t:nav.agents}}</a>
-      <a href="#features">{{t:nav.features}}</a>
-      <a href="manual/">{{t:nav.manual}}</a>
-      <a href="{{docs}}/README.md">{{t:nav.docs}}</a>
-      <a href="{{repository}}"><svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>{{t:nav.github}}</a>
-    </nav>
-    <div class="header-actions">
-      <label class="lang">
-        <span class="visually-hidden">{{t:nav.language}}</span>
-        <svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>
-        <select id="language-select">
-{{language_options}}
-        </select>
-      </label>
-      <a class="button button-small" href="#download">{{t:nav.download}}<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
-    </div>
-  </div>
-</header>
+{{header}}
 
 <main id="main">
   <div class="hero-shell">
@@ -213,20 +188,7 @@
   </section>
 </main>
 
-<footer class="footer container">
-  <div class="footer-top">
-    <a class="brand" href="#top"><img src="{{root}}assets/mark.svg?v={{v}}" alt="" width="27" height="27"><span>PecoFence<span class="brand-dot">.</span></span></a>
-    <ul class="footer-links">
-      <li><a href="{{repository}}">{{t:footer.source}}</a></li>
-      <li><a href="{{docs}}/README.md">{{t:footer.docs}}</a></li>
-      <li><a href="{{repository}}/issues">{{t:footer.issues}}</a></li>
-      <li><a href="{{repository}}/blob/main/CONTRIBUTING.md">{{t:footer.contribute}}</a></li>
-      <li><a href="{{repository}}/blob/main/LICENSE">{{t:footer.license}}</a></li>
-      <li><a href="{{repository}}/blob/main/third_party/README.md">{{t:footer.notices}}</a></li>
-    </ul>
-  </div>
-  <p class="small">© {{year}} {{t:footer.copyright}}</p>
-</footer>
+{{footer}}
 
 <script src="{{root}}assets/site.js?v={{v}}" defer></script>
 <!-- Cloudflare Web Analytics: privacy-first page views, no cookies, no fingerprinting. -->

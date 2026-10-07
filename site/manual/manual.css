@@ -1,82 +1,20 @@
+/* The site's tokens, header and footer come from ../assets/base.css (build-site.py links it). */
 :root {
-    color-scheme: light;
-    --ink: #19243a;
-    --ink-soft: #566177;
-    --ink-mute: #7a8499;
-    --accent: #4768de;
-    --surface: #f6f7fb;
     --card: #ffffff;
-    --edge: #e3e7ef;
     --win-accent: #2f6be4;
-    --font: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
-    --font-display: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
 }
 
-* { box-sizing: border-box }
+body { min-height: 100vh }
 
-body {
-    margin: 0;
-    color: var(--ink);
-    background:
-        radial-gradient(ellipse 80% 50% at 85% -10%, #f3e6dc 0%, transparent 60%),
-        radial-gradient(ellipse 70% 50% at 0% 0%, #e7e6f6 0%, transparent 55%),
-        var(--surface);
-    font: 400 16px/1.65 var(--font);
-    -webkit-font-smoothing: antialiased;
-    min-height: 100vh;
+/* Wider than the home page, for a contents column beside each animation; the header and
+   footer line up with it. */
+.container, .intro, .layout {
+    width: min(1384px, calc(100% - 56px));
+    margin-inline: auto;
 }
 
-.top {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    max-width: 1440px;
-    margin: 0 auto;
-    padding: 22px 28px 0;
-}
-
-.brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--ink);
-    font: 650 18px/1 var(--font-display);
-    letter-spacing: -.2px;
-    text-decoration: none;
-}
-
-.brand span { color: var(--ink-soft); font-weight: 500 }
-
-.top-nav {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    font-size: 14px;
-}
-
-.home-link { color: var(--ink-soft); text-decoration: none }
-.home-link:hover { color: var(--accent) }
-
-.lang-pick select {
-    height: 32px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 8px;
-    background: var(--card);
-    box-shadow: 0 0 0 1px var(--edge);
-    color: var(--ink);
-    font: inherit;
-    cursor: pointer;
-}
-
-.visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+@media (max-width: 620px) {
+    .container, .intro, .layout { width: calc(100% - 40px) }
 }
 
 /* CJK fonts per language, so kanji / hanzi take the right glyph forms (site.css does the same) */
@@ -102,9 +40,7 @@ html:lang(ko) body { word-break: keep-all; overflow-wrap: anywhere }
 }
 
 .layout {
-    max-width: 1440px;
-    margin: 0 auto;
-    padding: 10px 28px 80px;
+    padding: 0 0 72px;
     display: grid;
     grid-template-columns: 196px minmax(0, 1fr);
     gap: 36px;
@@ -117,8 +53,8 @@ main { min-width: 0 }
 
 .toc {
     position: sticky;
-    top: 18px;
-    max-height: calc(100vh - 36px);
+    top: 102px;                       /* below the site header (84px) */
+    max-height: calc(100vh - 120px);
     overflow: auto;
     padding: 18px 0 12px;
     font-size: 14px;
@@ -178,15 +114,35 @@ main { min-width: 0 }
     white-space: nowrap;
 }
 
+/* The title band: the home page hero's wallpaper and hairline */
+.manual-hero {
+    position: relative;
+    isolation: isolate;
+    background: #f7f3ed;
+    border-bottom: 1px solid #7b729824;
+    overflow: hidden;
+}
+
+.manual-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(180deg, #f7f3edf5 0%, #f7f3edcc 50%, #f7f3ed8c 100%), url(assets/showcase-wallpaper.jpg) 50% 24% / cover;
+}
+
 .intro {
-    padding: 16px 0 6px;
+    padding: 44px 0 40px;
 }
 
 .intro h1 {
     margin: 0;
-    font: 700 clamp(32px, 4vw, 44px)/1.15 var(--font-display);
-    letter-spacing: -.6px;
+    font: 650 clamp(34px, 3.6vw, 52px)/1.1 var(--font-display);
+    letter-spacing: -.05em;
+    text-wrap: balance;
 }
+
+:lang(ja) .intro h1, :lang(ko) .intro h1, :lang(zh-CN) .intro h1, :lang(zh-TW) .intro h1 { letter-spacing: -.03em }
 
 .intro p {
     max-width: 720px;
@@ -270,7 +226,7 @@ main { min-width: 0 }
     .toc-box > summary { column-span: all; margin-bottom: 6px }
 }
 
-body.only .layout > .toc, body.only > .top, body.only main > .intro { display: none }
+body.only .layout > .toc, body.only .skip-link, body.only .masthead, body.only .manual-hero, body.only .footer { display: none }
 body.only .layout { grid-template-columns: minmax(0, 1fr); padding-top: 24px }
 
 /* ---------- lessons ---------- */
@@ -278,25 +234,26 @@ body.only .layout { grid-template-columns: minmax(0, 1fr); padding-top: 24px }
 .lesson {
     padding: 40px 0 46px;
     border-top: 1px solid var(--edge);
-    scroll-margin-top: 10px;
 }
 
-.intro + .lesson { margin-top: 26px }
+main > .lesson:first-child { border-top: 0 }
 
 .lesson-head { margin-bottom: 22px }
 
 .lesson-head h2 {
     margin: 0;
-    font: 700 clamp(26px, 3vw, 34px)/1.2 var(--font-display);
-    letter-spacing: -.4px;
+    font: 650 clamp(27px, 2.8vw, 36px)/1.2 var(--font-display);
+    letter-spacing: -.04em;
 }
 
+:lang(ja) .lesson-head h2, :lang(ko) .lesson-head h2, :lang(zh-CN) .lesson-head h2, :lang(zh-TW) .lesson-head h2 { letter-spacing: -.02em }
+
+/* like the home page's section numbers */
 .kicker {
-    margin: 0 0 6px;
+    margin: 0 0 12px;
     color: var(--accent);
-    font-size: 13.5px;
-    font-weight: 650;
-    letter-spacing: .4px;
+    font: 500 12px/1.5 "Cascadia Code", Consolas, var(--font);
+    letter-spacing: .1em;
 }
 
 .lede {
@@ -992,6 +949,36 @@ kbd {
 
 /* ?only=<lesson>&bare: just the stage, filling the viewport (frame review) */
 body.bare { background: #000 }
-body.bare > .top, body.bare .layout > .toc, body.bare main > .intro, body.bare .lesson > .lesson-head, body.bare .lesson-body > .side, body.bare .demo > .controls { display: none }
+body.bare .lesson > .lesson-head, body.bare .lesson-body > .side, body.bare .demo > .controls { display: none }
 body.bare .layout, body.bare .lesson, body.bare .lesson-body { display: block; padding: 0; margin: 0; border: 0 }
 body.bare .stage { position: fixed; inset: 0; border-radius: 0; box-shadow: none }
+
+/* ?only=<lesson>&embed: the stage and a round play / pause button like the home page's, for
+   its feature gallery (site.js); on top of the bare rules */
+body.embed { background: transparent }
+
+body.embed .demo > .controls {
+    display: block;
+    position: fixed;
+    right: 18px;
+    bottom: calc(3.5vw + 12px);       /* above the stage's taskbar (28 of 800) */
+    margin: 0;
+}
+
+body.embed .controls > :not(.play) { display: none }
+
+body.embed .play {
+    width: 42px;
+    height: 42px;
+    color: #fff;
+    background: #102344dc;
+    box-shadow: 0 0 0 1px #ffffff50;
+}
+
+body.embed .play:hover { background: #36598d }
+body.embed .play svg { width: 14px; height: 14px }
+
+@media (max-width: 620px) {
+    body.embed .demo > .controls { right: 9px; bottom: calc(3.5vw + 7px) }
+    body.embed .play { width: 36px; height: 36px }
+}
