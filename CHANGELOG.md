@@ -8,6 +8,7 @@
 - The Store edition asks for a rating once. A week after its first start, a card above the taskbar offers it for 30 seconds (longer while the pointer rests on it), and 「去评分」 opens the Microsoft Store's own rating dialog in the middle of the screen. It never asks again, whether or not you click. 「关于」 in Settings has 「在 Microsoft Store 评分」 (Store edition only) and 「在 GitHub 点 Star」 for any time.
 - Clicking the tray icon opens Settings; right-clicking it opens the menu, as before. Double-clicking the tray icon no longer hides the fences (it also opened the menu); double-click empty desktop space or use 「隐藏所有栅栏」 in the menu.
 - Settings has one page fewer: the 「反馈」 form is now a section of 「关于」 (「发送反馈…」 in the tray menu and the crash notification open it there), and 「配置文件」 with 「打开配置文件夹」 moved to 「布局与备份」 › 「备份」, next to export and import.
+- The fence menu and the tray menu show Windows 11 style icons beside their commands, such as 收起, 重命名, 新建, 粘贴, 栅栏选项 and 删除栅栏. 「锁定位置和大小」 no longer shows a check mark: on a locked fence the same entry reads 「解除锁定」.
 
 ## 0.1.4
 

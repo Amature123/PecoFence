@@ -500,6 +500,20 @@ pub unsafe fn DragQueryFileW(
     }
 }
 #[inline]
+pub unsafe fn DrawTextW<P1>(
+    hdc: HDC,
+    lpchtext: P1,
+    cchtext: i32,
+    lprc: *mut RECT,
+    format: u32,
+) -> i32
+where
+    P1: windows_core::Param<windows_core::PCWSTR>,
+{
+    windows_core::link!("user32.dll" "system" fn DrawTextW(hdc : HDC, lpchtext : windows_core::PCWSTR, cchtext : i32, lprc : *mut RECT, format : u32) -> i32);
+    unsafe { DrawTextW(hdc, lpchtext.param().abi(), cchtext, lprc as _, format) }
+}
+#[inline]
 pub unsafe fn DwmExtendFrameIntoClientArea(
     hwnd: HWND,
     pmarinset: *const MARGINS,
@@ -624,6 +638,11 @@ where
 pub unsafe fn FlushFileBuffers(hfile: HANDLE) -> windows_core::BOOL {
     windows_core::link!("kernel32.dll" "system" fn FlushFileBuffers(hfile : HANDLE) -> windows_core::BOOL);
     unsafe { FlushFileBuffers(hfile) }
+}
+#[inline]
+pub unsafe fn GdiFlush() -> windows_core::BOOL {
+    windows_core::link!("gdi32.dll" "system" fn GdiFlush() -> windows_core::BOOL);
+    unsafe { GdiFlush() }
 }
 #[inline]
 pub unsafe fn GetAncestor(hwnd: HWND, gaflags: u32) -> HWND {
@@ -2010,6 +2029,16 @@ pub unsafe fn SetLayeredWindowAttributes(
     unsafe { SetLayeredWindowAttributes(hwnd, crkey, balpha, dwflags) }
 }
 #[inline]
+pub unsafe fn SetMenuItemInfoW(
+    hmenu: HMENU,
+    item: u32,
+    fbypositon: bool,
+    lpmii: *const MENUITEMINFOW,
+) -> windows_core::BOOL {
+    windows_core::link!("user32.dll" "system" fn SetMenuItemInfoW(hmenu : HMENU, item : u32, fbypositon : windows_core::BOOL, lpmii : *const MENUITEMINFOW) -> windows_core::BOOL);
+    unsafe { SetMenuItemInfoW(hmenu, item, fbypositon.into(), lpmii) }
+}
+#[inline]
 pub unsafe fn SetProcessDpiAwarenessContext(value: DPI_AWARENESS_CONTEXT) -> windows_core::BOOL {
     windows_core::link!("user32.dll" "system" fn SetProcessDpiAwarenessContext(value : DPI_AWARENESS_CONTEXT) -> windows_core::BOOL);
     unsafe { SetProcessDpiAwarenessContext(value) }
@@ -2387,6 +2416,7 @@ pub struct ADDRESS64 {
     pub Mode: ADDRESS_MODE,
 }
 pub type ADDRESS_MODE = i32;
+pub const ANTIALIASED_QUALITY: i32 = 4;
 #[repr(C, align(16))]
 #[cfg(any(target_arch = "arm64ec", target_arch = "x86", target_arch = "x86_64"))]
 #[derive(Clone, Copy)]
@@ -2665,7 +2695,9 @@ pub const COINIT_MULTITHREADED: COINIT = 0;
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct COLORREF(pub u32);
+pub const COLOR_GRAYTEXT: i32 = 17;
 pub const COLOR_HIGHLIGHT: i32 = 13;
+pub const COLOR_MENUTEXT: i32 = 7;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct COMDLG_FILTERSPEC {
@@ -3321,6 +3353,10 @@ pub struct DROPFILES {
     pub fNC: windows_core::BOOL,
     pub fWide: windows_core::BOOL,
 }
+pub const DT_CENTER: i32 = 1;
+pub const DT_NOPREFIX: i32 = 2048;
+pub const DT_SINGLELINE: i32 = 32;
+pub const DT_VCENTER: i32 = 4;
 pub type DVASPECT = i32;
 pub const DVASPECT_CONTENT: DVASPECT = 1;
 #[repr(C)]
@@ -14156,6 +14192,7 @@ pub const MF_POPUP: i32 = 16;
 pub const MF_SEPARATOR: i32 = 2048;
 pub const MF_STRING: i32 = 0;
 pub const MF_UNCHECKED: i32 = 0;
+pub const MIIM_BITMAP: i32 = 128;
 pub const MIIM_FTYPE: i32 = 256;
 pub const MIIM_ID: i32 = 2;
 pub const MIIM_STATE: i32 = 1;
@@ -15422,6 +15459,7 @@ pub const SMTO_BLOCK: i32 = 1;
 pub const SM_CXDOUBLECLK: i32 = 36;
 pub const SM_CXDRAG: i32 = 68;
 pub const SM_CXSCREEN: i32 = 0;
+pub const SM_CXSMICON: i32 = 49;
 pub const SM_CYDOUBLECLK: i32 = 37;
 pub const SM_CYDRAG: i32 = 69;
 pub const SM_CYSCREEN: i32 = 1;
