@@ -10,6 +10,48 @@
     });
   }
 
+  // On narrow screens the header links fold into a menu (base.css); without JS they are in the footer.
+  var masthead = document.querySelector(".masthead");
+  var menu = document.querySelector(".nav-toggle");
+  if (masthead && menu) {
+    var setMenu = function (open) {
+      masthead.classList.toggle("nav-open", open);
+      menu.setAttribute("aria-expanded", String(open));
+    };
+    menu.hidden = false;
+    menu.addEventListener("click", function () {
+      var open = !masthead.classList.contains("nav-open");
+      setMenu(open);
+      // The links come before the button, so move into them for keyboard users.
+      if (open) document.querySelector("#site-nav a").focus({ preventScroll: true });
+    });
+    document.getElementById("site-nav").addEventListener("click", function (event) {
+      if (event.target.closest("a")) setMenu(false);
+    });
+    document.addEventListener("click", function (event) {
+      if (!masthead.contains(event.target)) setMenu(false);
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && masthead.classList.contains("nav-open")) {
+        setMenu(false);
+        menu.focus();
+      }
+    });
+    window.matchMedia("(min-width: 841px)").addEventListener("change", function () { setMenu(false); });
+  }
+
+  // Each feature shows the manual's animation of it (manual/?only=<lesson>&embed) in place of
+  // the recording, loaded the first time its tab opens; the recording stays without JS.
+  function showDemo(panel) {
+    var frame = panel.querySelector(".feature-demo");
+    if (!frame || frame.hidden === false) return;
+    var media = frame.parentNode;
+    media.querySelector("video").controls = false;
+    frame.addEventListener("load", function () { media.classList.add("has-demo"); });
+    frame.hidden = false;
+    frame.src = frame.getAttribute("data-src");
+  }
+
   // Without JS every feature remains visible; enhance to a keyboard-friendly gallery.
   var picker = document.querySelector(".feature-picker");
   if (picker) {
@@ -24,7 +66,8 @@
         panel.setAttribute("role", "tabpanel");
         panel.setAttribute("aria-labelledby", item.id);
         panel.tabIndex = 0;
-        if (!active) panel.querySelector("video").pause();
+        if (active) showDemo(panel);
+        else panel.querySelector("video").pause();
       });
       if (focus) {
         tab.focus({ preventScroll: true });
@@ -97,43 +140,6 @@
     });
   });
 
-  // Start with the new native scene covers. Play recordings only on request,
-  // and pause them when the reader moves away.
-  var videos = Array.prototype.slice.call(document.querySelectorAll(".clip video"));
-  videos.forEach(function (video) {
-    var fence = video.closest(".clip");
-    var toggle = fence.querySelector(".clip-toggle");
-    toggle.hidden = false;
-    video.controls = false;
-    function reflect() {
-      fence.classList.toggle("is-playing", !video.paused);
-      var action = toggle.getAttribute(video.paused ? "data-play" : "data-pause");
-      toggle.setAttribute("aria-label", action + ": " + toggle.getAttribute("data-title"));
-    }
-    toggle.addEventListener("click", function () {
-      if (video.paused) {
-        video.setAttribute("data-user-paused", "0");
-        video.play().catch(function () {});
-      } else {
-        video.setAttribute("data-user-paused", "1");
-        video.pause();
-      }
-    });
-    video.addEventListener("play", reflect);
-    video.addEventListener("pause", reflect);
-    reflect();
-  });
-  if ("IntersectionObserver" in window) {
-    var observer = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        var video = entry.target;
-        if ((!entry.isIntersecting || entry.intersectionRatio < 0.5) && !video.paused) {
-          video.pause();
-        }
-      });
-    }, { threshold: [0, 0.5] });
-    videos.forEach(function (video) { observer.observe(video); });
-  }
   // Pause background playback when the page is no longer visible.
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) {

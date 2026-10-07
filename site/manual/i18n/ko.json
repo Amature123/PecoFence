@@ -1,9 +1,8 @@
 {
  "page": {
   "PecoFence 使用手册": "PecoFence 사용 설명서",
-  "<img src=\"assets/mark.svg\" alt=\"\" width=\"22\" height=\"22\">PecoFence <span>使用手册</span>": "<img src=\"assets/mark.svg\" alt=\"\" width=\"22\" height=\"22\">PecoFence <span>사용 설명서</span>",
-  "返回官网": "홈페이지로 돌아가기",
-  "<span class=\"visually-hidden\">语言</span><select><!--manual:languages--></select>": "<span class=\"visually-hidden\">언어</span><select><!--manual:languages--></select>",
+  "每一节都配了一段动画，跟着做一遍就会。点任意一步，动画就跳到那里；看不清就点「慢放」。": "단원마다 애니메이션이 있어 그대로 따라 하면 됩니다. 단계를 클릭하면 애니메이션이 그 부분으로 이동하고, 너무 빠르면 ‘느리게’를 클릭하세요.",
+  "\n        <span class=\"intro-ai-mark\" aria-hidden=\"true\">AI</span>\n        <span class=\"intro-ai-text\"><b>嫌一项项设置麻烦？</b>把想要的效果告诉 Claude Code、Codex 这类 AI 助手，它会帮你把 PecoFence 配好。</span>\n        <span class=\"intro-ai-go\">看看怎么做 →</span>\n      ": "\n        <span class=\"intro-ai-mark\" aria-hidden=\"true\">AI</span>\n        <span class=\"intro-ai-text\"><b>하나하나 설정하기 번거로우신가요?</b>원하는 모습을 Claude Code, Codex 같은 AI 에이전트에게 말하면 PecoFence를 대신 설정해 줍니다.</span>\n        <span class=\"intro-ai-go\">방법 보기 →</span>\n      ",
   "目录": "목차",
   "上手": "시작하기",
   "<a href=\"#first-run\"><span class=\"num\">1.1</span>第一次打开</a>": "<a href=\"#first-run\"><span class=\"num\">1.1</span>처음 실행하기</a>",
@@ -29,8 +28,6 @@
   "附录": "부록",
   "<a href=\"#keys\"><span class=\"num\">A</span>快捷键一览</a>": "<a href=\"#keys\"><span class=\"num\">A</span>바로 가기 키 목록</a>",
   "<a href=\"#faq\"><span class=\"num\">B</span>常见问题</a>": "<a href=\"#faq\"><span class=\"num\">B</span>자주 묻는 질문</a>",
-  "每一节都配了一段动画，跟着做一遍就会。点任意一步，动画就跳到那里；看不清就点「慢放」。": "단원마다 애니메이션이 있어 그대로 따라 하면 됩니다. 단계를 클릭하면 애니메이션이 그 부분으로 이동하고, 너무 빠르면 ‘느리게’를 클릭하세요.",
-  "\n        <span class=\"intro-ai-mark\" aria-hidden=\"true\">AI</span>\n        <span class=\"intro-ai-text\"><b>嫌一项项设置麻烦？</b>把想要的效果告诉 Claude Code、Codex 这类 AI 助手，它会帮你把 PecoFence 配好。</span>\n        <span class=\"intro-ai-go\">看看怎么做 →</span>\n      ": "\n        <span class=\"intro-ai-mark\" aria-hidden=\"true\">AI</span>\n        <span class=\"intro-ai-text\"><b>하나하나 설정하기 번거로우신가요?</b>원하는 모습을 Claude Code, Codex 같은 AI 에이전트에게 말하면 PecoFence를 대신 설정해 줍니다.</span>\n        <span class=\"intro-ai-go\">방법 보기 →</span>\n      ",
   "1.1 · 上手": "1.1 · 시작하기",
   "第一次打开": "처음 실행하기",
   "打开 PecoFence，桌面上的图标会自动分好类。": "PecoFence를 실행하면 바탕 화면 아이콘이 자동으로 분류됩니다.",

@@ -9,7 +9,9 @@ The product page at <https://pecofence.jiang.jp> is a static site generated from
 | Path | Purpose |
 |---|---|
 | `site/template.html` | One HTML template rendered once per language |
-| `site/assets/site.css`, `site.js`, `mark.svg` | Responsive styles, the hero trailer's play control, accessible feature tabs, clip playback, AI prompt and install command copy buttons, language picker and favicon |
+| `site/partials/header.html`, `footer.html` | The header (links, language picker, download button, phone menu) and footer, shared by the home page and the manual |
+| `site/assets/base.css` | Tokens, header, phone menu and footer styles, shared by the home page and the manual |
+| `site/assets/site.css`, `site.js`, `mark.svg` | The home page's styles; the phone menu, the hero trailer's play control, accessible feature tabs and their animations, AI prompt and install command copy buttons, language picker (`site.js` runs on the manual too) and favicon |
 | `site/assets/*.mp4`, `*.jpg`, `panel-*.png`, `wallpaper.jpg` | The 30-second trailer (`promo.mp4`, v3; `--promo-only` re-exports just it and its poster), six feature clips, posters, the three hero fences and the wallpaper, exported by `scripts/make-site-media.py` from the local promo project |
 | `site/assets/showcase-wallpaper.jpg` | The hero's backdrop: the original wallpaper from the revision-2 Store scene |
 | `site/i18n/<language>.json` | Copy for each language; `en.json` is the source and every other file must have the same keys |
@@ -20,7 +22,9 @@ The build writes `dist/site/`: `index.html` for English, one `<language>/index.h
 per translation, the localized README hero images as Open Graph and Twitter previews, `CNAME`,
 `robots.txt` and `sitemap.xml`. Pages carry `hreflang` alternates, so search engines
 send visitors to their language; the header's language picker and the language links
-do the same by hand. The picker preserves the current section.
+do the same by hand. The picker preserves the current section. At 840 px and narrower
+the header links fold into a menu button (and at 480 px the download button joins
+them); without JavaScript the footer still links to the manual and the docs.
 
 The page pairs a warm paper-and-lavender hero with a light reading canvas. The
 30-second trailer is the hero's visual and the largest element on the page
@@ -40,11 +44,14 @@ workflow and a localized prompt readers can copy into their coding agent. The CL
 the detailed setup instructions. Both copy buttons have independent feedback and select their own
 text if clipboard access fails; the prompt and install command remain readable without JavaScript.
 
-The feature gallery shows one large native scene cover at a time, with click and Left/Right/Home/End
-keyboard navigation. With JavaScript disabled all six clips appear with native video
-controls. Five covers come from the revision-2 desktop, Peek, tabs, automatic sorting
-and folder scenes; the hide/show cover remains a frame from its existing recording.
-Videos play on request and pause when hidden or offscreen. Installation requirements expand without JavaScript;
+The feature gallery shows one feature at a time, with click and Left/Right/Home/End
+keyboard navigation. Each one plays the manual's animation of it in the page's
+language (an iframe of `manual/?only=<lesson>&embed`, `FEATURE_LESSONS` in
+`build-site.py`), loaded the first time its tab opens; it plays while in view, has
+its own play / pause button and links to the lesson's steps. With JavaScript disabled
+all six recordings appear with native video controls instead. Five of their covers
+come from the revision-2 desktop, Peek, tabs, automatic sorting and folder scenes; the
+hide/show cover remains a frame from its existing recording. Installation requirements expand without JavaScript;
 clipboard copying is available on HTTPS and localhost. No external fonts, UI libraries
 or additional build dependencies are required.
 
@@ -119,12 +126,15 @@ CSS (a miniature Windows desktop, fences, a scripted pointer with click rings, g
 captions and keycaps), a step list that highlights in sync, a scrub bar and a half-speed
 switch, plus two reference appendices (shortcuts, FAQ). The build writes one copy per
 language beside its home page: `/manual/` for English, `/<language>/manual/` for the
-others; the site header links to it.
+others, with the home page's header and footer (`site/partials`, `base.css`) filled into
+the page's `<!--manual:header-->` and `<!--manual:footer-->`. The manual is wider than
+the home page (a contents column beside each animation), and its header and footer
+line up with it.
 
 | Path | Purpose |
 |---|---|
 | `page.html` | The zh-CN page, the master copy of every lesson's text |
-| `manual.js` | Engine and player (`window.PM`). Every demo is a pure function of time, so `?only=<lesson>&bare&seek=<s>` freezes one frame of one lesson |
+| `manual.js` | Engine and player (`window.PM`). Every demo is a pure function of time, so `?only=<lesson>&bare&seek=<s>` freezes one frame of one lesson; `?only=<lesson>&embed` is the stage alone with a play / pause button, for the home page's gallery |
 | `demos/<lesson>.js`, `demos/*.css` | One demo per lesson; `settings-mock.js` draws the settings window for the settings lessons |
 | `assets/` | Icons, the wallpaper and the logo used inside the demos |
 | `i18n/<language>.json` | Translations: `page` maps each text block of `page.html` (inner HTML) and `stage` maps each Chinese string literal of the demos (plain text) to the language |
@@ -134,7 +144,7 @@ Edit lessons in `page.html` and the demo scripts, then refresh the translation f
 ```powershell
 uv run python scripts/manual_i18n.py --prefill en zh-TW ja ko de fr es pt-BR ru   # add new keys
 uv run python scripts/manual_i18n.py --check                                     # coverage per language
-uv run python scripts/manual_i18n.py --build ja                                  # preview into .cache/manual-build/ja
+uv run python scripts/manual_i18n.py --build ja                                  # preview into .cache/manual-build/ja (no site header)
 ```
 
 `--prefill` fills demo strings that are the app's own UI text from `locales/<language>.json`,

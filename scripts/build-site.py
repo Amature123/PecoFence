@@ -1,8 +1,10 @@
 """Build the static product site into dist/site.
 
-Renders site/template.html once per language in site/i18n/, copies site/assets and
-the localized README hero images, and writes CNAME, robots.txt and sitemap.xml for
-GitHub Pages. No dependencies beyond the standard library.
+Renders site/template.html once per language in site/i18n/, and beside it that
+language's animated manual (site/manual, scripts/manual_i18n.py) with the same header
+and footer (site/partials). Copies site/assets and the localized README hero images,
+and writes CNAME, robots.txt and sitemap.xml for GitHub Pages. No dependencies beyond
+the standard library.
 """
 import argparse
 import datetime
@@ -23,17 +25,15 @@ FEATURES = ["groups", "peek", "tabs", "rules", "portal", "hide"]
 DETAILS = ["glass", "files", "space", "back", "footprint", "safe"]
 FEATURE_ICONS = ["grid", "cursor", "layers", "spark", "folder", "expand"]
 DETAIL_ICONS = ["spark", "cursor", "expand", "restore", "feather", "shield"]
+# The manual lesson each feature's animation and step-by-step link come from.
+FEATURE_LESSONS = {"groups": "create", "peek": "peek", "tabs": "tabs", "rules": "rules", "portal": "portal",
+                   "hide": "hide"}
 STORE = "https://apps.microsoft.com/detail/9MV6WG3XNWSX"
 PLACEHOLDER = re.compile(r"\{\{(t|raw):([\w.]+)\}\}|\{\{(\w+)\}\}")
 OG_LOCALES = {
     "en": "en_US", "zh-CN": "zh_CN", "zh-TW": "zh_TW", "ja": "ja_JP", "ko": "ko_KR",
     "de": "de_DE", "fr": "fr_FR", "es": "es_ES", "pt-BR": "pt_BR", "ru": "ru_RU",
 }
-
-PLAY = ('<svg aria-hidden="true" class="icon-play" width="12" height="12" viewBox="0 0 12 12">'
-        '<path d="M3 1.5v9l7-4.5z" fill="currentColor"/></svg>')
-PAUSE = ('<svg aria-hidden="true" class="icon-pause" width="12" height="12" viewBox="0 0 12 12">'
-         '<path d="M2.5 1.5h2.5v9H2.5zM7 1.5h2.5v9H7z" fill="currentColor"/></svg>')
 
 
 def render(template, values, strings):
@@ -47,25 +47,30 @@ def render(template, values, strings):
 
 
 def feature_fences(strings, root):
+    """One card per feature: the recording, replaced by site.js with the manual's animation of
+    the feature (manual/?only=<lesson>&embed), and a link to the lesson's steps."""
     parts = []
+    guide = html.escape(strings["features.guide"])
     for name, icon in zip(FEATURES, FEATURE_ICONS):
         title = html.escape(strings[f"feature.{name}.title"])
-        play = html.escape(strings["features.play"], quote=True)
-        pause = html.escape(strings["features.pause"], quote=True)
+        lesson = FEATURE_LESSONS[name]
         parts.append(f'''      <article id="feature-{name}" class="feature-card clip feature-{name}">
         <div class="feature-copy">
           <div class="feature-heading">
             <span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-{icon}"/></svg></span>
             <h3>{title}</h3>
           </div>
-          <p>{strings[f"feature.{name}.text"]}</p>
+          <div class="feature-text">
+            <p>{strings[f"feature.{name}.text"]}</p>
+            <a class="text-link" href="manual/#{lesson}">{guide}<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          </div>
         </div>
         <div class="feature-media">
           <video aria-label="{title}" controls muted loop playsinline preload="none" poster="{root}assets/{name}.jpg" width="1290" height="726">
             <source src="{root}assets/{name}.mp4" type="video/mp4">
             <img class="poster" src="{root}assets/{name}.jpg" alt="" width="1290" height="726">
           </video>
-          <button class="clip-toggle" type="button" aria-label="{play}: {title}" data-play="{play}" data-pause="{pause}" data-title="{title}" hidden>{PLAY}{PAUSE}</button>
+          <iframe class="feature-demo" title="{title}" data-src="manual/?only={lesson}&amp;embed" loading="lazy" hidden></iframe>
         </div>
       </article>''')
     return "\n".join(parts)
@@ -105,11 +110,13 @@ def main():
     repository = config["repository"].rstrip("/")
     docs = f"{repository}/blob/main/docs"
     template = (SITE / "template.html").read_text(encoding="utf-8")
+    header = (SITE / "partials/header.html").read_text(encoding="utf-8")
+    footer = (SITE / "partials/footer.html").read_text(encoding="utf-8")
     # Content hash appended to the stylesheet and script URLs so browsers pick up new
     # versions immediately despite the CDN's cache lifetime.
     asset_version = hashlib.sha256(
-        (SITE / "assets/site.css").read_bytes() + (SITE / "assets/site.js").read_bytes()
-        + (SITE / "assets/mark.svg").read_bytes()
+        (SITE / "assets/base.css").read_bytes() + (SITE / "assets/site.css").read_bytes()
+        + (SITE / "assets/site.js").read_bytes() + (SITE / "assets/mark.svg").read_bytes()
     ).hexdigest()[:10]
     languages = config["languages"]
     english = json.loads((SITE / "i18n/en.json").read_text(encoding="utf-8"))
@@ -153,11 +160,13 @@ def main():
         else:
             problems.append(f"no strings for {code}, using English")
         root = "../" if directory else ""
-        language_options = "\n".join(
-            f'        <option value="{lang["code"]}" data-href="{root}{lang["dir"]}"{" selected" if lang is language else ""}>'
-            f'{html.escape(lang["name"])}</option>'
-            for lang in languages
-        )
+
+        def language_options(href):
+            return "\n".join(
+                f'        <option value="{lang["code"]}" data-href="{href(lang)}"{" selected" if lang is language else ""}>'
+                f'{html.escape(lang["name"])}</option>'
+                for lang in languages
+            )
         canonical = f"{origin}/{directory}"
         hero_image = f"{origin}/assets/hero-{code}.png?v={hero_version}"
         # schema.org data for search engines; "</" is escaped so the JSON cannot close the script tag.
@@ -192,19 +201,34 @@ def main():
             "features": feature_fences(strings, root),
             "feature_tabs": feature_tabs(strings),
             "details": detail_items(strings),
-            "language_options": language_options,
             "year": str(datetime.date.today().year),
             "v": asset_version,
         }
+        # Header and footer as on the home page (links relative to it) ...
+        chrome = {"home": "", "manual": "manual/", "manual_current": "",
+                  "language_options": language_options(lambda lang: f"{root}{lang['dir']}")}
+        values["header"] = render(header, {**values, **chrome}, strings)
+        values["footer"] = render(footer, {**values, **chrome}, strings)
         page = render(template, values, strings)
         target = out / directory / "index.html"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(page, encoding="utf-8", newline="\n")
         urls.append(f"{origin}/{directory}")
 
-    # The animated user manual beside each language's home page (scripts/manual_i18n.py).
-    for language in languages:
-        code = language["code"]
+        # ... and on the manual at <dir>manual/, one level down.
+        up = "../" + root
+        chrome = {"root": up, "home": "../", "manual": "./", "manual_current": ' aria-current="page"',
+                  "language_options": language_options(lambda lang: f"{up}{lang['dir']}manual/")}
+        parts = {
+            "head": "\n".join(
+                [f'<link rel="canonical" href="{origin}/{directory}manual/">']
+                + [f'<link rel="alternate" hreflang="{lang["code"]}" href="{origin}/{lang["dir"]}manual/">' for lang in languages]
+                + [f'<link rel="alternate" hreflang="x-default" href="{origin}/manual/">',
+                   f'<link rel="stylesheet" href="{up}assets/base.css?v={asset_version}">',
+                   f'<script src="{up}assets/site.js?v={asset_version}" defer></script>']),
+            "header": render(header, {**values, **chrome}, strings),
+            "footer": render(footer, {**values, **chrome}, strings),
+        }
         if code == "zh-CN":
             data = {"page": {}, "stage": {}}
         else:
@@ -214,9 +238,8 @@ def main():
                        + sum(not data.get("keys", {}).get(k) for k in manual_i18n.key_names()))
             if missing:
                 problems.append(f"manual/i18n/{code}.json: {missing} untranslated strings (shown in Chinese)")
-        manual_i18n.build(out / language["dir"] / "manual", code, data,
-                          manual_i18n.site_chrome(language, languages, origin))
-        urls.append(f"{origin}/{language['dir']}manual/")
+        manual_i18n.build(out / directory / "manual", code, data, manual_i18n.fill(parts))
+        urls.append(f"{origin}/{directory}manual/")
 
     (out / "CNAME").write_text(config["domain"] + "\n", encoding="utf-8")
     (out / ".nojekyll").write_text("", encoding="utf-8")
