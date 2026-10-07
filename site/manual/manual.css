@@ -222,7 +222,8 @@ main { min-width: 0 }
     .toc-box > summary::after { content: "▾"; color: var(--ink-mute) }
     .toc-box[open] > summary::after { content: "▴" }
     .toc-box[open] { padding-bottom: 8px }
-    .toc-box { columns: 3 220px; column-gap: 24px }
+    /* columns only when open: Safari keeps a closed multi-column <details> as tall as its contents */
+    .toc-box[open] { columns: 3 220px; column-gap: 24px }
     .toc-box > summary { column-span: all; margin-bottom: 6px }
 }
 
