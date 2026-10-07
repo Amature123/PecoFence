@@ -11,7 +11,11 @@ import html
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import manual_i18n  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
@@ -197,6 +201,22 @@ def main():
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(page, encoding="utf-8", newline="\n")
         urls.append(f"{origin}/{directory}")
+
+    # The animated user manual beside each language's home page (scripts/manual_i18n.py).
+    for language in languages:
+        code = language["code"]
+        if code == "zh-CN":
+            data = {"page": {}, "stage": {}}
+        else:
+            data = manual_i18n.load(code)
+            page_keys, stage = manual_i18n.source_strings()
+            missing = (sum(not data["page"].get(k) for k in page_keys) + sum(not data["stage"].get(k) for k in stage)
+                       + sum(not data.get("keys", {}).get(k) for k in manual_i18n.key_names()))
+            if missing:
+                problems.append(f"manual/i18n/{code}.json: {missing} untranslated strings (shown in Chinese)")
+        manual_i18n.build(out / language["dir"] / "manual", code, data,
+                          manual_i18n.site_chrome(language, languages, origin))
+        urls.append(f"{origin}/{language['dir']}manual/")
 
     (out / "CNAME").write_text(config["domain"] + "\n", encoding="utf-8")
     (out / ".nojekyll").write_text("", encoding="utf-8")

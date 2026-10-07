@@ -14,6 +14,7 @@ The product page at <https://pecofence.jiang.jp> is a static site generated from
 | `site/assets/showcase-wallpaper.jpg` | The hero's backdrop: the original wallpaper from the revision-2 Store scene |
 | `site/i18n/<language>.json` | Copy for each language; `en.json` is the source and every other file must have the same keys |
 | `site/site.json` | Domain, repository URL and the language list |
+| `site/manual/` | The animated user manual (see [The user manual](#the-user-manual)) |
 
 The build writes `dist/site/`: `index.html` for English, one `<language>/index.html`
 per translation, the localized README hero images as Open Graph and Twitter previews, `CNAME`,
@@ -110,6 +111,41 @@ key. Keep UI terms identical to the language's catalog in `locales/`, and reuse 
 wording of the matching README in `docs/readme/`. Strings whose keys are inserted
 with `{{raw:...}}` in the template may contain the `<kbd>` and `<code>` markup shown
 in `en.json`; everything else is escaped.
+
+## The user manual
+
+`site/manual/` is an interactive manual: 15 lessons whose demos are drawn in HTML and
+CSS (a miniature Windows desktop, fences, a scripted pointer with click rings, gesture
+captions and keycaps), a step list that highlights in sync, a scrub bar and a half-speed
+switch, plus two reference appendices (shortcuts, FAQ). The build writes one copy per
+language beside its home page: `/manual/` for English, `/<language>/manual/` for the
+others; the site header links to it.
+
+| Path | Purpose |
+|---|---|
+| `page.html` | The zh-CN page, the master copy of every lesson's text |
+| `manual.js` | Engine and player (`window.PM`). Every demo is a pure function of time, so `?only=<lesson>&bare&seek=<s>` freezes one frame of one lesson |
+| `demos/<lesson>.js`, `demos/*.css` | One demo per lesson; `settings-mock.js` draws the settings window for the settings lessons |
+| `assets/` | Icons, the wallpaper and the logo used inside the demos |
+| `i18n/<language>.json` | Translations: `page` maps each text block of `page.html` (inner HTML) and `stage` maps each Chinese string literal of the demos (plain text) to the language |
+
+Edit lessons in `page.html` and the demo scripts, then refresh the translation files:
+
+```powershell
+uv run python scripts/manual_i18n.py --prefill en zh-TW ja ko de fr es pt-BR ru   # add new keys
+uv run python scripts/manual_i18n.py --check                                     # coverage per language
+uv run python scripts/manual_i18n.py --build ja                                  # preview into .cache/manual-build/ja
+```
+
+`--prefill` fills demo strings that are the app's own UI text from `locales/<language>.json`,
+so the demos show the words the app really uses; translate the remaining keys by hand.
+Text in the page that names app UI must use the same catalog wording. `build-site.py
+--strict` fails while any manual string of any language is untranslated. Demo texts are
+replaced as whole literals at build time, so lookups such as a menu row found by its
+label keep working in every language; menus grow to fit longer translations and long
+fence titles ellipsize like the app. The lessons describe the real app: check behaviour
+and UI strings against the code (`crates/app/src/app/menus.rs`, `ui/settings.html`)
+when changing them.
 
 ## Refreshing media
 
