@@ -408,20 +408,20 @@ impl App {
                         }
                         WM_APP_TRAY => {
                             let ev = tray::decode_tray_message(wparam, lparam);
-                            if ev.event == tray::TRAY_EVENT_CONTEXTMENU
-                                || ev.event == tray::TRAY_EVENT_SELECT
-                                || ev.event == tray::TRAY_EVENT_KEYSELECT
-                            {
+                            // Right click (or Shift+F10) = menu; left click (or Enter) =
+                            // settings, at once: no double-click action to wait for.
+                            if ev.event == tray::TRAY_EVENT_CONTEXTMENU {
                                 if let Ok(mut guard) = cell.try_borrow_mut()
                                     && let Some(app) = guard.as_mut()
                                 {
                                     app.show_tray_menu(ev.x, ev.y);
                                 }
-                            } else if ev.event == tray::TRAY_EVENT_LBUTTONDBLCLK
+                            } else if (ev.event == tray::TRAY_EVENT_SELECT
+                                || ev.event == tray::TRAY_EVENT_KEYSELECT)
                                 && let Ok(mut guard) = cell.try_borrow_mut()
                                 && let Some(app) = guard.as_mut()
                             {
-                                app.toggle_all_fences();
+                                app.open_settings();
                             } else if ev.event == tray::TRAY_EVENT_BALLOONUSERCLICK
                                 && let Ok(mut guard) = cell.try_borrow_mut()
                                 && let Some(app) = guard.as_mut()
