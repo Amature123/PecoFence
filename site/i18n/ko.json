@@ -8,6 +8,7 @@
   "meta.description": "Windows 11용 무료 오픈 소스 Stardock Fences 대안입니다. 바탕 화면 아이콘을 유리 펜스로 나눠 정리하고, 새 파일은 자동으로 분류하고, 탭으로 프로젝트를 전환하세요. 설정은 AI 에이전트에게 맡길 수도 있습니다.",
   "nav.features": "실제 동작 보기",
   "nav.agents": "AI + CLI",
+  "nav.manual": "사용 설명서",
   "nav.download": "다운로드",
   "nav.docs": "문서",
   "nav.github": "GitHub",

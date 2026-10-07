@@ -10,6 +10,7 @@ on:
     paths:
       - 'site/**'
       - 'scripts/build-site.py'
+      - 'scripts/manual_i18n.py'
       - 'docs/assets/hero-*.png'
       - '.github/workflows/website.yml'
   workflow_dispatch:

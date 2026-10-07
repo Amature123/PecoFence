@@ -8,6 +8,7 @@
   "meta.description": "免费、开源的 Windows 11 桌面整理工具，可以替代 Stardock Fences。用玻璃栅栏把桌面图标分区收好，新文件自动归类，用标签页切换项目，还能让 AI 助手帮你配置。",
   "nav.features": "功能演示",
   "nav.agents": "AI + CLI",
+  "nav.manual": "使用手册",
   "nav.download": "下载",
   "nav.docs": "文档",
   "nav.github": "GitHub",

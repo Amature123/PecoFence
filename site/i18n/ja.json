@@ -8,6 +8,7 @@
   "meta.description": "Windows 11 向けの無料・オープンソースの Stardock Fences 代替アプリ。デスクトップのアイコンをガラスのフェンスで区切って整理し、新しいファイルは自動で振り分け、タブでプロジェクトを切り替えられます。設定は AI エージェントにも任せられます。",
   "nav.features": "実際の動きを見る",
   "nav.agents": "AI + CLI",
+  "nav.manual": "マニュアル",
   "nav.download": "ダウンロード",
   "nav.docs": "ドキュメント",
   "nav.github": "GitHub",
