@@ -215,7 +215,7 @@
   .picker-count { margin-left: auto; color: var(--text3); font-size: 12px; }
   .picker-note { margin: 0 2px 20px; color: var(--text2); font-size: 12px; line-height: 16px; }
 
-  /* Feedback page. */
+  /* Feedback form (on 关于). */
   .page-lede { margin: -4px 2px 16px; color: var(--text2); }
   .fb-note { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; margin-bottom: 4px; border-radius: var(--r-card); background: var(--caution-bg); border: 1px solid var(--card-stroke); }
   .fb-note .ic { color: var(--caution); font-size: 16px; line-height: 20px; }
@@ -294,7 +294,6 @@
     <a href="#fences" data-page="fences" aria-label="栅栏" title="栅栏"><span class="ic">&#xE71D;</span><span class="nav-text">栅栏</span></a>
     <a href="#rules" data-page="rules" aria-label="整理规则" title="整理规则"><span class="ic">&#xE8FD;</span><span class="nav-text">整理规则</span></a>
     <a href="#layout" data-page="layout" aria-label="布局与备份" title="布局与备份"><span class="ic">&#xE7F4;</span><span class="nav-text">布局与备份</span></a>
-    <a href="#feedback" data-page="feedback" aria-label="反馈" title="反馈"><span class="ic">&#xED15;</span><span class="nav-text">反馈</span></a>
     <a href="#about" data-page="about" aria-label="关于" title="关于"><span class="ic">&#xE946;</span><span class="nav-text">关于</span></a>
     <div class="nav-footer"><p id="workspaceSummary">正在连接桌面…</p></div>
   </nav>
@@ -449,12 +448,21 @@
       <div class="group">
         <div class="card"><div class="l"><span class="ic">&#xE78C;</span><div><div class="t">导出 / 导入配置文件</div><div class="s">导出为 JSON 以便迁移到另一台电脑；导入前会自动保存一份快照</div></div></div>
           <div class="actions"><button id="cfgExport">导出…</button><button id="cfgImport">导入…</button></div></div>
+        <div class="card"><div class="l"><span class="ic">&#xE8A5;</span><div><div class="t">配置文件</div><div class="s"><code id="cfgPath"></code></div></div></div><button id="openCfg">打开配置文件夹</button></div>
         <div class="rows" id="backupList"></div>
       </div>
     </section>
 
-    <section class="page" id="page-feedback">
-      <header class="page-header"><h2>反馈</h2></header>
+    <section class="page" id="page-about">
+      <header class="page-header"><h2>关于</h2></header>
+      <div class="about-head">
+        <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 8H14a6 6 0 0 0-6 6v13M37 8h13a6 6 0 0 1 6 6v13M8 37v13a6 6 0 0 0 6 6h13M56 37v13a6 6 0 0 1-6 6H37" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><rect x="22" y="22" width="8" height="8" rx="2" fill="currentColor"/><rect x="35" y="22" width="8" height="8" rx="2" fill="currentColor" opacity=".65"/><rect x="22" y="35" width="8" height="8" rx="2" fill="currentColor" opacity=".65"/><rect x="35" y="35" width="8" height="8" rx="2" fill="currentColor"/></svg>
+        <div><div class="name">PecoFence <span id="ver"></span></div><div class="s">开源的 Windows 11 桌面整理工具</div><div class="s">Apache 2.0 许可证</div><div class="s" id="memDetail">—</div></div>
+      </div>
+      <div class="card" id="updateCard" hidden><div class="l"><span class="ic">&#xE895;</span><div><div class="t">更新</div><div class="s" id="updateStatus"></div></div></div><button id="updateAction"></button></div>
+      <div class="card"><div class="l"><span class="ic">&#xE734;</span><div><div class="t">喜欢 PecoFence 吗？</div><div class="s">你的支持能让更多人发现它。</div></div></div>
+        <div class="actions"><button id="rateStore" hidden>在 Microsoft Store 评分</button><button id="starRepo">在 GitHub 点 Star</button></div></div>
+      <h3 id="feedbackHeading">反馈</h3>
       <p class="page-lede">遇到问题或有什么想法，写在这里发给开发者，每条都会看。</p>
       <div class="fb-note" id="fbCrashNote" role="note" hidden><span class="ic">&#xE7BA;</span><span>PecoFence 上次意外关闭了，那次的日志会一起发送。如果还记得当时在做什么，请写在下面。</span></div>
       <div class="card stack fb-form">
@@ -475,18 +483,6 @@
       </details>
       <div class="fb-foot"><div class="s">反馈只会发给 PecoFence 开发者。</div>
         <button type="button" class="accent" id="fbSend"><span class="idle">发送</span><span class="busy">正在发送…</span></button></div>
-    </section>
-
-    <section class="page" id="page-about">
-      <header class="page-header"><h2>关于</h2></header>
-      <div class="about-head">
-        <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M27 8H14a6 6 0 0 0-6 6v13M37 8h13a6 6 0 0 1 6 6v13M8 37v13a6 6 0 0 0 6 6h13M56 37v13a6 6 0 0 1-6 6H37" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><rect x="22" y="22" width="8" height="8" rx="2" fill="currentColor"/><rect x="35" y="22" width="8" height="8" rx="2" fill="currentColor" opacity=".65"/><rect x="22" y="35" width="8" height="8" rx="2" fill="currentColor" opacity=".65"/><rect x="35" y="35" width="8" height="8" rx="2" fill="currentColor"/></svg>
-        <div><div class="name">PecoFence <span id="ver"></span></div><div class="s">开源的 Windows 11 桌面整理工具</div><div class="s">Apache 2.0 许可证</div><div class="s" id="memDetail">—</div></div>
-      </div>
-      <div class="card" id="updateCard" hidden><div class="l"><span class="ic">&#xE895;</span><div><div class="t">更新</div><div class="s" id="updateStatus"></div></div></div><button id="updateAction"></button></div>
-      <div class="card"><div class="l"><span class="ic">&#xE734;</span><div><div class="t">喜欢 PecoFence 吗？</div><div class="s">你的支持能让更多人发现它。</div></div></div>
-        <div class="actions"><button id="rateStore" hidden>在 Microsoft Store 评分</button><button id="starRepo">在 GitHub 点 Star</button></div></div>
-      <div class="card"><div class="l"><span class="ic">&#xE8A5;</span><div><div class="t">配置文件</div><div class="s"><code id="cfgPath"></code></div></div></div><button id="openCfg">打开配置文件夹</button></div>
       <h3>疑难解答</h3>
       <div class="card"><div class="l"><span class="ic">&#xE90F;</span><div><div class="t">Windows 桌面图标</div><div class="s" id="desktopIconsStatus"></div></div></div>
         <div class="actions"><button id="repairIcons">恢复显示桌面图标</button><button id="hideIconsAgain">重新隐藏桌面图标</button></div></div>
@@ -628,7 +624,7 @@
     a.setAttribute('aria-current', 'page');
     document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + name));
     document.querySelector('main').scrollTop = 0;
-    if (name === 'feedback') requestFeedbackInfo();
+    if (name === 'about') requestFeedbackInfo();
   }
   document.querySelectorAll('nav a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); showPage(a.dataset.page); }));
 
@@ -1060,7 +1056,7 @@
       : t("Windows 桌面图标已显示。点“重新隐藏桌面图标”，图标就只在栅栏里显示。");
   }
 
-  // 「反馈」 page: the host supplies what may go along with the user's text (system facts and
+  // 「反馈」 form on 关于: the host supplies what may go along with the user's text (system facts and
   // the shareable log, which holds no personal data); the page posts the report itself and
   // tells the host the outcome.
   let fbInfo = null, fbCrash = false;
@@ -1079,8 +1075,9 @@
   }
   function showFeedback(crash) {
     if (crash) { fbCrash = true; document.querySelector('input[name=fbKind][value=bug]').checked = true; }
-    showPage('feedback');
+    showPage('about');
     requestFeedbackInfo();
+    document.getElementById('feedbackHeading').scrollIntoView({ block: 'start' });
     renderFeedback();
     fbMessage.focus({ preventScroll: true });
   }

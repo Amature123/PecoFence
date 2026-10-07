@@ -221,7 +221,7 @@ pub struct App {
     settings: Option<SettingsHost>,
     /// Fence to select on the settings page once it reports `ready` (opened via 栅栏选项…).
     settings_focus_fence: Option<FenceId>,
-    /// The 「反馈」 page: pending focus and the crash offer (see `feedback.rs`).
+    /// The 「反馈」 form on 「关于」: pending focus and the crash offer (see `feedback.rs`).
     feedback: feedback::FeedbackState,
     updates: updates::Updates,
     /// The one-time Store rating offer (see `rating.rs`).
