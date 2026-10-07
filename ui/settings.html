@@ -1078,6 +1078,8 @@
     showPage('about');
     requestFeedbackInfo();
     document.getElementById('feedbackHeading').scrollIntoView({ block: 'start' });
+    // page-in still holds the page 8 px lower: scroll that much less, or the heading ends up cut off.
+    document.querySelector('main').scrollTop -= new DOMMatrixReadOnly(getComputedStyle(document.getElementById('page-about')).transform).m42;
     renderFeedback();
     fbMessage.focus({ preventScroll: true });
   }
