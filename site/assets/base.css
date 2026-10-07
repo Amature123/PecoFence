@@ -274,54 +274,6 @@ select {
     height: 15px
 }
 
-/* On narrow screens the links fold into a menu under the header; site.js shows the button. */
-.nav-toggle,
-.primary-nav .nav-download {
-    display: none
-}
-
-.nav-toggle {
-    position: relative;
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    padding: 0;
-    border: 1px solid var(--edge);
-    border-radius: 10px;
-    color: var(--ink);
-    background: #ffffffa8
-}
-
-.nav-toggle::before,
-.nav-toggle::after {
-    content: "";
-    position: absolute;
-    left: 11px;
-    right: 11px;
-    top: 50%;
-    height: 1.6px;
-    margin-top: -.8px;
-    border-radius: 1px;
-    background: currentColor;
-    transition: transform .2s
-}
-
-.nav-toggle::before {
-    transform: translateY(-3.5px)
-}
-
-.nav-toggle::after {
-    transform: translateY(3.5px)
-}
-
-.nav-toggle[aria-expanded="true"]::before {
-    transform: rotate(45deg)
-}
-
-.nav-toggle[aria-expanded="true"]::after {
-    transform: rotate(-45deg)
-}
-
 .small {
     color: var(--ink-soft);
     font-size: 13px;
@@ -383,40 +335,10 @@ select {
     }
 }
 
+/* Narrower screens keep the manual link; GitHub stays in the footer ("Source code"). */
 @media(max-width:840px) {
-    .primary-nav {
+    .primary-nav .nav-github {
         display: none
-    }
-
-    .header-actions {
-        margin-left: auto
-    }
-
-    .nav-toggle {
-        display: block
-    }
-
-    .nav-open .primary-nav {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0;
-        margin: 0;
-        padding: 6px 32px 24px;
-        border-bottom: 1px solid var(--edge);
-        background: var(--surface);
-        box-shadow: 0 26px 40px -30px #16295166
-    }
-
-    .nav-open .primary-nav a {
-        min-height: 52px;
-        border-bottom: 1px solid #19243a0f;
-        color: var(--ink);
-        font-size: 15px
     }
 
     .footer-top {
@@ -471,10 +393,6 @@ select {
         display: none
     }
 
-    .nav-open .primary-nav {
-        padding-inline: 20px
-    }
-
     .footer-top {
         flex-direction: column;
         gap: 25px
@@ -486,19 +404,10 @@ select {
     }
 }
 
-/* No room for the download button beside the menu: it moves into the menu. */
+/* Phones: logo, manual link and language; the hero has the download buttons. */
 @media(max-width:480px) {
     .header-actions .button {
         display: none
-    }
-
-    .nav-open .primary-nav .nav-download {
-        display: flex;
-        min-height: 50px;
-        margin-top: 18px;
-        border: 0;
-        color: white;
-        font-size: 14px
     }
 }
 
@@ -507,8 +416,8 @@ select {
         width: calc(100% - 32px)
     }
 
-    .nav-open .primary-nav {
-        padding-inline: 16px
+    .lang select {
+        max-width: 72px
     }
 }
 
