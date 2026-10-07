@@ -75,10 +75,26 @@
   <div class="hero-bottom container" aria-hidden="true"><span>PecoFence</span><span>Fluent &amp; Liquid Glass</span><span>Apache 2.0</span></div>
   </div>
 
+  <section id="features" class="section features-section" aria-labelledby="features-title">
+    <div class="container">
+      <div class="section-heading">
+        <span class="section-number" aria-hidden="true">01 /</span>
+        <h2 id="features-title">{{t:features.heading}}</h2>
+        <p class="intro">{{t:features.intro}}</p>
+      </div>
+      <div class="feature-picker" role="tablist" aria-label="{{t:nav.features}}" hidden>
+{{feature_tabs}}
+      </div>
+      <div class="features-grid">
+{{features}}
+      </div>
+    </div>
+  </section>
+
   <section id="agents" class="section agents-section" aria-labelledby="agents-title">
     <div class="agents container">
       <div class="agents-copy">
-        <span class="section-number" aria-hidden="true">01 / AI + CLI</span>
+        <span class="section-number" aria-hidden="true">02 / AI + CLI</span>
         <h2 id="agents-title">{{t:agents.heading}}</h2>
         <p>{{t:agents.text}}</p>
         <div class="agents-tools"><span>Claude Code</span><span>Codex</span><span>Cursor</span></div>
@@ -115,22 +131,6 @@
         </div>
       </div>
       <p class="agents-contract small">{{raw:agents.contract}}</p>
-    </div>
-  </section>
-
-  <section id="features" class="section features-section" aria-labelledby="features-title">
-    <div class="container">
-      <div class="section-heading">
-        <span class="section-number" aria-hidden="true">02 /</span>
-        <h2 id="features-title">{{t:features.heading}}</h2>
-        <p class="intro">{{t:features.intro}}</p>
-      </div>
-      <div class="feature-picker" role="tablist" aria-label="{{t:nav.features}}" hidden>
-{{feature_tabs}}
-      </div>
-      <div class="features-grid">
-{{features}}
-      </div>
     </div>
   </section>
 
