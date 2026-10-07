@@ -74,6 +74,7 @@
   "拆出为独立栅栏": "Detach into its own fence",
   "合并到…": "Merge into",
   "锁定位置和大小": "Lock position and size",
+  "解除锁定": "Unlock position and size",
   "栅栏选项…": "Fence options…",
   "删除栅栏": "Delete fence",
   "恢复默认列宽": "Reset column widths",

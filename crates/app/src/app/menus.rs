@@ -76,6 +76,39 @@ const _: () = assert!(
     CMD_TAB_ATTACH_BASE > CMD_COL_RESET_WIDTHS && CMD_TAB_ATTACH_BASE + 1000 <= CMD_SHELL_FIRST
 );
 
+/// Segoe Fluent Icons glyphs beside the main tray and fence menu items (`PopupMenu::icon`).
+/// Check items keep their check mark (an item bitmap would take its place), so the lock is a
+/// pair of commands like 收起 / 展开. Outline glyphs only: filled badges outweigh the rest.
+mod glyph {
+    pub const CHEVRON_UP: char = '\u{E70E}';
+    pub const CHEVRON_DOWN: char = '\u{E70D}';
+    pub const RENAME: char = '\u{E8AC}';
+    pub const FOLDER_OPEN: char = '\u{E838}';
+    pub const UP: char = '\u{E74A}';
+    pub const HOME: char = '\u{E80F}';
+    pub const VIEW_ALL: char = '\u{E8A9}';
+    pub const SORT: char = '\u{E8CB}';
+    pub const ADD: char = '\u{E710}';
+    pub const DOCUMENT: char = '\u{E8A5}';
+    pub const PASTE: char = '\u{E77F}';
+    pub const SETTING: char = '\u{E713}';
+    pub const ADD_TO: char = '\u{ECC8}';
+    pub const FOLDER: char = '\u{E8B7}';
+    /// Favicon: a frame with a title strip, like a fence with tabs.
+    pub const TAB: char = '\u{E737}';
+    pub const LOCK: char = '\u{E72E}';
+    pub const UNLOCK: char = '\u{E785}';
+    pub const DELETE: char = '\u{E74D}';
+    pub const VIEW: char = '\u{E890}';
+    pub const HIDE: char = '\u{ED1A}';
+    pub const TASK_VIEW: char = '\u{E7C4}';
+    pub const BROOM: char = '\u{EA99}';
+    pub const MONITOR: char = '\u{E7F4}';
+    pub const REPAIR: char = '\u{E90F}';
+    pub const MESSAGE: char = '\u{E8BD}';
+    pub const EXIT: char = '\u{F3B1}';
+}
+
 impl App {
     pub(super) fn show_tray_menu(&mut self, x: i32, y: i32) {
         let hidden = self
@@ -94,16 +127,19 @@ impl App {
             false,
             false,
         )
+        .icon(if hidden { glyph::VIEW } else { glyph::HIDE })
         .item(
             CMD_NEW_FENCE,
             pecofence_core::i18n::text("新建栅栏"),
             false,
             false,
         )
+        .icon(glyph::ADD_TO)
         .submenu(
             pecofence_core::i18n::text("在桌面显示文件夹"),
             Self::show_folder_submenu(CMD_SHOW_FOLDER),
         )
+        .icon(glyph::FOLDER)
         .item(
             CMD_PEEK,
             &match self.peek_hotkey {
@@ -116,12 +152,14 @@ impl App {
             false,
             false,
         )
+        .icon(glyph::TASK_VIEW)
         .item(
             CMD_APPLY_RULES,
             pecofence_core::i18n::text("立即应用整理规则"),
             false,
             false,
-        );
+        )
+        .icon(glyph::BROOM);
         // Autostart and monitor swapping live on the settings page; the icon repair stays as
         // the rescue path when the desktop is left without icons.
         menu.separator()
@@ -135,31 +173,36 @@ impl App {
                 false,
                 false,
             )
+            .icon(glyph::MONITOR)
             .item(
                 CMD_REPAIR_ICONS,
                 pecofence_core::i18n::text("修复桌面图标（图标消失时使用）"),
                 false,
                 false,
             )
+            .icon(glyph::REPAIR)
             .item(
                 CMD_FEEDBACK,
                 pecofence_core::i18n::text("发送反馈…"),
                 false,
                 false,
             )
+            .icon(glyph::MESSAGE)
             .item(
                 CMD_SETTINGS,
                 pecofence_core::i18n::text("设置…"),
                 false,
                 false,
             )
+            .icon(glyph::SETTING)
             .separator()
             .item(
                 CMD_EXIT,
                 pecofence_core::i18n::text("退出 PecoFence"),
                 false,
                 false,
-            );
+            )
+            .icon(glyph::EXIT);
         let cmd = menu.show(self.control.hwnd(), x, y);
         match cmd {
             CMD_TOGGLE_FENCES => self.toggle_all_fences(),
@@ -422,12 +465,18 @@ impl App {
             false,
             false,
         )
+        .icon(if rolled {
+            glyph::CHEVRON_DOWN
+        } else {
+            glyph::CHEVRON_UP
+        })
         .item(
             CMD_FENCE_RENAME,
             pecofence_core::i18n::text("重命名…"),
             false,
             false,
-        );
+        )
+        .icon(glyph::RENAME);
         let portal_dir = self.state.portal_path(fence);
         if portal_dir.is_some() {
             menu.item(
@@ -435,7 +484,8 @@ impl App {
                 pecofence_core::i18n::text("在资源管理器中打开文件夹"),
                 false,
                 false,
-            );
+            )
+            .icon(glyph::FOLDER_OPEN);
             if self.state.portal_navigated(fence) {
                 menu.item(
                     CMD_PORTAL_UP,
@@ -443,12 +493,14 @@ impl App {
                     false,
                     false,
                 )
+                .icon(glyph::UP)
                 .item(
                     CMD_PORTAL_HOME,
                     pecofence_core::i18n::text("返回最初的文件夹"),
                     false,
                     false,
-                );
+                )
+                .icon(glyph::HOME);
             }
         }
         menu.separator();
@@ -497,7 +549,8 @@ impl App {
                 f.view.icon_size == 96,
                 false,
             );
-        menu.submenu(pecofence_core::i18n::text("视图"), view_menu);
+        menu.submenu(pecofence_core::i18n::text("视图"), view_menu)
+            .icon(glyph::VIEW_ALL);
         let sort_menu = PopupMenu::new();
         sort_menu
             .item(
@@ -550,7 +603,8 @@ impl App {
                 f.view.group_by_date,
                 false,
             );
-        menu.submenu(pecofence_core::i18n::text("排序方式"), sort_menu);
+        menu.submenu(pecofence_core::i18n::text("排序方式"), sort_menu)
+            .icon(glyph::SORT);
         let new_menu = PopupMenu::new();
         new_menu
             .item(
@@ -559,12 +613,14 @@ impl App {
                 false,
                 false,
             )
+            .icon(glyph::FOLDER)
             .item(
                 CMD_FENCE_NEW_TEXT,
                 pecofence_core::i18n::text("文本文档"),
                 false,
                 false,
             )
+            .icon(glyph::DOCUMENT)
             .separator()
             .item(
                 CMD_TAB_NEW,
@@ -572,13 +628,15 @@ impl App {
                 false,
                 false,
             );
-        menu.submenu(pecofence_core::i18n::text("新建"), new_menu);
-        menu.item(
-            CMD_FENCE_PASTE,
-            pecofence_core::i18n::text("粘贴\tCtrl+V"),
-            false,
-            !clipboard::has_file_list(),
-        );
+        menu.submenu(pecofence_core::i18n::text("新建"), new_menu)
+            .icon(glyph::ADD)
+            .item(
+                CMD_FENCE_PASTE,
+                pecofence_core::i18n::text("粘贴\tCtrl+V"),
+                false,
+                !clipboard::has_file_list(),
+            )
+            .icon(glyph::PASTE);
         // Tabbed fences (Fences 6): split a tab out, move it along the strip, or merge this
         // fence into another window. Hidden when none of that applies.
         let tabs = self.state.tabs_of(host);
@@ -624,14 +682,20 @@ impl App {
                 }
                 tab_menu.submenu(pecofence_core::i18n::text("合并到…"), attach_menu);
             }
-            menu.submenu(pecofence_core::i18n::text("标签页"), tab_menu);
+            menu.submenu(pecofence_core::i18n::text("标签页"), tab_menu)
+                .icon(glyph::TAB);
         }
         menu.item(
             CMD_FENCE_LOCK,
-            pecofence_core::i18n::text("锁定位置和大小"),
-            h.locked,
+            if h.locked {
+                pecofence_core::i18n::text("解除锁定")
+            } else {
+                pecofence_core::i18n::text("锁定位置和大小")
+            },
             false,
-        );
+            false,
+        )
+        .icon(if h.locked { glyph::UNLOCK } else { glyph::LOCK });
         menu.separator()
             .item(
                 CMD_FENCE_OPTIONS,
@@ -639,16 +703,19 @@ impl App {
                 false,
                 false,
             )
+            .icon(glyph::SETTING)
             .item(
                 CMD_FENCE_NEW,
                 pecofence_core::i18n::text("新建栅栏"),
                 false,
                 false,
             )
+            .icon(glyph::ADD_TO)
             .submenu(
                 pecofence_core::i18n::text("在桌面显示文件夹"),
                 Self::show_folder_submenu(CMD_FENCE_SHOW_FOLDER),
-            );
+            )
+            .icon(glyph::FOLDER);
         // The inbox cannot go (new desktop items land there), but it can stay out of sight
         // while it is empty.
         if f.kind == FenceKind::Inbox {
@@ -664,7 +731,8 @@ impl App {
                 pecofence_core::i18n::text("删除栅栏"),
                 false,
                 false,
-            );
+            )
+            .icon(glyph::DELETE);
         }
         let owner = self
             .fences
