@@ -147,3 +147,6 @@
     font: 500 13px/1.4 "Cascadia Mono", Consolas, monospace;
     white-space: nowrap;
 }
+
+/* long paths break at their <wbr>s (Safari ignores <wbr> under nowrap and widens the page) */
+.appendix code:has(wbr) { white-space: normal }
