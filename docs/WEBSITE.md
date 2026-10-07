@@ -9,9 +9,9 @@ The product page at <https://pecofence.jiang.jp> is a static site generated from
 | Path | Purpose |
 |---|---|
 | `site/template.html` | One HTML template rendered once per language |
-| `site/partials/header.html`, `footer.html` | The header (links, language picker, download button, phone menu) and footer, shared by the home page and the manual |
-| `site/assets/base.css` | Tokens, header, phone menu and footer styles, shared by the home page and the manual |
-| `site/assets/site.css`, `site.js`, `mark.svg` | The home page's styles; the phone menu, the hero trailer's play control, accessible feature tabs and their animations, AI prompt and install command copy buttons, language picker (`site.js` runs on the manual too) and favicon |
+| `site/partials/header.html`, `footer.html` | The header (manual and GitHub links, language picker, download button) and footer, shared by the home page and the manual |
+| `site/assets/base.css` | Tokens, header and footer styles, shared by the home page and the manual |
+| `site/assets/site.css`, `site.js`, `mark.svg` | The home page's styles; the hero trailer's play control, accessible feature tabs and their animations, AI prompt and install command copy buttons, language picker (`site.js` runs on the manual too) and favicon |
 | `site/assets/*.mp4`, `*.jpg`, `panel-*.png`, `wallpaper.jpg` | The 30-second trailer (`promo.mp4`, v3; `--promo-only` re-exports just it and its poster), six feature clips, posters, the three hero fences and the wallpaper, exported by `scripts/make-site-media.py` from the local promo project |
 | `site/assets/showcase-wallpaper.jpg` | The hero's backdrop: the original wallpaper from the revision-2 Store scene |
 | `site/i18n/<language>.json` | Copy for each language; `en.json` is the source and every other file must have the same keys |
@@ -22,9 +22,10 @@ The build writes `dist/site/`: `index.html` for English, one `<language>/index.h
 per translation, the localized README hero images as Open Graph and Twitter previews, `CNAME`,
 `robots.txt` and `sitemap.xml`. Pages carry `hreflang` alternates, so search engines
 send visitors to their language; the header's language picker and the language links
-do the same by hand. The picker preserves the current section. At 840 px and narrower
-the header links fold into a menu button (and at 480 px the download button joins
-them); without JavaScript the footer still links to the manual and the docs.
+do the same by hand. The picker preserves the current section. The header links to
+the manual and GitHub; at 840 px and narrower only the manual link stays (GitHub and
+the docs are in the footer), and at 480 px the download button leaves the header to
+the hero's buttons.
 
 The page pairs a warm paper-and-lavender hero with a light reading canvas. The
 30-second trailer is the hero's visual and the largest element on the page
@@ -127,7 +128,8 @@ captions and keycaps), a step list that highlights in sync, a scrub bar and a ha
 switch, plus two reference appendices (shortcuts, FAQ). The build writes one copy per
 language beside its home page: `/manual/` for English, `/<language>/manual/` for the
 others, with the home page's header and footer (`site/partials`, `base.css`) filled into
-the page's `<!--manual:header-->` and `<!--manual:footer-->`. The manual is wider than
+the page's `<!--manual:header-->` and `<!--manual:footer-->`. Its scripts and stylesheets
+get content-hash `?v=` queries at build time, like the site's. The manual is wider than
 the home page (a contents column beside each animation), and its header and footer
 line up with it.
 

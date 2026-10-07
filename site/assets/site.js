@@ -10,36 +10,6 @@
     });
   }
 
-  // On narrow screens the header links fold into a menu (base.css); without JS they are in the footer.
-  var masthead = document.querySelector(".masthead");
-  var menu = document.querySelector(".nav-toggle");
-  if (masthead && menu) {
-    var setMenu = function (open) {
-      masthead.classList.toggle("nav-open", open);
-      menu.setAttribute("aria-expanded", String(open));
-    };
-    menu.hidden = false;
-    menu.addEventListener("click", function () {
-      var open = !masthead.classList.contains("nav-open");
-      setMenu(open);
-      // The links come before the button, so move into them for keyboard users.
-      if (open) document.querySelector("#site-nav a").focus({ preventScroll: true });
-    });
-    document.getElementById("site-nav").addEventListener("click", function (event) {
-      if (event.target.closest("a")) setMenu(false);
-    });
-    document.addEventListener("click", function (event) {
-      if (!masthead.contains(event.target)) setMenu(false);
-    });
-    document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && masthead.classList.contains("nav-open")) {
-        setMenu(false);
-        menu.focus();
-      }
-    });
-    window.matchMedia("(min-width: 841px)").addEventListener("change", function () { setMenu(false); });
-  }
-
   // Each feature shows the manual's animation of it (manual/?only=<lesson>&embed) in place of
   // the recording, loaded the first time its tab opens; the recording stays without JS.
   function showDemo(panel) {

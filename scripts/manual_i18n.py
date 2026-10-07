@@ -16,6 +16,7 @@ from locales/<lang>.json, so the demos show the words the app really uses.
   uv run python scripts/manual_i18n.py --check          # coverage per language
 """
 import argparse
+import hashlib
 import html
 import json
 import re
@@ -430,6 +431,10 @@ def build(out, code, data, chrome):
             shutil.copy2(f, target)
     page = translate_page((MANUAL / "page.html").read_text(encoding="utf-8"), data)
     page = page.replace('<html lang="zh-CN">', f'<html lang="{code}">', 1)
+    # Content hashes on the page's scripts and stylesheets: the CDN lets browsers keep them for
+    # hours, and a cached older script must never run with a newer page.
+    page = re.sub(r'\b(href|src)="((?:demos/)?[\w.-]+\.(?:css|js))"', lambda m: (
+        f'{m.group(1)}="{m.group(2)}?v={hashlib.sha256((out / m.group(2)).read_bytes()).hexdigest()[:10]}"'), page)
     (out / "index.html").write_text(chrome(page), encoding="utf-8", newline="\n")
 
 
