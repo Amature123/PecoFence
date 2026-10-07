@@ -1,7 +1,8 @@
 //! Asking for a Microsoft Store rating, in the Store edition only: once, a week after the first
-//! start, a tray notification offers it, and clicking it opens the Store's own rating dialog.
-//! Windows keeps a window that a background app opens behind the active one, so the dialog
-//! only ever follows a click (the notification, or the button on the 「关于」 page).
+//! start, a notice in the corner (`crate::notice`, 30 s) offers it, and clicking it opens the
+//! Store's own rating dialog. Windows keeps a window that a background app opens behind the
+//! active one, so the dialog only ever follows a click (the notice, or the button on the
+//! 「关于」 page).
 
 use super::*;
 use pecofence_platform::store::{self, RatingOutcome};
@@ -25,8 +26,10 @@ pub(super) struct RatingPrompt {
     path: PathBuf,
     saved: Saved,
     started: Instant,
-    /// The rating notification is up; clicking it opens the dialog.
-    offer_pending: bool,
+    /// The rating notice while it is on screen.
+    notice: Option<crate::notice::Notice>,
+    /// Showing the notice failed this run; do not retry every tick.
+    failed: bool,
 }
 
 fn unix_now() -> u64 {
@@ -55,7 +58,8 @@ impl RatingPrompt {
             path,
             saved: saved.unwrap_or_default(),
             started: Instant::now(),
-            offer_pending: false,
+            notice: None,
+            failed: false,
         };
         if prompt.saved.first_seen == 0 {
             prompt.saved.first_seen = unix_now();
@@ -92,34 +96,43 @@ impl App {
                 )
                 && store::user_accepts_notifications()
         };
-        // The crash offer's balloon stays; ask on a later tick.
-        if !ready || self.feedback_offer_pending() {
+        if !ready || self.rating.failed || self.rating.notice.is_some() {
             return;
         }
-        let Some(tray) = &self.tray else {
-            return;
+        let locale = match pecofence_core::i18n::language().tag() {
+            "zh-CN" => "zh-CN",
+            "zh-TW" => "zh-TW",
+            "ja" => "ja-JP",
+            "ko" => "ko-KR",
+            _ => "en-US",
         };
-        tray.show_info(
+        match crate::notice::Notice::show(
+            &self.ctx,
             pecofence_core::i18n::text("喜欢 PecoFence 吗？"),
-            pecofence_core::i18n::text("点这里在 Microsoft Store 给它打个分，几秒钟就好。"),
-            false,
-        );
-        self.rating.offer_pending = true;
-        // Once, whether or not it is clicked.
-        self.rating.saved.asked = true;
-        self.rating.save();
-        tracing::info!("offered a Store rating");
+            pecofence_core::i18n::text("在 Microsoft Store 给它打个分，几秒钟就好。"),
+            pecofence_core::i18n::text("去评分"),
+            locale,
+        ) {
+            Ok(notice) => {
+                self.rating.notice = Some(notice);
+                // Once, whether or not it is clicked.
+                self.rating.saved.asked = true;
+                self.rating.save();
+                tracing::info!("offered a Store rating");
+            }
+            Err(error) => {
+                self.rating.failed = true;
+                tracing::warn!(%error, "rating notice not shown");
+            }
+        }
     }
 
-    /// A tray balloon was clicked: opens the dialog if it was the rating offer.
-    pub(super) fn rating_offer_clicked(&mut self) {
-        if std::mem::take(&mut self.rating.offer_pending) {
+    /// The rating notice was clicked or went away.
+    pub(super) fn on_notice(&mut self, event: crate::notice::NoticeEvent) {
+        self.rating.notice = None;
+        if event == crate::notice::NoticeEvent::Action {
             self.open_store_rating();
         }
-    }
-
-    pub(super) fn rating_offer_gone(&mut self) {
-        self.rating.offer_pending = false;
     }
 
     /// The Store's rating dialog, centred on the settings window when it is open, otherwise

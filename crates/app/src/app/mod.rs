@@ -1533,6 +1533,7 @@ impl App {
                 self.dying.retain(|w| w.hwnd() != hwnd);
             }
             Command::SettingsMessage(json) => self.on_settings_message(&json),
+            Command::Notice(event) => self.on_notice(event),
         }
     }
 

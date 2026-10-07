@@ -259,6 +259,8 @@ pub enum Command {
     },
     /// JSON message from the settings page.
     SettingsMessage(String),
+    /// The rating notice was clicked or went away (see `notice.rs`).
+    Notice(crate::notice::NoticeEvent),
 }
 
 #[derive(Clone)]
