@@ -18,16 +18,16 @@ pub(super) fn focus_session(view: &RefCell<Option<FenceViewState>>, hwnd: HWND) 
     // During Peek the dimmer owns the keyboard (Esc ends the peek) and a fence is a
     // WS_EX_NOACTIVATE window the system cannot activate. Asking anyway deactivates the dimmer
     // and hands the foreground to the next window in z-order (the taskbar, then the app below),
-    // which ends the peek on the very click that was meant to use the fence.
+    // which ends the peek on the very click that was meant to use the fence. The reconcile below
+    // still runs, so the selection shows as inactive and does not stay in the accent afterwards.
     let peeking = view
         .try_borrow()
         .ok()
         .and_then(|g| g.as_ref().map(|v| v.behavior.floating.get()))
         .unwrap_or(false);
-    if peeking {
-        return;
+    if !peeking {
+        window::bring_to_front(hwnd);
     }
-    window::bring_to_front(hwnd);
     if desktop::foreground_window() == hwnd {
         return;
     }
