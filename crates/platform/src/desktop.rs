@@ -165,6 +165,24 @@ pub fn child_windows(parent: HWND) -> Vec<(HWND, String, RECT, bool)> {
     out
 }
 
+/// The top-level windows of `class`, in z-order (top to bottom): what filtering
+/// `top_level_windows` by `class_name` gives, without a class lookup per window.
+pub fn windows_of_class(class: &str) -> Vec<HWND> {
+    let class = to_wide(class);
+    let mut out = Vec::new();
+    let mut prev: Option<HWND> = None;
+    loop {
+        // SAFETY: plain FFI enumeration; the string outlives the call.
+        let next = unsafe { FindWindowExW(None, prev, PCWSTR(class.as_ptr()), PCWSTR::null()) };
+        if next.0.is_null() {
+            break;
+        }
+        out.push(next);
+        prev = Some(next);
+    }
+    out
+}
+
 /// Enumerates top-level windows in z-order (top to bottom).
 pub fn top_level_windows() -> Vec<HWND> {
     let mut out: Vec<HWND> = Vec::new();

@@ -7,7 +7,7 @@ use pecofence_platform::com::OleGuard;
 use pecofence_platform::shell;
 use pecofence_platform::window;
 use pecofence_render::Image;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -287,6 +287,24 @@ impl IconCache {
         self.retry.retain(|(_, (k, _))| !hit(k));
     }
 
+    /// Drops the per-file icons whose `cache_key` is not in `live` (the file changed, vanished
+    /// or left a portal's folder). Per-extension icons stay: there are few of them.
+    pub fn retain_live(&mut self, live: &HashSet<String>) {
+        let suffix = self.variant.suffix();
+        self.map.retain(|(k, _), _| {
+            !k.starts_with("file:") || k.strip_suffix(&suffix).is_some_and(|b| live.contains(b))
+        });
+    }
+
+    /// A `draw_key` of a per-file icon not in `live` (see `retain_live`).
+    pub fn is_stale_draw_key(&self, key: &str, live: &HashSet<String>) -> bool {
+        key.starts_with("file:")
+            && !key
+                .rsplit_once('@')
+                .and_then(|(k, _)| k.strip_suffix(&self.variant.suffix()))
+                .is_some_and(|b| live.contains(b))
+    }
+
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.map.len()
@@ -320,7 +338,6 @@ pub fn icon_key_for(path: &Path, is_folder: bool, mtime: i64) -> (IconKey, bool)
                 | ".ico"
                 | ".cur"
                 | ".appref-ms"
-                | ".msi"
                 | ".scr"
                 | ".png"
                 | ".jpg"
@@ -335,7 +352,6 @@ pub fn icon_key_for(path: &Path, is_folder: bool, mtime: i64) -> (IconKey, bool)
                 | ".mkv"
                 | ".mov"
                 | ".avi"
-                | ".pdf"
         );
     let thumbnail_capable = matches!(
         ext.as_str(),

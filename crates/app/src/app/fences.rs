@@ -258,9 +258,15 @@ impl App {
             if let Some(f) = self.state.fence(active)
                 && let Some(w) = self.fences.get(&id)
             {
+                // A fence the change did not touch keeps its view: no redraw, and its hover,
+                // press and type-ahead stay (asked before `set_tabs`, which may switch tabs).
+                let items = self.item_views(f);
+                let unchanged = w.active_fence() == active && w.shows_items(&items);
                 w.set_tabs(self.tab_views(id), active);
                 w.set_group_by_date(f.view.group_by_date);
-                w.set_items(self.item_views(f));
+                if !unchanged {
+                    w.set_items(items);
+                }
             }
             self.apply_auto_height(id);
         }

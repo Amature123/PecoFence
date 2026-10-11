@@ -154,6 +154,9 @@ pub struct FenceViewState {
     /// Screen rect (left, top, width, height) `backdrop_crop` was cut for. While the height
     /// animates the crop covers the taller end, so the per-frame chrome draws reuse it.
     pub(super) backdrop_rect: Option<(i32, i32, i32, i32)>,
+    /// Acrylic: `MonitorBackdrop::crop_origin` of `backdrop_crop` (a move within one texel of
+    /// the quarter-size image cuts the same pixels).
+    pub(super) backdrop_origin: Option<(i32, i32, i32, i32)>,
     /// `BitmapCache` key of the uploaded crop (per window; dropped whenever the crop changes).
     pub(super) backdrop_key: String,
     pub(super) gpu_glass: RefCell<pecofence_render::gpu_glass::GpuGlass>,

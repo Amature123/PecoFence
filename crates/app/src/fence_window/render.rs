@@ -496,6 +496,20 @@ impl FenceViewState {
             .iter()
             .find(|b| cx >= b.left && cx < b.left + b.width && cy >= b.top && cy < b.top + b.height)
             .or(set.first());
+        let origin = hit.map(|b| b.crop_origin(r.left, r.top));
+        if !self.theme.liquid_glass
+            && self.backdrop_crop.is_some()
+            && origin.is_some()
+            && origin == self.backdrop_origin
+            && self
+                .backdrop_rect
+                .is_some_and(|(_, _, cw, ch)| (cw, ch) == (w, h))
+        {
+            // A move by less than one texel: the crop and its upload stay as they are.
+            self.backdrop_rect = Some(want);
+            return false;
+        }
+        self.backdrop_origin = origin;
         self.backdrop_crop = if self.theme.liquid_glass && !set.is_empty() {
             Some(pecofence_render::liquid_glass::foreground_sample(
                 set,

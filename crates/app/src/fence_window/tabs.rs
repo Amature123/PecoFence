@@ -266,13 +266,15 @@ impl FenceViewState {
     }
 
     /// Takes an outgoing panel out of the tree and keeps it (at most two) for the next swap.
-    pub(super) fn park_panel(&mut self, o: Panel) {
+    pub(super) fn park_panel(&mut self, mut o: Panel) {
         let _ = self.motion.stop(&o.visual, Prop::Opacity);
         let _ = self.motion.stop(&o.visual, Prop::Offset);
         self.root.children().remove(&o.visual);
         o.visual.set_opacity(1.0);
         o.visual.set_visible(false);
         if self.spares.len() < 2 {
+            // Free its pixels until the next swap sizes and draws it again.
+            let _ = o.resize(1, 1);
             self.spares.push(o);
         }
     }

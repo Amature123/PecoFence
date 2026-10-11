@@ -42,7 +42,8 @@ pub(super) fn on_mousemove(
             v.frames.request();
         }
         v.update_marquee_selection();
-        let _ = v.redraw();
+        // The band and the selection are drawn on the content surface only.
+        let _ = v.redraw_content();
         return Some(0);
     }
     if let Some(sd) = v.scroll_drag.as_ref() {

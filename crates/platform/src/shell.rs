@@ -363,6 +363,42 @@ pub fn display_name(path: &Path) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
+/// [`display_name`] of every item the shell lists in `dir`, keyed by lowercase file name. One
+/// bind of the folder instead of a parse of each full path (several ms per item on OneDrive).
+pub fn display_names_in(dir: &Path) -> std::collections::HashMap<String, String> {
+    let mut names = std::collections::HashMap::new();
+    let Ok(folder) = shell_item(dir) else {
+        return names;
+    };
+    // SAFETY: COM calls on live interfaces; every returned string is freed by `take_string`.
+    unsafe {
+        let items: Result<IEnumShellItems> = folder.BindToHandler(None, &BHID_EnumItems);
+        let Ok(items) = items else {
+            return names;
+        };
+        loop {
+            let mut item: Option<IShellItem> = None;
+            if items.Next(1, &mut item, None) != S_OK {
+                break;
+            }
+            let Some(item) = item else { break };
+            let file = item
+                .GetDisplayName(SIGDN_PARENTRELATIVEPARSING)
+                .map(take_string);
+            let edit = item
+                .GetDisplayName(SIGDN_PARENTRELATIVEEDITING)
+                .map(take_string);
+            if let (Ok(file), Ok(edit)) = (file, edit)
+                && !file.is_empty()
+                && !edit.is_empty()
+            {
+                names.insert(file.to_lowercase(), edit);
+            }
+        }
+    }
+    names
+}
+
 /// Opaque BGRA (premultiplied) image returned by the icon/thumbnail extractor.
 #[derive(Clone, Debug)]
 pub struct ShellImage {

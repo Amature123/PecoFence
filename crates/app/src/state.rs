@@ -637,6 +637,17 @@ impl AppState {
         self.dirty
     }
 
+    /// `IconCache::cache_key` of every item a fence can show (desktop records and the
+    /// portals' current folder contents).
+    pub fn icon_keys(&self) -> HashSet<String> {
+        self.config
+            .items
+            .values()
+            .chain(self.portal_items.values())
+            .map(|item| crate::icons::IconCache::cache_key(&item.icon_key))
+            .collect()
+    }
+
     pub fn save_if_dirty(&mut self) -> bool {
         if !self.dirty {
             return false;
@@ -1137,20 +1148,35 @@ impl AppState {
             .iter()
             .map(|it| ((it.key.clone(), it.mtime), it.display_name.clone()))
             .collect();
-        let mut ids = Vec::new();
-        let mut new_items = Vec::new();
-        for entry in shell::enumerate_folder(&dir) {
-            let path_str = entry.path.to_string_lossy().to_string();
-            let item_id = portal_item_id(&path_str);
-            let (icon_key, _) =
-                crate::icons::icon_key_for(&entry.path, entry.is_folder, entry.mtime);
-            let key = ItemKey::from_path(&path_str);
-            let display_name = known
+        let known_name = |key: &ItemKey, entry: &DesktopEntry| {
+            known
                 .get(&(key.clone(), entry.mtime))
                 // ItemKey ignores case. A case-only rename leaves that key and mtime
                 // unchanged, but the old display spelling must not be reused.
                 .filter(|name| entry.file_name.starts_with(name.as_str()))
                 .cloned()
+        };
+        let entries = shell::enumerate_folder(&dir);
+        let unnamed = entries
+            .iter()
+            .filter(|e| known_name(&ItemKey::from_path(&e.path.to_string_lossy()), e).is_none())
+            .count();
+        // A first read (startup, a subfolder entered) names the whole folder in one go.
+        let listed = if unnamed > 2 {
+            shell::display_names_in(&dir)
+        } else {
+            HashMap::new()
+        };
+        let mut ids = Vec::new();
+        let mut new_items = Vec::new();
+        for entry in entries {
+            let path_str = entry.path.to_string_lossy().to_string();
+            let item_id = portal_item_id(&path_str);
+            let (icon_key, _) =
+                crate::icons::icon_key_for(&entry.path, entry.is_folder, entry.mtime);
+            let key = ItemKey::from_path(&path_str);
+            let display_name = known_name(&key, &entry)
+                .or_else(|| listed.get(&entry.file_name.to_lowercase()).cloned())
                 .unwrap_or_else(|| {
                     shell::display_name(&entry.path).unwrap_or_else(|| {
                         if entry.is_folder {

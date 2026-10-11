@@ -2595,6 +2595,8 @@ pub const AddrModeFlat: ADDRESS_MODE = 3;
 pub const AddrModeReal: ADDRESS_MODE = 2;
 pub const BHID_DataObject: windows_core::GUID =
     windows_core::GUID::from_u128(0xb8c0bd9f_ed24_455c_83e6_d5390c4fe8c4);
+pub const BHID_EnumItems: windows_core::GUID =
+    windows_core::GUID::from_u128(0x94f60519_2850_4924_aa5a_d15e84868039);
 pub const BHID_SFUIObject: windows_core::GUID =
     windows_core::GUID::from_u128(0x3981e225_f559_11d3_8e3a_00c04f6837d5);
 #[repr(C)]
@@ -7218,13 +7220,139 @@ windows_core::imp::define_interface!(
     0x70629033_e363_4a28_a567_0db78006e6d7
 );
 windows_core::imp::interface_hierarchy!(IEnumShellItems, windows_core::IUnknown);
+impl IEnumShellItems {
+    pub(crate) unsafe fn Next(
+        &self,
+        celt: u32,
+        rgelt: *mut Option<IShellItem>,
+        pceltfetched: Option<*mut u32>,
+    ) -> windows_core::HRESULT {
+        unsafe {
+            (windows_core::Interface::vtable(self).Next)(
+                windows_core::Interface::as_raw(self),
+                celt,
+                core::mem::transmute(rgelt),
+                pceltfetched.unwrap_or(core::mem::zeroed()) as _,
+            )
+        }
+    }
+    pub(crate) unsafe fn Skip(&self, celt: u32) -> windows_core::HRESULT {
+        unsafe {
+            (windows_core::Interface::vtable(self).Skip)(
+                windows_core::Interface::as_raw(self),
+                celt,
+            )
+        }
+    }
+    pub(crate) unsafe fn Reset(&self) -> windows_core::HRESULT {
+        unsafe {
+            (windows_core::Interface::vtable(self).Reset)(windows_core::Interface::as_raw(self))
+        }
+    }
+    pub(crate) unsafe fn Clone(&self) -> windows_core::Result<Self> {
+        unsafe {
+            let mut result__ = core::mem::zeroed();
+            (windows_core::Interface::vtable(self).Clone)(
+                windows_core::Interface::as_raw(self),
+                &mut result__,
+            )
+            .and_then(|| windows_core::imp::Type::from_abi(result__))
+        }
+    }
+}
 #[repr(C)]
 pub struct IEnumShellItems_Vtbl {
     pub base__: windows_core::IUnknown_Vtbl,
-    Next: usize,
-    Skip: usize,
-    Reset: usize,
-    Clone: usize,
+    pub Next: unsafe extern "system" fn(
+        *mut core::ffi::c_void,
+        u32,
+        *mut *mut core::ffi::c_void,
+        *mut u32,
+    ) -> windows_core::HRESULT,
+    pub Skip: unsafe extern "system" fn(*mut core::ffi::c_void, u32) -> windows_core::HRESULT,
+    pub Reset: unsafe extern "system" fn(*mut core::ffi::c_void) -> windows_core::HRESULT,
+    pub Clone: unsafe extern "system" fn(
+        *mut core::ffi::c_void,
+        *mut *mut core::ffi::c_void,
+    ) -> windows_core::HRESULT,
+}
+pub trait IEnumShellItems_Impl: windows_core::IUnknownImpl {
+    fn Next(
+        &self,
+        celt: u32,
+        rgelt: *mut Option<IShellItem>,
+        pceltfetched: *mut u32,
+    ) -> windows_core::Result<()>;
+    fn Skip(&self, celt: u32) -> windows_core::Result<()>;
+    fn Reset(&self) -> windows_core::Result<()>;
+    fn Clone(&self) -> windows_core::Result<IEnumShellItems>;
+}
+impl IEnumShellItems_Vtbl {
+    pub const fn new<Identity: IEnumShellItems_Impl, const OFFSET: isize>() -> Self {
+        unsafe extern "system" fn Next<Identity: IEnumShellItems_Impl, const OFFSET: isize>(
+            this: *mut core::ffi::c_void,
+            celt: u32,
+            rgelt: *mut *mut core::ffi::c_void,
+            pceltfetched: *mut u32,
+        ) -> windows_core::HRESULT {
+            unsafe {
+                let this: &Identity =
+                    &*((this as *const *const ()).offset(OFFSET) as *const Identity);
+                IEnumShellItems_Impl::Next(
+                    this,
+                    core::mem::transmute_copy(&celt),
+                    core::mem::transmute_copy(&rgelt),
+                    core::mem::transmute_copy(&pceltfetched),
+                )
+                .into()
+            }
+        }
+        unsafe extern "system" fn Skip<Identity: IEnumShellItems_Impl, const OFFSET: isize>(
+            this: *mut core::ffi::c_void,
+            celt: u32,
+        ) -> windows_core::HRESULT {
+            unsafe {
+                let this: &Identity =
+                    &*((this as *const *const ()).offset(OFFSET) as *const Identity);
+                IEnumShellItems_Impl::Skip(this, core::mem::transmute_copy(&celt)).into()
+            }
+        }
+        unsafe extern "system" fn Reset<Identity: IEnumShellItems_Impl, const OFFSET: isize>(
+            this: *mut core::ffi::c_void,
+        ) -> windows_core::HRESULT {
+            unsafe {
+                let this: &Identity =
+                    &*((this as *const *const ()).offset(OFFSET) as *const Identity);
+                IEnumShellItems_Impl::Reset(this).into()
+            }
+        }
+        unsafe extern "system" fn Clone<Identity: IEnumShellItems_Impl, const OFFSET: isize>(
+            this: *mut core::ffi::c_void,
+            ppenum: *mut *mut core::ffi::c_void,
+        ) -> windows_core::HRESULT {
+            unsafe {
+                let this: &Identity =
+                    &*((this as *const *const ()).offset(OFFSET) as *const Identity);
+                match IEnumShellItems_Impl::Clone(this) {
+                    Ok(ok__) => {
+                        ppenum.write(core::mem::transmute(ok__));
+                        windows_core::HRESULT(0)
+                    }
+                    Err(err) => err.into(),
+                }
+            }
+        }
+        Self {
+            base__: windows_core::IUnknown_Vtbl::new::<Identity, OFFSET>(),
+            Next: Next::<Identity, OFFSET>,
+            Skip: Skip::<Identity, OFFSET>,
+            Reset: Reset::<Identity, OFFSET>,
+            Clone: Clone::<Identity, OFFSET>,
+        }
+    }
+    pub fn matches(iid: &windows_core::GUID) -> bool {
+        iid == &<IEnumShellItems as windows_core::Interface>::IID
+    }
 }
 impl windows_core::RuntimeName for IEnumShellItems {}
 windows_core::imp::define_interface!(
@@ -11360,6 +11488,165 @@ pub struct ITEMIDLIST {
     pub mkid: SHITEMID,
 }
 windows_core::imp::define_interface!(
+    IVirtualDesktopManager,
+    IVirtualDesktopManager_Vtbl,
+    0xa5cd92ff_29be_454c_8d04_d82879fb3f1b
+);
+windows_core::imp::interface_hierarchy!(IVirtualDesktopManager, windows_core::IUnknown);
+impl IVirtualDesktopManager {
+    pub(crate) unsafe fn IsWindowOnCurrentVirtualDesktop(
+        &self,
+        toplevelwindow: HWND,
+    ) -> windows_core::Result<windows_core::BOOL> {
+        unsafe {
+            let mut result__ = core::mem::zeroed();
+            (windows_core::Interface::vtable(self).IsWindowOnCurrentVirtualDesktop)(
+                windows_core::Interface::as_raw(self),
+                toplevelwindow,
+                &mut result__,
+            )
+            .map(|| result__)
+        }
+    }
+    pub(crate) unsafe fn GetWindowDesktopId(
+        &self,
+        toplevelwindow: HWND,
+    ) -> windows_core::Result<windows_core::GUID> {
+        unsafe {
+            let mut result__ = core::mem::zeroed();
+            (windows_core::Interface::vtable(self).GetWindowDesktopId)(
+                windows_core::Interface::as_raw(self),
+                toplevelwindow,
+                &mut result__,
+            )
+            .map(|| result__)
+        }
+    }
+    pub(crate) unsafe fn MoveWindowToDesktop(
+        &self,
+        toplevelwindow: HWND,
+        desktopid: *const windows_core::GUID,
+    ) -> windows_core::HRESULT {
+        unsafe {
+            (windows_core::Interface::vtable(self).MoveWindowToDesktop)(
+                windows_core::Interface::as_raw(self),
+                toplevelwindow,
+                desktopid,
+            )
+        }
+    }
+}
+#[repr(C)]
+pub struct IVirtualDesktopManager_Vtbl {
+    pub base__: windows_core::IUnknown_Vtbl,
+    pub IsWindowOnCurrentVirtualDesktop: unsafe extern "system" fn(
+        *mut core::ffi::c_void,
+        HWND,
+        *mut windows_core::BOOL,
+    ) -> windows_core::HRESULT,
+    pub GetWindowDesktopId: unsafe extern "system" fn(
+        *mut core::ffi::c_void,
+        HWND,
+        *mut windows_core::GUID,
+    ) -> windows_core::HRESULT,
+    pub MoveWindowToDesktop: unsafe extern "system" fn(
+        *mut core::ffi::c_void,
+        HWND,
+        *const windows_core::GUID,
+    ) -> windows_core::HRESULT,
+}
+pub trait IVirtualDesktopManager_Impl: windows_core::IUnknownImpl {
+    fn IsWindowOnCurrentVirtualDesktop(
+        &self,
+        toplevelwindow: HWND,
+    ) -> windows_core::Result<windows_core::BOOL>;
+    fn GetWindowDesktopId(&self, toplevelwindow: HWND) -> windows_core::Result<windows_core::GUID>;
+    fn MoveWindowToDesktop(
+        &self,
+        toplevelwindow: HWND,
+        desktopid: *const windows_core::GUID,
+    ) -> windows_core::Result<()>;
+}
+impl IVirtualDesktopManager_Vtbl {
+    pub const fn new<Identity: IVirtualDesktopManager_Impl, const OFFSET: isize>() -> Self {
+        unsafe extern "system" fn IsWindowOnCurrentVirtualDesktop<
+            Identity: IVirtualDesktopManager_Impl,
+            const OFFSET: isize,
+        >(
+            this: *mut core::ffi::c_void,
+            toplevelwindow: HWND,
+            oncurrentdesktop: *mut windows_core::BOOL,
+        ) -> windows_core::HRESULT {
+            unsafe {
+                let this: &Identity =
+                    &*((this as *const *const ()).offset(OFFSET) as *const Identity);
+                match IVirtualDesktopManager_Impl::IsWindowOnCurrentVirtualDesktop(
+                    this,
+                    core::mem::transmute_copy(&toplevelwindow),
+                ) {
+                    Ok(ok__) => {
+                        oncurrentdesktop.write(ok__);
+                        windows_core::HRESULT(0)
+                    }
+                    Err(err) => err.into(),
+                }
+            }
+        }
+        unsafe extern "system" fn GetWindowDesktopId<
+            Identity: IVirtualDesktopManager_Impl,
+            const OFFSET: isize,
+        >(
+            this: *mut core::ffi::c_void,
+            toplevelwindow: HWND,
+            desktopid: *mut windows_core::GUID,
+        ) -> windows_core::HRESULT {
+            unsafe {
+                let this: &Identity =
+                    &*((this as *const *const ()).offset(OFFSET) as *const Identity);
+                match IVirtualDesktopManager_Impl::GetWindowDesktopId(
+                    this,
+                    core::mem::transmute_copy(&toplevelwindow),
+                ) {
+                    Ok(ok__) => {
+                        desktopid.write(ok__);
+                        windows_core::HRESULT(0)
+                    }
+                    Err(err) => err.into(),
+                }
+            }
+        }
+        unsafe extern "system" fn MoveWindowToDesktop<
+            Identity: IVirtualDesktopManager_Impl,
+            const OFFSET: isize,
+        >(
+            this: *mut core::ffi::c_void,
+            toplevelwindow: HWND,
+            desktopid: *const windows_core::GUID,
+        ) -> windows_core::HRESULT {
+            unsafe {
+                let this: &Identity =
+                    &*((this as *const *const ()).offset(OFFSET) as *const Identity);
+                IVirtualDesktopManager_Impl::MoveWindowToDesktop(
+                    this,
+                    core::mem::transmute_copy(&toplevelwindow),
+                    core::mem::transmute_copy(&desktopid),
+                )
+                .into()
+            }
+        }
+        Self {
+            base__: windows_core::IUnknown_Vtbl::new::<Identity, OFFSET>(),
+            IsWindowOnCurrentVirtualDesktop: IsWindowOnCurrentVirtualDesktop::<Identity, OFFSET>,
+            GetWindowDesktopId: GetWindowDesktopId::<Identity, OFFSET>,
+            MoveWindowToDesktop: MoveWindowToDesktop::<Identity, OFFSET>,
+        }
+    }
+    pub fn matches(iid: &windows_core::GUID) -> bool {
+        iid == &<IVirtualDesktopManager as windows_core::Interface>::IID
+    }
+}
+impl windows_core::RuntimeName for IVirtualDesktopManager {}
+windows_core::imp::define_interface!(
     IWICBitmap,
     IWICBitmap_Vtbl,
     0x00000121_a8f2_4877_ba0a_fd2b6645fb94
@@ -15444,6 +15731,7 @@ pub type SIGDN = i32;
 pub const SIGDN_FILESYSPATH: SIGDN = -2147123200;
 pub const SIGDN_NORMALDISPLAY: SIGDN = 0;
 pub const SIGDN_PARENTRELATIVEEDITING: SIGDN = -2147282943;
+pub const SIGDN_PARENTRELATIVEPARSING: SIGDN = -2147385343;
 pub type SIIGBF = i32;
 pub const SIIGBF_BIGGERSIZEOK: SIIGBF = 1;
 pub const SIIGBF_ICONONLY: SIIGBF = 4;
@@ -15705,6 +15993,8 @@ pub struct VS_FIXEDFILEINFO {
     pub dwFileDateMS: u32,
     pub dwFileDateLS: u32,
 }
+pub const VirtualDesktopManager: windows_core::GUID =
+    windows_core::GUID::from_u128(0xaa509086_5ca9_4c25_8f95_589d3c07b48a);
 pub const WAIT_FAILED: u32 = 4294967295;
 pub const WAIT_OBJECT_0: i32 = 0;
 pub const WHEEL_DELTA: i32 = 120;
