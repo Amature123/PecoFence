@@ -11,6 +11,7 @@
 - The first start greets you with a card above the taskbar: your files have not moved, a box dragged on empty desktop space makes a fence, and a double-click there hides or shows them all. Its button opens the online manual in your language, which 「关于」 in Settings now links to as well (「使用手册」).
 - The card above the taskbar (the welcome, and the Store edition's rating offer) fades in and out like a fence instead of popping up and vanishing.
 - Changing the icon size (from the menu or with Ctrl+wheel) or the view no longer blanks the icons for a moment. Each icon stays up, scaled to the new size, until the sharp one is ready, as in Explorer; the same goes for a fence moved to a screen with other scaling.
+- On a fence without 自动高度, changing the icon size moves the bottom edge to the new height smoothly, as on fences with it, instead of jumping there.
 
 ## 0.1.5
 

@@ -302,7 +302,8 @@ impl App {
     }
 
     /// Icon-size change on a fixed-height fence: the height follows the content (no band of
-    /// empty rows after shrinking the icons), growing only as far as the next fence below.
+    /// empty rows after shrinking the icons), growing only as far as the next fence below. The
+    /// bottom edge glides there like an auto-height fence's.
     pub(super) fn fit_height_to_content(&mut self, id: FenceId) {
         let id = self.state.host_of(id);
         if self.state.fence(id).is_none_or(|f| f.view.auto_height) {
@@ -331,7 +332,7 @@ impl App {
         if h == r.bottom - r.top {
             return;
         }
-        let rect = w.apply_height(h, false);
+        let rect = w.apply_height(h, true);
         self.record_bounds(id, rect, false, h);
         self.schedule_save();
     }
