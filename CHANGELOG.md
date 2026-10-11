@@ -7,6 +7,7 @@
 - The first start sizes the four new fences to what landed in them. Each shows whole rows of icons, and the column uses the screen's height: fences with a few icons stay short, and the rest share the remaining space. The fixed heights used before cut the second row of 「文件夹」 in half and left a mostly empty plate around a single icon.
 - A new fence made from a menu (「新建栅栏」 in a fence's or the tray menu, or 「在此新建栅栏」 after dragging a box on the desktop) opens its title for editing, as Explorer does with a new folder. Type a name and press Enter; Esc keeps 「新栅栏」.
 - The first start puts its column of fences on the primary monitor. With several monitors it could land on whichever one Windows listed first.
+- Starting PecoFence while it is already running (from the Start menu, a shortcut or the Store's 「打开」) opens its Settings. Windows 11 puts new tray icons in the ^ overflow, so the second start used to look like nothing happened.
 
 ## 0.1.5
 

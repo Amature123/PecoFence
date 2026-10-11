@@ -138,6 +138,23 @@ fn install_panic_hook() {
     }));
 }
 
+/// Asks the running instance to open its settings window. Fire and forget: it answers late
+/// while one of its menus is open, and this process has nothing else to do.
+fn show_running_settings(instance: Option<&str>) {
+    use std::io::Write;
+    use std::os::windows::fs::OpenOptionsExt;
+    const SECURITY_IDENTIFICATION: u32 = 0x0001_0000;
+    pecofence_platform::process::allow_foreground_handoff();
+    let request = pecofence_ipc::Request::new(pecofence_ipc::Method::SettingsOpenUi);
+    let pipe = std::fs::OpenOptions::new()
+        .write(true)
+        .security_qos_flags(SECURITY_IDENTIFICATION)
+        .open(pecofence_core::brand::ipc_pipe_name(instance));
+    if let (Ok(mut pipe), Ok(line)) = (pipe, serde_json::to_string(&request)) {
+        let _ = writeln!(pipe, "{line}");
+    }
+}
+
 fn main() -> Result<()> {
     // `PECOFENCE_INSTANCE=<name>` runs a second, independent instance (developer testing with
     // `--portable`); the default name keeps one PecoFence per session. Checked before logging
@@ -152,6 +169,11 @@ fn main() -> Result<()> {
     let [current_name, legacy_name] =
         pecofence_core::brand::instance_mutex_names(instance_name.as_deref());
     let Some(_instance) = window::SingleInstance::acquire(&current_name) else {
+        // Started again from the Start menu or a shortcut: Windows 11 hides new tray icons
+        // in the overflow, so show the running copy's settings rather than exit silently.
+        if std::env::args().len() == 1 {
+            show_running_settings(instance.as_deref());
+        }
         return Ok(());
     };
     // A pre-rename instance is running: exit it before starting PecoFence.

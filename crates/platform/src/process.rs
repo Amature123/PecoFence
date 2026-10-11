@@ -24,6 +24,13 @@ pub fn current_pid() -> u32 {
     unsafe { GetCurrentProcessId() }
 }
 
+/// Lets any process take the foreground window from this one, e.g. the running instance that
+/// a second launch asks to show its settings. Only works while this process may set it.
+pub fn allow_foreground_handoff() {
+    // SAFETY: plain FFI call; fails harmlessly without the foreground right.
+    let _ = unsafe { crate::store_bindings::AllowSetForegroundWindow(crate::store_bindings::ASFW_ANY) };
+}
+
 /// True when running from an MSIX package (Microsoft Store install). Packaged processes
 /// get virtualized HKCU writes, so the Run-key autostart is replaced by the manifest's
 /// `windows.startupTask`, which users control under Settings > Apps > Startup.
