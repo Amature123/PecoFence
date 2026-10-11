@@ -178,6 +178,7 @@ impl FenceWindow {
             scroll_y: 0.0,
             scroll_memory: HashMap::new(),
             scroll_restore: None,
+            select_after_nav: None,
             scroll_anim: None,
             dpi,
             theme,
@@ -606,9 +607,37 @@ impl FenceWindow {
                 // (the redraw clamps to its content; `set_layout` consumes the value).
                 v.scroll_y = s;
             }
+            if let Some((id, ring)) = v.select_after_nav.take()
+                && let Some(i) = v.items.iter().position(|it| it.id == id)
+            {
+                v.select_only(i);
+                v.focus_visible = ring;
+                if !v.rolled_up {
+                    v.scroll_into_view(i, false);
+                }
+            }
             let _ = v.redraw();
             // The item under a stationary pointer may have changed: re-hit-test from the loop.
             v.request_hover_refresh();
+        });
+    }
+
+    /// Portal navigation, before the new folder's items arrive: the page swaps like a tab
+    /// switch (`dir` +1 = into a subfolder, sliding in from the right; -1 = up / home, from the
+    /// left) and the new folder starts at the top. `select` (the folder just left by 上一级)
+    /// is selected by the next `set_items`.
+    pub fn begin_portal_navigation(&self, dir: i8, select: Option<ItemId>) {
+        self.with_view(|v| {
+            v.scroll_anim = None;
+            v.scroll_y = 0.0;
+            v.select_after_nav = select.map(|id| (id, v.focus_visible));
+            if !v.rolled_up
+                && !v.height_animating()
+                && v.motion.enabled()
+                && desktop::is_visible(v.hwnd)
+            {
+                v.begin_content_swap(dir);
+            }
         });
     }
 
@@ -724,7 +753,7 @@ impl FenceWindow {
     pub fn set_icon_size(&self, size: u32) {
         self.with_view(|v| {
             v.icon_size = size;
-            v.drop_icons_for_reload();
+            v.reload_icons_and_labels();
             v.snap_item_motion();
             let _ = v.redraw();
         });
@@ -1073,7 +1102,7 @@ impl FenceWindow {
             v.header_hover = None;
             v.header_fades.clear();
             v.reset_item_fades();
-            v.drop_icons_for_reload();
+            v.reload_icons_and_labels();
             v.snap_item_motion();
             let _ = v.redraw();
         });

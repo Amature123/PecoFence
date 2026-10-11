@@ -427,24 +427,19 @@ impl AppState {
 
     /// Stardock-style first-run layout: right column 程序 / 文件夹 / 文件与文档 / 桌面(inbox).
     fn default_fences(&mut self) -> Vec<Fence> {
-        let work = self
-            .work_areas
-            .iter()
-            .find(|w| w.device_path.ends_with("DISPLAY1") || true)
-            .cloned()
-            .unwrap_or(WorkArea {
-                device_path: "primary".into(),
-                gdi_name: String::new(),
-                left: 0,
-                top: 0,
-                right: 1920,
-                bottom: 1040,
-                dpi: 96,
-                mon_left: 0,
-                mon_top: 0,
-                mon_right: 1920,
-                mon_bottom: 1040,
-            });
+        let work = self.work_areas.first().cloned().unwrap_or(WorkArea {
+            device_path: "primary".into(),
+            gdi_name: String::new(),
+            left: 0,
+            top: 0,
+            right: 1920,
+            bottom: 1040,
+            dpi: 96,
+            mon_left: 0,
+            mon_top: 0,
+            mon_right: 1920,
+            mon_bottom: 1040,
+        });
         let ww = work.width_dip();
         let wh = work.height_dip();
         // Exactly three icon columns at the default icon size, so the column snap applied by

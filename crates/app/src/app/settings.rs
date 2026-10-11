@@ -303,12 +303,29 @@ impl App {
             Some("ready") => {
                 tracing::info!("settings: page ready");
                 self.push_settings_state();
+                // The first `ready` shows the window; a reload's leaves it as the user left it.
+                if let Some(h) = self
+                    .settings
+                    .as_ref()
+                    .filter(|h| !desktop::is_visible(h.hwnd()))
+                {
+                    window::show_normal(h.hwnd());
+                    window::bring_to_front(h.hwnd());
+                }
                 if let Some(fence) = self.settings_focus_fence.take() {
                     self.post_show_fence(fence);
                 }
                 self.show_pending_feedback();
             }
             Some("setFence") => self.on_set_fence(&v),
+            Some("ringFence") => {
+                let host = v
+                    .get("id")
+                    .and_then(|i| i.as_str())
+                    .and_then(|i| uuid::Uuid::parse_str(i).ok())
+                    .map(|id| self.state.host_of(id));
+                self.set_settings_ring(host);
+            }
             Some("patchSettings") => {
                 let Some(new_settings) = v.get("settings").cloned() else {
                     return;
@@ -439,6 +456,7 @@ impl App {
                 Some("repairIcons") => self.set_desktop_icons_hidden(false),
                 Some("hideDesktopIcons") => self.set_desktop_icons_hidden(true),
                 Some("rateInStore") => self.open_store_rating(),
+                Some("openManual") => self.open_manual(),
                 Some("openRepository") => {
                     let url = pecofence_core::brand::REPOSITORY_URL;
                     let _ = shell::shell_execute(std::path::Path::new(url), None, None);

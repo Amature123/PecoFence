@@ -70,6 +70,7 @@ mod testscript;
 mod updates;
 mod visuals;
 mod wallpaper_refresh;
+mod welcome;
 
 use fences::work_areas;
 use fileops::{FileOp, FileOpThen};
@@ -226,6 +227,10 @@ pub struct App {
     updates: updates::Updates,
     /// The one-time Store rating offer (see `rating.rs`).
     rating: rating::RatingPrompt,
+    /// The first start's welcome notice while it is on screen (see `welcome.rs`).
+    welcome: Option<crate::notice::Notice>,
+    /// The fence Settings › 「栅栏」 is editing, which wears the selection ring (`group.rs`).
+    settings_ring: Option<FenceId>,
     web_env: Option<WebEnvironment>,
     settings_class: WindowClass,
     theme_mode: ThemeMode,
@@ -916,6 +921,8 @@ impl App {
             feedback: Default::default(),
             updates: Default::default(),
             rating,
+            welcome: None,
+            settings_ring: None,
             web_env: None,
             settings_class,
             theme_mode,
@@ -1029,6 +1036,9 @@ impl App {
         app.sync_desktop_if_available("startup");
         app.state.refresh_all_portals();
         app.sync_fence_windows();
+        if app.state.first_run {
+            app.fit_first_run_column();
+        }
         // Fences never stay on top of each other: pull apart any overlap the layout brings.
         app.settle_unplaced(true);
         if let Some(folder) = args.portal.as_deref() {
@@ -1093,6 +1103,9 @@ impl App {
         app.remove_old_update_downloads();
         // Last of the startup balloons, so it is the one left showing.
         app.offer_crash_feedback();
+        if app.state.first_run && args.exit_after_ms.is_none() && args.test_script.is_none() {
+            app.offer_welcome();
+        }
         if args.open_settings {
             app.queue.push(Command::OpenSettings);
         }
@@ -1526,6 +1539,7 @@ impl App {
             Command::WindowGone(hwnd) => {
                 if self.settings.as_ref().is_some_and(|h| h.hwnd() == hwnd) {
                     self.settings = None;
+                    self.set_settings_ring(None);
                 }
             }
             Command::FadeOutDone(hwnd) => {

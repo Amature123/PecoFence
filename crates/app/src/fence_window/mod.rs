@@ -264,6 +264,10 @@ pub struct ItemView {
     type_label: Option<String>,
     size_label: Option<String>,
     icon: Option<Rc<Image>>,
+    /// Pixel size `icon` was extracted at. After an icon-size, layout or DPI change the old
+    /// bitmap stays up, scaled into the new box, until the new size arrives; its GPU upload
+    /// is keyed by this size, never by the size being shown.
+    icon_px: u32,
     icon_failed: bool,
     /// The icon lookup came back pending at least once: when it finally lands the bitmap
     /// cross-fades in over the loading tile (a synchronous cache hit shows at once).
@@ -280,6 +284,11 @@ impl ItemView {
         } else {
             fileinfo::format_local_datetime(self.mtime)
         }
+    }
+
+    /// The icon for `px` is still to come: none yet, or only one of another size.
+    fn wants_icon(&self, px: u32) -> bool {
+        (self.icon.is_none() || self.icon_px != px) && !self.icon_failed
     }
 
     /// Details "大小" text; namespace items have none.
@@ -321,6 +330,7 @@ impl ItemView {
             type_label: None,
             size_label: None,
             icon: None,
+            icon_px: 0,
             icon_failed: false,
             icon_waited: false,
             icon_fade: None,
