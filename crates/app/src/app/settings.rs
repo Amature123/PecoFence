@@ -303,6 +303,10 @@ impl App {
             Some("ready") => {
                 tracing::info!("settings: page ready");
                 self.push_settings_state();
+                if let Some(h) = &self.settings {
+                    window::show_normal(h.hwnd());
+                    window::bring_to_front(h.hwnd());
+                }
                 if let Some(fence) = self.settings_focus_fence.take() {
                     self.post_show_fence(fence);
                 }
