@@ -124,7 +124,7 @@ A versão da Microsoft Store é assinada pela Microsoft, atualiza sozinha e nunc
 <details>
 <summary><strong>Requisitos, configuração e algumas observações úteis</strong></summary>
 
-- Windows 11 22H2 ou mais recente. O Microsoft Edge WebView2 Runtime é necessário para as Configurações.
+- Windows 10 22H2, ou Windows 11 22H2 ou mais recente. O Microsoft Edge WebView2 Runtime é necessário para as Configurações. O Windows 11 já o inclui; no Windows 10, instale-o pelo site da Microsoft se as Configurações não abrirem.
 - Na primeira execução são criados os grupos “Programas”, “Pastas”, “Arquivos e documentos” e “Área de trabalho” no idioma escolhido. Os ícones da área de trabalho do Windows voltam a aparecer quando você sai.
 - A configuração fica em `%APPDATA%\PecoFence\config.json`. Inicie com `--portable` para mantê-la em uma pasta `config` ao lado do executável.
 - O ZIP e o instalador não são assinados. Se o Windows SmartScreen aparecer na primeira execução, escolha **Mais informações → Executar assim mesmo**.
