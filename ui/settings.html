@@ -42,7 +42,7 @@
   /* Shared Han characters must come from the font of the page language, not the first CJK
      font that happens to contain them. */
   :root:lang(zh-TW) { --font-cjk: "Microsoft JhengHei UI", "Microsoft JhengHei"; }
-  :root:lang(ja) { --font-cjk: "Yu Gothic UI", "Meiryo UI"; }
+  :root:lang(ja) { --font-cjk: "Yu Gothic UI", "Meiryo UI"; word-break: auto-phrase; }
   :root:lang(ko) { --font-cjk: "Malgun Gothic"; }
   *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; color: var(--text); background: transparent;
@@ -76,7 +76,7 @@
   main::-webkit-scrollbar-thumb { min-height: 40px; background-color: var(--scroll-thumb); border: 4px solid transparent; background-clip: padding-box; border-radius: 6px; }
   main:hover::-webkit-scrollbar-thumb { border-width: 3px; }
   main::-webkit-scrollbar-thumb:hover { background-color: var(--control-strong); }
-  .page { display: none; } .page.on { display: block; animation: page-in .2s cubic-bezier(.1, .9, .2, 1); }
+  .page { display: none; } .page.on { display: block; animation: page-in .2s cubic-bezier(.1, .9, .2, 1); anchor-name: --page; }
   @keyframes page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .page-header { margin: 4px 2px 16px; }
   h2 { font: 600 28px/36px "Segoe UI Variable Display", "Segoe UI", var(--font-cjk), sans-serif; margin: 0; }
@@ -92,7 +92,7 @@
   .card .l > .ic { font-size: 20px; width: 20px; line-height: 20px; flex: none; text-align: center; color: var(--text); }
   .card .t { font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
   .card .s { color: var(--text2); font-size: 12px; line-height: 16px; overflow-wrap: anywhere; }
-  .card .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; }
+  .card .actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; max-width: 100%; }
   /* Controls that wrap under a long description stay on the right, as in Windows Settings. */
   .card:not(.stack) > :not(.l):not(.s) { margin-left: auto; }
   .card.disabled .t, .card.disabled .s { color: var(--text-disabled); }
@@ -249,10 +249,11 @@
   #ver { font-size: 12px; line-height: 18px; font-weight: 400; color: var(--text2); border: 1px solid var(--control-stroke); padding: 0 6px; border-radius: 4px; }
   code { font: 12px/16px "Cascadia Mono", Consolas, monospace; color: var(--text2); overflow-wrap: anywhere; user-select: text; }
 
-  .infobar { position: fixed; z-index: 5; left: 50%; bottom: 24px; transform: translate(-50%, 8px); min-height: 48px; border-radius: var(--r-card); background: var(--ok-bg); border: 1px solid var(--card-stroke); box-shadow: var(--shadow);
-    max-width: calc(100% - 32px); padding: 13px 16px; overflow-wrap: anywhere; display: flex; gap: 12px; align-items: center; opacity: 0; transition: opacity .18s, transform .18s; pointer-events: none; }
+  /* Centred over the content column (the visible page), not the whole window. */
+  .infobar { position: fixed; z-index: 5; left: anchor(--page left, 16px); right: anchor(--page right, 16px); width: fit-content; margin: 0 auto; bottom: 24px; transform: translateY(8px); min-height: 48px; border-radius: var(--r-card); background: var(--ok-bg); border: 1px solid var(--card-stroke); box-shadow: var(--shadow);
+    padding: 13px 16px; overflow-wrap: anywhere; display: flex; gap: 12px; align-items: center; opacity: 0; transition: opacity .18s, transform .18s; pointer-events: none; }
   .infobar .ic::before { content: "\E73E"; font-size: 16px; color: var(--ok); }
-  .infobar.on { opacity: 1; transform: translate(-50%, 0); }
+  .infobar.on { opacity: 1; transform: none; }
   .infobar.error { background: var(--error-bg); } .infobar.error .ic::before { content: "\E783"; color: var(--error); }
 
   @media (max-width: 900px) {
@@ -471,6 +472,7 @@
         <div><div class="name">PecoFence <span id="ver"></span></div><div class="s">开源的 Windows 11 桌面整理工具</div><div class="s">Apache 2.0 许可证</div><div class="s" id="memDetail">—</div></div>
       </div>
       <div class="card" id="updateCard" hidden><div class="l"><span class="ic">&#xE895;</span><div><div class="t">更新</div><div class="s" id="updateStatus"></div></div></div><button id="updateAction"></button></div>
+      <div class="card"><div class="l"><span class="ic">&#xE897;</span><div><div class="t">使用手册</div><div class="s">每个功能都有动画演示</div></div></div><button id="openManual">打开</button></div>
       <div class="card"><div class="l"><span class="ic">&#xE734;</span><div><div class="t">喜欢 PecoFence 吗？</div><div class="s">你的支持能让更多人发现它。</div></div></div>
         <div class="actions"><button id="rateStore" hidden>在 Microsoft Store 评分</button><button id="starRepo">在 GitHub 点 Star</button></div></div>
       <h3 id="feedbackHeading">反馈</h3>
@@ -798,7 +800,7 @@
       } else if (el.tagName === 'SELECT') {
         const value = cur == null ? '' : String(cur);
         if (prop === 'tint' || prop === 'tabColor') ensureOption(el, value, t("自定义 #") + value);
-        if (prop === 'titleColor') { ensureOption(el, /^[0-9A-F]{6}$/i.test(value) ? value : '', t("自定义 #") + value); el.querySelector('[value=tint]').disabled = !f.tint; }
+        if (prop === 'titleColor') { ensureOption(el, /^[0-9A-F]{6}$/i.test(value) ? value : '', t("自定义 #") + value); el.querySelector('[value=tint]').disabled = !f.tint; el.closest('.card').querySelector('.s').hidden = !!f.tint; }
         el.value = value;
         el.onchange = () => setFence(f.id, prop, prop === 'iconSize' ? Number(el.value) : prop === 'tint' || prop === 'tabColor' ? (el.value || null) : el.value);
       } else if (el.tagName === 'INPUT') {
@@ -941,7 +943,6 @@
     document.getElementById(id)?.focus();
   }
   document.getElementById('nrAdd').onclick = () => {
-    const name = document.getElementById('nrName').value.trim() || t("新规则");
     const target = document.getElementById('nrTarget').value;
     if (!target) return ruleError(t("没有可用的目标栅栏"), 'nrTarget');
     const kind = document.getElementById('nrKind').value;
@@ -979,6 +980,8 @@
     else if (kind === 'files') cond = { cond: 'filesOnly', value: null };
     else cond = { cond: 'foldersOnly', value: null };
     const fence = state.fences.find(f => f.id === target);
+    // An unnamed rule is called after its condition, so the list does not fill with identical names.
+    const name = document.getElementById('nrName').value.trim() || condLabel(cond);
     state.rules.list.push({ id: newId(), name, enabled: true, target: fence && fence.kind === 'inbox' ? 'inbox' : { fence: target }, allOf: [cond], priorityClass: cls });
     send({ type: 'setRules', rules: state.rules }); renderRules(); toast(t("已添加规则"));
     document.getElementById('nrName').value = ''; document.getElementById('nrValue').value = '';
@@ -1032,6 +1035,7 @@
   document.getElementById('openCfg').onclick = () => send({ type: 'action', name: 'openConfigFolder' });
   document.getElementById('rateStore').onclick = () => send({ type: 'action', name: 'rateInStore' });
   document.getElementById('starRepo').onclick = () => send({ type: 'action', name: 'openRepository' });
+  document.getElementById('openManual').onclick = () => send({ type: 'action', name: 'openManual' });
   document.getElementById('repairIcons').onclick = () => send({ type: 'action', name: 'repairIcons' });
 
   // 关于 → 更新: an installed copy downloads and runs the new setup, a ZIP opens the release page.
@@ -1056,6 +1060,7 @@
     const action = !offered ? 'checkUpdate' : install ? 'installUpdate' : 'openReleasePage';
     button.textContent = action === 'checkUpdate' ? t("检查更新") : install ? t("下载并安装") : t("打开下载页");
     button.disabled = s === 'checking' || s === 'downloading';
+    button.classList.toggle('accent', s === 'available');
     button.onclick = () => send({ type: 'action', name: action });
   };
   document.getElementById('hideIconsAgain').onclick = () => send({ type: 'action', name: 'hideDesktopIcons' });
