@@ -137,6 +137,9 @@ pub struct FenceViewState {
     /// Offset to re-apply once the new tab's items have arrived (`set_items`); `set_layout`
     /// consumes it, so a tab switch whose tabs differ in layout keeps the restored offset.
     pub(super) scroll_restore: Option<f32>,
+    /// Portal 上一级: the folder just left, which the parent's `set_items` selects and scrolls
+    /// into view (Explorer), with the focus ring if it was showing.
+    pub(super) select_after_nav: Option<(ItemId, bool)>,
     /// Smooth-scroll client tween (the offset is rasterised into the D2D content surface, so
     /// the surface is redrawn per frame from `tick`). Its target is where pending input
     /// accumulates: a second wheel notch retargets from the anticipated end, not from the

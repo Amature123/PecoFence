@@ -799,7 +799,7 @@ impl App {
             }
             CMD_PORTAL_HOME => {
                 if self.state.portal_home(fence) {
-                    self.after_portal_navigation(fence);
+                    self.after_portal_navigation(fence, -1, None);
                 }
             }
             CMD_FENCE_NEW_FOLDER => self.create_desktop_item(fence, true),

@@ -13,6 +13,7 @@
 - Changing the icon size (from the menu or with Ctrl+wheel) or the view no longer blanks the icons for a moment. Each icon stays up, scaled to the new size, until the sharp one is ready, as in Explorer; the same goes for a fence moved to a screen with other scaling.
 - On a fence without 自动高度, changing the icon size moves the bottom edge to the new height smoothly, as on fences with it, instead of jumping there.
 - The first icon dropped into an empty fence fades in like the icons added to a fence that already has some, instead of popping in.
+- Moving around inside a folder portal works more like Explorer. A subfolder opens at the top instead of at the scroll position of the folder above it; going back up (the up button, Backspace, Alt+Up or 返回上一级) selects the folder you came from and scrolls to it; and the new folder slides in from the side you are going, as when switching tabs.
 
 ## 0.1.5
 
