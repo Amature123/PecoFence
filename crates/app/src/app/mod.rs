@@ -1029,6 +1029,9 @@ impl App {
         app.sync_desktop_if_available("startup");
         app.state.refresh_all_portals();
         app.sync_fence_windows();
+        if app.state.first_run {
+            app.fit_first_run_column();
+        }
         // Fences never stay on top of each other: pull apart any overlap the layout brings.
         app.settle_unplaced(true);
         if let Some(folder) = args.portal.as_deref() {
