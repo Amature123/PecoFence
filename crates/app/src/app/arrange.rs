@@ -256,7 +256,9 @@ impl App {
             let Some(fit) = w.fit_report() else {
                 return;
             };
-            want.push((fit.fitting_height_px, steps));
+            // Every row, not `fitting_height_px`: that stops at the work area's bottom from
+            // where the fence sits before the restack.
+            want.push((steps.rows_height(fit.rows.max(1) as u32), steps));
         }
         // One row each, then one more row each in turn while it fits: fences with a few
         // icons stop at their fitting height, the others share the rest of the column.

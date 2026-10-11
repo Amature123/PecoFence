@@ -303,7 +303,12 @@ impl App {
             Some("ready") => {
                 tracing::info!("settings: page ready");
                 self.push_settings_state();
-                if let Some(h) = &self.settings {
+                // The first `ready` shows the window; a reload's leaves it as the user left it.
+                if let Some(h) = self
+                    .settings
+                    .as_ref()
+                    .filter(|h| !desktop::is_visible(h.hwnd()))
+                {
                     window::show_normal(h.hwnd());
                     window::bring_to_front(h.hwnd());
                 }
