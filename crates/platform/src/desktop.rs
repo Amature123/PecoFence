@@ -258,8 +258,9 @@ pub fn has_visible_surface(hwnd: HWND) -> bool {
 /// `HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED)`: what `SetWindowPos` reports when UIPI refuses it.
 const E_ACCESS_DENIED: windows_core::HRESULT = windows_core::HRESULT(0x8007_0005_u32 as i32);
 
-/// Inserts `hwnd` directly above `host` in the z-order (or at the very bottom if `host` is
-/// already the bottom-most window).
+/// Inserts `hwnd` directly above `host` in the z-order: below the lowest window above `host`
+/// that paints a surface, or at the top of the normal band when there is none (HWND_BOTTOM
+/// would put `hwnd` under a raised `host`).
 ///
 /// Placing a window below one of an elevated process (an app run as administrator, lowest
 /// above the desktop) is refused by UIPI, which would leave `hwnd` wherever it is — over every
@@ -278,11 +279,7 @@ pub fn insert_above(hwnd: HWND, host: HWND) -> Result<()> {
         if above == hwnd {
             return Ok(());
         }
-        let insert_after = if above.0.is_null() {
-            HWND_BOTTOM
-        } else {
-            above
-        };
+        let insert_after = if above.0.is_null() { HWND_TOP } else { above };
         match SetWindowPos(hwnd, Some(insert_after), 0, 0, 0, 0, ANCHOR_FLAGS).ok() {
             Err(e)
                 if e.code() == E_ACCESS_DENIED
@@ -310,6 +307,10 @@ pub fn window_above(hwnd: HWND) -> HWND {
 pub fn insert_after(hwnd: HWND, reference: HWND) -> Result<()> {
     // SAFETY: plain FFI call.
     unsafe { SetWindowPos(hwnd, Some(reference), 0, 0, 0, 0, ANCHOR_FLAGS).ok() }
+}
+
+pub fn is_topmost(hwnd: HWND) -> bool {
+    ex_style(hwnd) & WS_EX_TOPMOST as u32 != 0
 }
 
 /// Moves `hwnd` into (or out of) the topmost band without activating it.
