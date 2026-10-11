@@ -352,10 +352,11 @@ impl DesktopAnchor {
         v
     }
 
-    /// Peek in progress: keep every fence (and shadow) in the topmost band, ordered like
-    /// `fences` (last = on top). Used instead of host insertion while `peeking`, so windows
-    /// created / detached / raised mid-peek end up above the dimmer instead of behind it.
-    fn place_peek_band(&mut self) {
+    /// Peek or show desktop in progress: keep every fence (and shadow) in the topmost band,
+    /// ordered like `fences` (last = on top). Used instead of host insertion while `peeking`
+    /// or while the raised desktop would cover the fences, so windows created / detached /
+    /// raised meanwhile end up above the dimmer or the desktop instead of behind it.
+    fn place_topmost_band(&mut self) {
         self.with_anchoring(|s| {
             for (f, shadow) in s.fences.clone() {
                 for h in std::iter::once(f).chain(shadow) {
@@ -378,7 +379,15 @@ impl DesktopAnchor {
             // instead. (`set_peek(false)` clears `peeking` before calling us, so the restore
             // path still does the normal desktop-band placement.)
             tracing::debug!(reason, "reanchor during peek: reordering in topmost band");
-            self.place_peek_band();
+            self.place_topmost_band();
+            return;
+        }
+        if self.show_desktop_active && self.behavior == ShowDesktopBehavior::KeepVisible {
+            tracing::debug!(
+                reason,
+                "reanchor during show desktop: reordering in topmost band"
+            );
+            self.place_topmost_band();
             return;
         }
         let resolved = desktop::resolve_icon_host(self.generation);
@@ -441,10 +450,57 @@ impl DesktopAnchor {
             && desktop::window_pid(root) == desktop::window_pid(desktop::shell_window())
     }
 
+    /// A window of this process (fence, shadow, settings, menu, rename popup).
+    fn is_own_window(&self, hwnd: HWND) -> bool {
+        desktop::window_pid(desktop::root_ancestor(hwnd)) == std::process::id()
+    }
+
     /// Have our windows ended up *below* the host? (Explorer raised the desktop.)
     fn desktop_is_raised_over_us(&self) -> bool {
         let Some(h) = self.host else { return false };
         desktop::is_below(h.host, SENTINEL_CLASS) || desktop::is_below(h.host, FENCE_CLASS)
+    }
+
+    /// Show desktop (Win+D): Explorer raises the desktop window over every other window, the
+    /// fences included, and gives it the foreground; it is over once another window comes to
+    /// the front. On 24H2+ Progman itself moves up (the fences keep their place in the z-order,
+    /// so inserting them "just above" it again is not reliable), on older builds the WorkerW
+    /// the icons were moved into, which `reanchor` follows as a host change.
+    fn check_show_desktop(&mut self) {
+        let foreground = desktop::foreground_window();
+        if !self.show_desktop_active {
+            if self.desktop_is_raised_over_us() && self.is_desktop_window(foreground) {
+                self.show_desktop_active = true;
+                match self.behavior {
+                    ShowDesktopBehavior::KeepVisible => {
+                        tracing::info!("show desktop: floating the fences above the raised desktop")
+                    }
+                    ShowDesktopBehavior::HideWithDesktop => {
+                        tracing::info!("show desktop: fences stay behind the raised desktop")
+                    }
+                }
+            }
+        } else if !foreground.0.is_null()
+            && !self.is_desktop_window(foreground)
+            && !self.is_own_window(foreground)
+        {
+            self.end_show_desktop("another window came to the front");
+        }
+    }
+
+    /// Leaves the topmost band; the caller re-anchors above the host.
+    fn end_show_desktop(&mut self, reason: &'static str) {
+        self.show_desktop_active = false;
+        tracing::info!(reason, "show desktop ended");
+        if self.behavior == ShowDesktopBehavior::KeepVisible {
+            self.with_anchoring(|s| {
+                for (f, shadow) in s.fences.clone() {
+                    for h in std::iter::once(f).chain(shadow) {
+                        let _ = desktop::set_topmost(h, false);
+                    }
+                }
+            });
+        }
     }
 
     /// Are all our windows directly above the host (contiguous block ending at host)?
@@ -518,21 +574,8 @@ impl DesktopAnchor {
             }
         }
 
-        if is_desktop && raised {
-            if !self.show_desktop_active {
-                tracing::info!("show-desktop detected (desktop raised above fences)");
-            }
-            self.show_desktop_active = true;
-            if self.behavior == ShowDesktopBehavior::HideWithDesktop {
-                return;
-            }
-        } else if !is_desktop && self.show_desktop_active {
-            tracing::info!("show-desktop ended");
-            self.show_desktop_active = false;
-        }
-
-        // Explorer may reorder the host slightly after the foreground event, so verify now and
-        // again on a short retry ladder.
+        // Explorer may reorder the host slightly after the foreground event (Win+D activates
+        // the desktop before raising it), so verify now and again on a short retry ladder.
         self.ensure_anchored("foreground");
         self.retry_step = 0;
         self.sentinel.set_timer(TIMER_RETRY, RETRY_DELAYS_MS[0]);
@@ -602,6 +645,19 @@ impl DesktopAnchor {
             }
         }
         let resolved = desktop::resolve_icon_host(self.generation);
+        if resolved != self.host && self.show_desktop_active {
+            // Explorer restarted: the raised desktop went with it.
+            self.end_show_desktop("icon host changed");
+        }
+        self.check_show_desktop();
+        if self.show_desktop_active {
+            if self.behavior == ShowDesktopBehavior::KeepVisible
+                && !self.fences.iter().all(|(f, _)| desktop::is_topmost(*f))
+            {
+                self.place_topmost_band();
+            }
+            return;
+        }
         if resolved != self.host || !self.is_anchored() {
             self.reanchor(reason);
             for (w, _) in self.fences.clone() {
@@ -925,13 +981,7 @@ impl DesktopAnchor {
 
     fn on_timer(&mut self, id: usize) {
         match id {
-            TIMER_ANCHOR_CHECK => {
-                if self.behavior == ShowDesktopBehavior::HideWithDesktop && self.show_desktop_active
-                {
-                    return;
-                }
-                self.ensure_anchored("periodic check");
-            }
+            TIMER_ANCHOR_CHECK => self.ensure_anchored("periodic check"),
             TIMER_RETRY => {
                 self.sentinel.kill_timer(TIMER_RETRY);
                 self.ensure_anchored("retry");

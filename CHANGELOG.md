@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fences stay in view after Win+D (「显示桌面」) on Windows 11 24H2 and later (#74). There Explorer raises the desktop window itself over every window, and PecoFence re-inserted the fences "just above" it, which could leave them underneath it, covered by the wallpaper, with nothing in the log. While the desktop is shown, the fences now float above it the way Peek shows them, and drop back behind the apps as soon as a window comes to the front; both moments are in the log. 「随桌面一起隐藏」 (`showDesktop = hideWithDesktop`) still hides the fences together with the windows.
+
 ## 0.1.5
 
 - 「打开配置文件夹」 opens the right folder in the Store edition (#45). Windows keeps what a Store app writes under %APPDATA% in the package's own `LocalCache\Roaming` folder, and Explorer cannot see the file at the %APPDATA% path, so the button opened Documents. The settings page (and `pecofence-cli status` / `paths`) now show the real location, and the button opens it with config.json selected.
