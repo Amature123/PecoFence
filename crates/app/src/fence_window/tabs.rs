@@ -73,6 +73,15 @@ pub(super) fn tab_reorder_at_pointer(
         .or_else(|| tab_reorder_step(index, pointer_x - width * 0.5, width, slots))
 }
 
+/// The tab `notches` whole wheel notches move to from strip index `cur` of `n` tabs: towards
+/// the user (negative, like scrolling down) = the next tab to the right, away = the previous.
+/// Stops at the ends rather than wrapping (GTK notebooks, browser tab strips), so a touchpad's
+/// inertia tail cannot cycle past the last tab.
+pub(super) fn wheel_tab_target(cur: usize, n: usize, notches: i32) -> usize {
+    let last = n.saturating_sub(1) as i64;
+    (cur as i64 - notches as i64).clamp(0, last) as usize
+}
+
 /// What a cancelled drag (Esc / right button) needs done once the borrow is released.
 pub(super) enum DragCancel {
     /// A tab drag along the strip: the order was restored in place.

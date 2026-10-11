@@ -808,6 +808,7 @@ impl App {
                 ),
                 title_on_hover: std::cell::Cell::new(state.config.settings.roll_up.title_on_hover),
                 title_align: std::cell::Cell::new(state.config.settings.title_align),
+                tab_wheel_anywhere: std::cell::Cell::new(state.config.settings.tab_wheel_anywhere),
                 hide_inactive_scrollbar: std::cell::Cell::new(
                     state.config.settings.roll_up.hide_inactive_scrollbar,
                 ),

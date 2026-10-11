@@ -216,6 +216,8 @@ pub struct FenceViewState {
     pub(super) cut: HashSet<ItemId>,
     /// Ctrl+wheel accumulator (touchpads deliver fractional notches).
     pub(super) wheel_zoom_accum: i32,
+    /// Wheel-over-tabs accumulator: one tab per whole notch (touchpads deliver fractions).
+    pub(super) wheel_tab_accum: i32,
     /// Fence height follows the item grid (FenceView.auto_height).
     pub(super) auto_height: bool,
     /// Mouse move/resize disabled (menu "锁定位置和大小").

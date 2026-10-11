@@ -1192,3 +1192,16 @@ fn group_drag_keeps_offsets_and_snaps_its_bounding_box() {
     assert_eq!(placed, vec![rc(392, 0, 592, 160)]);
     assert!(guides.iter().any(|g| !g.vertical && g.at == 0));
 }
+
+/// One tab per notch over the strip: towards the user = the tab to the right, away = the tab
+/// to the left, several notches at once move several tabs, and the ends hold (no wrap).
+#[test]
+fn wheel_over_tabs_steps_and_stops_at_the_ends() {
+    assert_eq!(wheel_tab_target(1, 4, -1), 2);
+    assert_eq!(wheel_tab_target(1, 4, 1), 0);
+    assert_eq!(wheel_tab_target(0, 4, -3), 3);
+    assert_eq!(wheel_tab_target(0, 4, 1), 0);
+    assert_eq!(wheel_tab_target(3, 4, -1), 3);
+    assert_eq!(wheel_tab_target(3, 4, -9), 3);
+    assert_eq!(wheel_tab_target(2, 4, 0), 2);
+}

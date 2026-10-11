@@ -97,6 +97,10 @@ pub struct Settings {
     /// Where every fence's title (or tab strip) sits in its title row.
     #[serde(default)]
     pub title_align: TitleAlign,
+    /// The mouse wheel switches tabs anywhere over a fence with tabs, not only over its tab
+    /// strip (Shift+wheel then scrolls the items).
+    #[serde(default)]
+    pub tab_wheel_anywhere: bool,
     pub icon_size: u32,
     pub quick_hide: QuickHideSettings,
     pub roll_up: RollUpSettings,
@@ -165,6 +169,7 @@ impl Default for Settings {
             theme: ThemeSetting::FollowWindowsMode,
             theme_style: ThemeStyle::Fluent,
             title_align: TitleAlign::Left,
+            tab_wheel_anywhere: false,
             icon_size: 48,
             quick_hide: QuickHideSettings::default(),
             roll_up: RollUpSettings::default(),
