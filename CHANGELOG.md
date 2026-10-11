@@ -8,6 +8,8 @@
 - A new fence made from a menu (「新建栅栏」 in a fence's or the tray menu, or 「在此新建栅栏」 after dragging a box on the desktop) opens its title for editing, as Explorer does with a new folder. Type a name and press Enter; Esc keeps 「新栅栏」.
 - The first start puts its column of fences on the primary monitor. With several monitors it could land on whichever one Windows listed first.
 - Starting PecoFence while it is already running (from the Start menu, a shortcut or the Store's 「打开」) opens its Settings. Windows 11 puts new tray icons in the ^ overflow, so the second start used to look like nothing happened.
+- The first start greets you with a card above the taskbar: your files have not moved, a box dragged on empty desktop space makes a fence, and a double-click there hides or shows them all. Its button opens the online manual in your language, which 「关于」 in Settings now links to as well (「使用手册」).
+- The card above the taskbar (the welcome, and the Store edition's rating offer) fades in and out like a fence instead of popping up and vanishing.
 
 ## 0.1.5
 
