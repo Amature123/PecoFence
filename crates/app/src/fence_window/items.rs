@@ -111,6 +111,7 @@ impl FenceViewState {
                     && o.name == n.name
                 {
                     n.icon = o.icon;
+                    n.icon_px = o.icon_px;
                     n.icon_fade = o.icon_fade;
                     n.icon_waited = o.icon_waited;
                     n.label = o.label;
@@ -219,7 +220,6 @@ impl FenceViewState {
         // Removed items fade out from where they are drawn — the mid-glide position and the
         // current alpha, not the layout cell (WinUI AddDeleteThemeTransition fades in place);
         // a removal mid fade-out just keeps fading.
-        let icon_px = (self.icon_dip() * scale).round() as u32;
         let icons = self.icons.borrow();
         for (id, o) in old {
             let Some(c) = old_pos.get(&id) else {
@@ -236,7 +236,7 @@ impl FenceViewState {
                 y,
                 w: c.w,
                 h: c.h,
-                icon_key: icons.draw_key(&o.icon_key, icon_px),
+                icon_key: icons.draw_key(&o.icon_key, o.icon_px),
                 icon: o.icon,
                 label: o.label.unwrap_or(o.name),
                 date: o.date_label.unwrap_or_default(),

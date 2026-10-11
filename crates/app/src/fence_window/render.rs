@@ -582,10 +582,11 @@ impl FenceViewState {
         let mut started = false;
         let mut icons = self.icons.borrow_mut();
         for item in &mut self.items {
-            if item.icon.is_none() && !item.icon_failed {
+            if item.wants_icon(icon_px) {
                 match icons.get(&item.icon_key, &item.path, icon_px, item.icon_only) {
                     Lookup::Ready(Some(img)) => {
                         item.icon = Some(img);
+                        item.icon_px = icon_px;
                         if item.icon_waited {
                             // Delivered by the worker: cross-fade over the loading tile (167 ms
                             // linear); a synchronous cache hit shows at once.
@@ -599,7 +600,9 @@ impl FenceViewState {
                         }
                     }
                     Lookup::Ready(None) => item.icon_failed = true,
-                    Lookup::Pending => item.icon_waited = true,
+                    // Another size's bitmap is the same picture: it stays up, and the sharper
+                    // one replaces it without the fade.
+                    Lookup::Pending => item.icon_waited = item.icon.is_none(),
                 }
             }
             if item.label.is_none() {
@@ -639,9 +642,8 @@ impl FenceViewState {
 
     /// True when some item is still waiting for its icon.
     pub fn has_pending_icons(&self) -> bool {
-        self.items
-            .iter()
-            .any(|i| i.icon.is_none() && !i.icon_failed)
+        let px = (self.icon_dip() * self.scale()).round() as u32;
+        self.items.iter().any(|i| i.wants_icon(px))
     }
 
     /// Redraws the chrome surface only (backdrop/title); the content surface is untouched.
@@ -760,10 +762,9 @@ impl FenceViewState {
         });
         let keys: Vec<String> = {
             let icons = self.icons.borrow();
-            let px = (self.icon_size as f32 * scale).round() as u32;
             self.items
                 .iter()
-                .map(|i| icons.draw_key(&i.icon_key, px))
+                .map(|i| icons.draw_key(&i.icon_key, i.icon_px))
                 .collect()
         };
         // Removed items fade out beneath everything else (painted first).
@@ -911,12 +912,11 @@ impl FenceViewState {
             self.header_fades.clear();
             Vec::new()
         };
-        let icon_px = (metrics.icon * scale).round() as u32;
         let keys: Vec<String> = {
             let icons = self.icons.borrow();
             self.items
                 .iter()
-                .map(|i| icons.draw_key(&i.icon_key, icon_px))
+                .map(|i| icons.draw_key(&i.icon_key, i.icon_px))
                 .collect()
         };
         // Removed rows fade out beneath everything else (painted first).

@@ -10,6 +10,7 @@
 - Starting PecoFence while it is already running (from the Start menu, a shortcut or the Store's 「打开」) opens its Settings. Windows 11 puts new tray icons in the ^ overflow, so the second start used to look like nothing happened.
 - The first start greets you with a card above the taskbar: your files have not moved, a box dragged on empty desktop space makes a fence, and a double-click there hides or shows them all. Its button opens the online manual in your language, which 「关于」 in Settings now links to as well (「使用手册」).
 - The card above the taskbar (the welcome, and the Store edition's rating offer) fades in and out like a fence instead of popping up and vanishing.
+- Changing the icon size (from the menu or with Ctrl+wheel) or the view no longer blanks the icons for a moment. Each icon stays up, scaled to the new size, until the sharp one is ready, as in Explorer; the same goes for a fence moved to a screen with other scaling.
 
 ## 0.1.5
 

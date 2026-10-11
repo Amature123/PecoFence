@@ -724,7 +724,7 @@ impl FenceWindow {
     pub fn set_icon_size(&self, size: u32) {
         self.with_view(|v| {
             v.icon_size = size;
-            v.drop_icons_for_reload();
+            v.reload_icons_and_labels();
             v.snap_item_motion();
             let _ = v.redraw();
         });
@@ -1073,7 +1073,7 @@ impl FenceWindow {
             v.header_hover = None;
             v.header_fades.clear();
             v.reset_item_fades();
-            v.drop_icons_for_reload();
+            v.reload_icons_and_labels();
             v.snap_item_motion();
             let _ = v.redraw();
         });

@@ -300,8 +300,8 @@ impl FenceViewState {
         self.dpi as f32 / 96.0
     }
 
-    /// Adopts a new DPI: rescales the remembered expanded height and drops DPI-dependent
-    /// caches (icons, fitted labels). Returns true when something changed.
+    /// Adopts a new DPI: rescales the remembered expanded height, refits the labels and reloads
+    /// the icons at the new pixel size. Returns true when something changed.
     pub(super) fn apply_dpi(&mut self, new_dpi: u32) -> bool {
         let new_dpi = new_dpi.max(96);
         if new_dpi == self.dpi {
@@ -314,7 +314,7 @@ impl FenceViewState {
         // the same physical rectangle, so geometry alone cannot validate the old crop.
         self.backdrop_rect = None;
         self.expanded_h_px = (self.expanded_h_px as f32 * new_dpi as f32 / old).round() as i32;
-        self.drop_icons_for_reload();
+        self.reload_icons_and_labels();
         self.snap_item_motion();
         // The infotip window scales its max width from the owner DPI at creation: rebuild it
         // on the next show.
@@ -323,10 +323,11 @@ impl FenceViewState {
         true
     }
 
-    /// Drops every cached icon and fitted label (they reload lazily, without a cross-fade).
-    pub(super) fn drop_icons_for_reload(&mut self) {
+    /// Drops every fitted label and lets the icons reload lazily at the current size. Each icon
+    /// keeps its old bitmap, drawn scaled into the new box, until the new one replaces it
+    /// without a cross-fade (Explorer does the same): the icons never blank out in between.
+    pub(super) fn reload_icons_and_labels(&mut self) {
         for item in &mut self.items {
-            item.icon = None;
             item.icon_failed = false;
             item.icon_waited = false;
             item.icon_fade = None;
