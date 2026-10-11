@@ -651,7 +651,8 @@ fn narrow_tab_crossing_a_wide_one_is_stable() {
 }
 
 /// Layout motion is a rearrangement effect: it runs for sorts / reorders / a few adds or
-/// removes and snaps for refills (tab switch, portal navigation) or an empty start.
+/// removes and snaps for refills (tab switch, portal navigation); the first items of an empty
+/// fence fade in.
 #[test]
 fn layout_motion_applies_only_to_rearrangements() {
     assert!(layout_motion_applies(0, 10, 10));
@@ -659,8 +660,8 @@ fn layout_motion_applies_only_to_rearrangements() {
     assert!(layout_motion_applies(5, 10, 10));
     assert!(!layout_motion_applies(6, 10, 10));
     assert!(!layout_motion_applies(20, 10, 10));
-    assert!(!layout_motion_applies(0, 0, 5));
-    // Removing everything is a refill too.
+    assert!(layout_motion_applies(5, 0, 5));
+    // Removing everything still snaps.
     assert!(!layout_motion_applies(10, 10, 0));
 }
 

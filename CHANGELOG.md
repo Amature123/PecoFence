@@ -12,6 +12,7 @@
 - The card above the taskbar (the welcome, and the Store edition's rating offer) fades in and out like a fence instead of popping up and vanishing.
 - Changing the icon size (from the menu or with Ctrl+wheel) or the view no longer blanks the icons for a moment. Each icon stays up, scaled to the new size, until the sharp one is ready, as in Explorer; the same goes for a fence moved to a screen with other scaling.
 - On a fence without 自动高度, changing the icon size moves the bottom edge to the new height smoothly, as on fences with it, instead of jumping there.
+- The first icon dropped into an empty fence fades in like the icons added to a fence that already has some, instead of popping in.
 
 ## 0.1.5
 
