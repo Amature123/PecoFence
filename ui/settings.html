@@ -638,6 +638,7 @@
     document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + name));
     document.querySelector('main').scrollTop = 0;
     if (name === 'about') requestFeedbackInfo();
+    ringFence();
   }
   document.querySelectorAll('nav a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); showPage(a.dataset.page); }));
 
@@ -749,6 +750,7 @@
   // 「栅栏」 page: one fence at a time; every control posts a single setFence and the host
   // answers with a fresh state, so nothing here mutates `state` itself.
   let fenceSel = null;
+  let ringed = null;
   const fenceById = (id) => (state.fences || []).find(f => f.id === id);
   const fenceOption = (f) => f.title + (f.kind === 'portal' ? t("（文件夹）") : f.kind === 'inbox' ? t("（桌面）") : '') + (f.host ? tf("（{0} 的标签页）", f.host) : '');
   const setFence = (id, prop, value) => send({ type: 'setFence', id, prop, value });
@@ -812,6 +814,12 @@
     renderSwatches(fenceTintSwatches, tintSel);
     renderSwatches(fenceTabColorSwatches, tabSel);
     document.getElementById('fenceDock').onclick = () => { setFence(f.id, 'dockTop', null); toast(t("已停靠到屏幕顶部")); };
+    ringFence();
+  }
+  // While 「栅栏」 is open, the fence it edits wears the desktop's selection ring.
+  function ringFence() {
+    const id = document.getElementById('page-fences').classList.contains('on') ? fenceSel : null;
+    if (id !== ringed) send({ type: 'ringFence', id: (ringed = id) });
   }
   function showFence(id) {
     fenceSel = id;

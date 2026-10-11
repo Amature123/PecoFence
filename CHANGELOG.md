@@ -15,6 +15,7 @@
 - The first icon dropped into an empty fence fades in like the icons added to a fence that already has some, instead of popping in.
 - Moving around inside a folder portal works more like Explorer. A subfolder opens at the top instead of at the scroll position of the folder above it; going back up (the up button, Backspace, Alt+Up or 返回上一级) selects the folder you came from and scrolls to it; and the new folder slides in from the side you are going, as when switching tabs.
 - Settings no longer flashes white when it opens in dark mode: the window appears once the page has drawn.
+- While Settings › 「栅栏」 is open, the fence it is editing wears the white selection ring on the desktop, so two fences both called 「新栅栏」 can be told apart. The ring goes when you leave the page or close Settings.
 - Settings moves like Windows 11's own: switches no longer slide into place every time the page opens, 「新建规则」 and the other expanders open and close smoothly, and a switch's knob grows under the pointer and stretches while pressed. Notifications sit over the page instead of the middle of the window, buttons that wrap on a narrow window stay on the right, 「下载并安装」 is the highlighted button when an update is offered, Japanese text no longer breaks inside words, and a rule added without a name is named after its condition (such as 「扩展名：pdf」) instead of 「新规则」.
 
 ## 0.1.5

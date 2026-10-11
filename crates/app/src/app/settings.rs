@@ -318,6 +318,15 @@ impl App {
                 self.show_pending_feedback();
             }
             Some("setFence") => self.on_set_fence(&v),
+            Some("ringFence") => {
+                let host = v
+                    .get("id")
+                    .and_then(|i| i.as_str())
+                    .and_then(|i| uuid::Uuid::parse_str(i).ok())
+                    .map(|id| self.state.host_of(id));
+                let ring = host.and_then(|h| self.fences.get(&h).map(|w| vec![(w.hwnd(), h)]));
+                self.set_fence_selection(ring.unwrap_or_default());
+            }
             Some("patchSettings") => {
                 let Some(new_settings) = v.get("settings").cloned() else {
                     return;

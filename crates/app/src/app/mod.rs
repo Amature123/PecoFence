@@ -1536,6 +1536,8 @@ impl App {
             Command::WindowGone(hwnd) => {
                 if self.settings.as_ref().is_some_and(|h| h.hwnd() == hwnd) {
                     self.settings = None;
+                    // The ring of the fence 「栅栏」 was editing (`ringFence`).
+                    self.set_fence_selection(Vec::new());
                 }
             }
             Command::FadeOutDone(hwnd) => {
