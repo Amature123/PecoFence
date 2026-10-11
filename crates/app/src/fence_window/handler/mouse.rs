@@ -740,9 +740,9 @@ pub(super) fn on_mousewheel(
             }
             return Some(0);
         }
-        // Wheel over the title row of a tabbed fence (or anywhere with
-        // 「在整个栅栏上用滚轮切换标签页」, where Shift+wheel still scrolls): one tab
-        // per whole notch, accumulated for touchpads.
+        // Wheel over the title row of a tabbed fence: one tab per whole notch, accumulated
+        // for touchpads. A held left button (tab, column or title drag, marquee) and a tab
+        // title rename keep the tab where it is.
         let pt = window::screen_to_client(
             hwnd,
             pecofence_platform::POINT {
@@ -750,12 +750,9 @@ pub(super) fn on_mousewheel(
                 y: msg::hi_i16(lparam),
             },
         );
-        let over_strip = pt.y >= 0 && pt.y < v.title_h_px();
-        let shift = wparam & msg::MK_SHIFT as usize != 0;
-        if v.tabs.len() > 1
-            && v.tab_drag.is_none()
-            && v.roll_anim.is_none()
-            && (over_strip || (behavior.tab_wheel_anywhere.get() && !shift))
+        let over_title = pt.y >= 0 && pt.y < v.title_h_px();
+        let lbutton = wparam & msg::MK_LBUTTON as usize != 0;
+        if v.tabs.len() > 1 && over_title && !lbutton && !v.title_renaming && v.roll_anim.is_none()
         {
             v.wheel_tab_accum += delta;
             let notches = v.wheel_tab_accum / msg::WHEEL_DELTA;
@@ -763,6 +760,8 @@ pub(super) fn on_mousewheel(
             let cur = v.active_index();
             let next = wheel_tab_target(cur, v.tabs.len(), notches);
             if next != cur {
+                // An open item rename closes, as it does when the content scrolls.
+                v.dismiss_rename_for_scroll();
                 queue.push(Command::SwitchTab {
                     host: *fence_id,
                     tab: v.tabs[next].id,

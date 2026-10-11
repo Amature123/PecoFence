@@ -580,10 +580,6 @@ impl App {
         self.ctx.behavior.title_align.set(new.title_align);
         self.ctx
             .behavior
-            .tab_wheel_anywhere
-            .set(new.tab_wheel_anywhere);
-        self.ctx
-            .behavior
             .hide_inactive_scrollbar
             .set(new.roll_up.hide_inactive_scrollbar);
         // The rows fill the height only with 「调整大小时按整行整列对齐」 on: relay them out.

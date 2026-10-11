@@ -124,8 +124,6 @@ pub struct Behavior {
     pub title_on_hover: std::cell::Cell<bool>,
     /// Title (or tab strip) position in the title row (`titleAlign`).
     pub title_align: std::cell::Cell<pecofence_core::TitleAlign>,
-    /// The wheel switches tabs over the whole fence, not just the strip (`tabWheelAnywhere`).
-    pub tab_wheel_anywhere: std::cell::Cell<bool>,
     /// Scrollbar drawn only while hovered / shortly after scrolling.
     pub hide_inactive_scrollbar: std::cell::Cell<bool>,
     /// `SPI_GETWHEELSCROLLLINES`: rows per wheel notch; `u32::MAX` (`WHEEL_PAGESCROLL`) = one

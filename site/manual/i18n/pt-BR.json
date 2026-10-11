@@ -553,8 +553,6 @@
   "平时只显示图标，让桌面更清爽；每个栅栏可在“栅栏”页单独设置": "Mostrar só os ícones até passar o mouse; cada grupo pode ter sua própria configuração na página Grupos",
   "自动隐藏滚动条": "Ocultar as barras de rolagem automaticamente",
   "鼠标移到栅栏上或滚动时才显示": "Mostrar só ao passar o mouse sobre o grupo ou ao rolar",
-  "在整个栅栏上用滚轮切换标签页": "Trocar de aba com a roda do mouse em qualquer parte do grupo",
-  "在标签栏上滚动始终会切换标签页；开启后在图标区域滚动也会切换，按住 Shift 可滚动图标": "Rolar sobre a barra de abas sempre troca de aba; se ativado, rolar sobre os ícones também troca, e Shift+rolar rola os ícones",
   "跟随常规设置": "Usar a configuração geral",
   "始终显示": "Sempre",
   "鼠标悬停时显示": "Ao passar o mouse",

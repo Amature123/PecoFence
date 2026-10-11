@@ -553,8 +553,6 @@
   "平时只显示图标，让桌面更清爽；每个栅栏可在“栅栏”页单独设置": "Solo se ven los iconos hasta que pasas el cursor; puedes cambiarlo en cada grupo desde la página Grupos",
   "自动隐藏滚动条": "Ocultar automáticamente las barras de desplazamiento",
   "鼠标移到栅栏上或滚动时才显示": "Solo aparecen al pasar el cursor sobre el grupo o al desplazarte",
-  "在整个栅栏上用滚轮切换标签页": "Cambiar de pestaña con la rueda en cualquier parte del grupo",
-  "在标签栏上滚动始终会切换标签页；开启后在图标区域滚动也会切换，按住 Shift 可滚动图标": "Desplazar la rueda sobre la barra de pestañas siempre cambia de pestaña; si se activa, también sobre los iconos, y Mayús+rueda desplaza los iconos",
   "跟随常规设置": "Según el ajuste General",
   "始终显示": "Siempre",
   "鼠标悬停时显示": "Al pasar el cursor",
