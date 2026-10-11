@@ -492,5 +492,6 @@
   "使用手册": "Manuel",
   "每个功能都有动画演示": "Chaque fonction avec une courte animation",
   "桌面整理好了": "Votre Bureau est rangé",
-  "文件都没有移动，只是显示在栅栏里。\n在桌面空白处拖出一个框可新建栅栏，双击空白处可隐藏或显示栅栏。": "Vos fichiers n’ont pas bougé : les groupes ne font que les afficher.\nTracez un cadre sur un espace vide du Bureau pour créer un groupe, ou double-cliquez dessus pour masquer ou afficher les groupes."
+  "文件都没有移动，只是显示在栅栏里。\n在桌面空白处拖出一个框可新建栅栏，双击空白处可隐藏或显示栅栏。": "Vos fichiers n’ont pas bougé : les groupes ne font que les afficher.\nTracez un cadre sur un espace vide du Bureau pour créer un groupe, ou double-cliquez dessus pour masquer ou afficher les groupes.",
+  "没有匹配的文件": "Aucun fichier correspondant"
 }

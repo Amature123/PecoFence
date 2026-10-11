@@ -79,6 +79,9 @@ pub struct FenceViewState {
     pub(super) chrome_fades: Fades<ChromeKey>,
     /// Drop-target fade per item (a folder under a drag), 83 ms both ways.
     pub(super) drop_fades: Fades<ItemId>,
+    /// Peek search marks (None = no search) and the per-item dimming they fade (83 ms).
+    pub(super) search: Option<SearchMarks>,
+    pub(super) search_dim: Fades<ItemId>,
     /// Fence-wide drop wash + ring alpha (83 ms in, 167 ms out).
     pub(super) drop_wash: Tween,
     /// Insertion caret alpha (83 ms) and the slot it is (still) drawn at while fading out.

@@ -276,7 +276,26 @@ pub struct ItemView {
     icon_fade: Option<Tween>,
 }
 
+/// Peek search marks for one fence: matching items are highlighted, every other item dims, and
+/// `current` (what Enter opens) is drawn selected.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SearchMarks {
+    pub matches: HashSet<ItemId>,
+    pub current: Option<ItemId>,
+}
+
 impl ItemView {
+    /// Peek search: the shown name or the file name (with its extension, which the shown name
+    /// may hide) contains `query`, which is lower case.
+    pub fn matches_search(&self, query: &str) -> bool {
+        self.name.to_lowercase().contains(query)
+            || (!pecofence_platform::shell::is_namespace_path(&self.path)
+                && self
+                    .path
+                    .file_name()
+                    .is_some_and(|n| n.to_string_lossy().to_lowercase().contains(query)))
+    }
+
     /// Details "修改日期" text; namespace items (Recycle Bin, ...) have none.
     fn date_text(&self) -> String {
         if pecofence_platform::shell::is_namespace_path(&self.path) {

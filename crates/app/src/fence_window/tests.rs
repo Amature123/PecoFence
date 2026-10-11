@@ -1206,3 +1206,30 @@ fn wheel_over_tabs_steps_and_stops_at_the_ends() {
     assert_eq!(wheel_tab_target(3, 4, -9), 3);
     assert_eq!(wheel_tab_target(2, 4, 0), 2);
 }
+
+/// Peek search matches the shown name or the file name (its extension may be hidden), ignoring
+/// case; namespace items match by their shown name only.
+#[test]
+fn peek_search_matches_names_and_hidden_extensions() {
+    let item = |path: &str, name: &str| {
+        ItemView::new(
+            ItemId::new_v4(),
+            PathBuf::from(path),
+            name.to_string(),
+            false,
+            IconKey::ByExt("pdf".into()),
+            false,
+            0,
+            0,
+        )
+    };
+    let report = item(r"C:\Users\me\Desktop\report 2026.pdf", "Report 2026");
+    assert!(report.matches_search("port 20"));
+    assert!(report.matches_search(".pdf"));
+    assert!(!report.matches_search("docx"));
+    let notes = item(r"C:\Users\me\Desktop\会议记录.docx", "会议记录.docx");
+    assert!(notes.matches_search("记录"));
+    let bin = item("::{645ff040-5081-101b-9f08-00aa002f954e}", "回收站");
+    assert!(bin.matches_search("回收"));
+    assert!(!bin.matches_search("645"));
+}

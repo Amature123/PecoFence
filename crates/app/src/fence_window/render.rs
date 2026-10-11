@@ -135,30 +135,45 @@ impl FenceViewState {
         self.item_hover.clear();
         self.item_sel.clear();
         self.drop_fades.clear();
+        self.search_dim.clear();
     }
 
-    /// Syncs the per-item hover / selection / drop-target fades from the logical state and
-    /// samples them: one `(hover, selection, drop_target)` alpha triple per item. Called at the
-    /// top of every content draw.
-    pub(super) fn item_alphas(&mut self, now: Instant) -> Vec<(f32, f32, f32)> {
+    /// Syncs the per-item hover / selection / drop-target / search-dim fades from the logical
+    /// state and samples them: one `(hover, selection, drop_target, item alpha)` per item.
+    /// During a Peek search the matches show the hover fill, the current match the selection,
+    /// and the rest fade to `SEARCH_DIM_ALPHA`. Called at the top of every content draw.
+    pub(super) fn item_alphas(&mut self, now: Instant) -> Vec<(f32, f32, f32, f32)> {
         let animate = self.motion.enabled();
         let dragging = self.ole_drag;
         for (i, it) in self.items.iter().enumerate() {
-            let hover = (self.hover == Some(i) && !dragging) as u8 as f32;
+            let mut hover = (self.hover == Some(i) && !dragging) as u8 as f32;
+            let mut sel = self.selected.contains(&i) as u8 as f32;
+            let mut dim = 0.0;
+            if let Some(m) = &self.search {
+                let current = m.current == Some(it.id);
+                let hit = m.matches.contains(&it.id);
+                sel = current as u8 as f32;
+                if hit && !current {
+                    hover = 1.0;
+                }
+                dim = (!hit) as u8 as f32;
+            }
             self.item_hover.set(animate, it.id, hover, now);
-            let sel = self.selected.contains(&i) as u8 as f32;
             self.item_sel.set(animate, it.id, sel, now);
             let drop = (self.drop_item == Some(i)) as u8 as f32;
             self.drop_fades.set(animate, it.id, drop, now);
+            self.search_dim.set(animate, it.id, dim, now);
         }
         let out = self
             .items
             .iter()
             .map(|it| {
+                let dim = self.search_dim.value(&it.id, now);
                 (
                     self.item_hover.value(&it.id, now),
                     self.item_sel.value(&it.id, now),
                     self.drop_fades.value(&it.id, now),
+                    1.0 - dim * (1.0 - SEARCH_DIM_ALPHA),
                 )
             })
             .collect();
@@ -167,6 +182,7 @@ impl FenceViewState {
         self.item_hover.prune(now, |_| true);
         self.item_sel.prune(now, |_| true);
         self.drop_fades.prune(now, |_| true);
+        self.search_dim.prune(now, |_| true);
         out
     }
 
@@ -192,6 +208,7 @@ impl FenceViewState {
             || self.item_sel.busy(now)
             || self.header_fades.busy(now)
             || self.drop_fades.busy(now)
+            || self.search_dim.busy(now)
             || !self.selection_inactive.is_done(now)
             || !self.drop_inactive.is_done(now)
             || !self.drop_wash.is_done(now)
@@ -211,6 +228,10 @@ impl FenceViewState {
     /// grey (1) while a drag from elsewhere hovers the fence (`drop_inactive`, 83 ms) —
     /// Explorer's view is inactive then and only the drop target reads accent.
     pub(super) fn selection_inactive_now(&self, now: Instant) -> f32 {
+        // The Peek search's current match reads accent although the search box has the focus.
+        if self.search.is_some() {
+            return 0.0;
+        }
         let base = self.selection_inactive.value_at(now);
         let foreign = self.drop_inactive.value_at(now).clamp(0.0, 1.0);
         base + (1.0 - base) * foreign
@@ -812,7 +833,7 @@ impl FenceViewState {
                 dimmed: cut.contains(&item.id),
                 failed: item.icon_failed,
                 drop_target: alphas[i].2,
-                alpha,
+                alpha: alpha * alphas[i].3,
                 icon_alpha: item.icon_fade.map_or(1.0, |t| t.value_at(now)),
                 full_label: if unfold == Some(i) { full } else { None },
             }
@@ -965,7 +986,7 @@ impl FenceViewState {
                 dimmed: cut.contains(&item.id),
                 failed: item.icon_failed,
                 drop_target: alphas[i].2,
-                alpha,
+                alpha: alpha * alphas[i].3,
                 icon_alpha: item.icon_fade.map_or(1.0, |t| t.value_at(now)),
             }
         }));

@@ -1,4 +1,5 @@
-//! Peek: hotkey registration with fallbacks, toggle / end, hotkey label helpers.
+//! Peek: hotkey registration with fallbacks, toggle / end, hotkey label helpers, and the search
+//! across all fences (`peek_search.rs` is its box).
 
 use super::*;
 
@@ -163,6 +164,98 @@ impl App {
         if let Some(a) = self.anchor.borrow_mut().as_mut() {
             a.reanchor("peek focused");
         }
+        crate::peek_search::raise();
+    }
+
+    /// Characters typed on the dimmer: open the search box with them, or add them to it.
+    pub(super) fn peek_search_type(&mut self, text: &str) {
+        if self.peek.as_ref().is_none_or(|p| p.is_closing()) {
+            return;
+        }
+        if crate::peek_search::is_open() {
+            crate::peek_search::append(text);
+        } else {
+            crate::peek_search::open(text, self.queue.clone(), self.theme_mode == ThemeMode::Dark);
+        }
+        self.update_peek_search();
+    }
+
+    /// Re-runs the search for the text in the box. The highlighted match stays if it still
+    /// matches, else the first one (fences in reading order: left to right, then top down).
+    pub(super) fn update_peek_search(&mut self) {
+        let query = crate::peek_search::query()
+            .map(|q| q.trim().to_lowercase())
+            .unwrap_or_default();
+        let previous = self.peek_hits.get(self.peek_hit).copied();
+        self.peek_hits.clear();
+        if !query.is_empty() {
+            let mut windows: Vec<(RECT, FenceId)> =
+                self.fences.iter().map(|(id, w)| (w.rect(), *id)).collect();
+            windows.sort_by_key(|(r, id)| (r.left, r.top, *id));
+            for (_, id) in windows {
+                let items = self.fences[&id].search_matches(&query);
+                self.peek_hits
+                    .extend(items.into_iter().map(|item| (id, item)));
+            }
+        }
+        self.peek_hit = previous
+            .and_then(|p| self.peek_hits.iter().position(|h| *h == p))
+            .unwrap_or(0);
+        self.show_peek_hits(!query.is_empty());
+    }
+
+    /// Up / Down in the search box: the previous / next match, wrapping around.
+    pub(super) fn step_peek_search(&mut self, step: i32) {
+        let n = self.peek_hits.len() as i32;
+        if n == 0 {
+            return;
+        }
+        self.peek_hit = (self.peek_hit as i32 + step).rem_euclid(n) as usize;
+        self.show_peek_hits(true);
+    }
+
+    /// Enter in the search box: open the highlighted match and end the Peek.
+    pub(super) fn open_peek_hit(&mut self) {
+        let Some(&(_, item)) = self.peek_hits.get(self.peek_hit) else {
+            return;
+        };
+        self.end_peek("search match opened");
+        self.launch(item);
+    }
+
+    /// Pushes the marks to every fence and the match count to the box.
+    fn show_peek_hits(&self, searching: bool) {
+        let current = self.peek_hits.get(self.peek_hit).copied();
+        for (id, w) in &self.fences {
+            let marks = searching.then(|| SearchMarks {
+                matches: self
+                    .peek_hits
+                    .iter()
+                    .filter(|(host, _)| host == id)
+                    .map(|&(_, item)| item)
+                    .collect(),
+                current: current.filter(|(host, _)| host == id).map(|(_, item)| item),
+            });
+            w.set_search_marks(marks);
+        }
+        let status = if !searching {
+            String::new()
+        } else if self.peek_hits.is_empty() {
+            pecofence_core::i18n::text("没有匹配的文件").to_string()
+        } else {
+            format!("{} / {}", self.peek_hit + 1, self.peek_hits.len())
+        };
+        crate::peek_search::set_status(&status);
+    }
+
+    /// Closes the search box and draws every fence as usual again.
+    fn end_peek_search(&mut self) {
+        crate::peek_search::close();
+        self.peek_hits.clear();
+        self.peek_hit = 0;
+        for w in self.fences.values() {
+            w.set_search_marks(None);
+        }
     }
 
     /// Ends the peek the way the user sees it: the dimmer fades out (83 ms) while the fences
@@ -182,7 +275,9 @@ impl App {
             return;
         }
         p.begin_close(now);
-        if p.close_finished(now) {
+        let finished = p.close_finished(now);
+        self.end_peek_search();
+        if finished {
             self.end_peek_now();
         } else {
             self.ctx.frames.request();
@@ -194,6 +289,7 @@ impl App {
         if self.peek.is_none() {
             return;
         }
+        self.end_peek_search();
         self.ctx.behavior.floating.set(false);
         for window in self.fences.values() {
             window.redraw();

@@ -147,6 +147,8 @@ impl FenceWindow {
             header_fades: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
             chrome_fades: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
             drop_fades: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
+            search: None,
+            search_dim: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
             drop_wash: Tween::at(0.0, Instant::now()),
             caret_alpha: Tween::at(0.0, Instant::now()),
             caret_shown: None,
@@ -657,6 +659,7 @@ impl FenceWindow {
                 v.item_hover.prune(now, |id| *id != old);
                 v.item_sel.prune(now, |id| *id != old);
                 v.drop_fades.prune(now, |id| *id != old);
+                v.search_dim.prune(now, |id| *id != old);
                 if v.renaming == Some(old) {
                     v.renaming = Some(new);
                 }
@@ -690,6 +693,41 @@ impl FenceWindow {
                 v.cut = cut.clone();
                 let _ = v.redraw_content();
             }
+        });
+    }
+
+    /// Peek search: the shown items whose name contains `query` (lower case), in display
+    /// order. A rolled-up fence shows no items, so it has no matches.
+    pub fn search_matches(&self, query: &str) -> Vec<ItemId> {
+        self.view
+            .borrow()
+            .as_ref()
+            .filter(|v| !v.rolled_up)
+            .map(|v| {
+                v.items
+                    .iter()
+                    .filter(|it| it.matches_search(query))
+                    .map(|it| it.id)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Peek search marks (None = drawn as usual). The current match glides into view.
+    pub fn set_search_marks(&self, marks: Option<SearchMarks>) {
+        self.with_view(|v| {
+            if v.search == marks {
+                return;
+            }
+            let current = marks.as_ref().and_then(|m| m.current);
+            v.search = marks;
+            if v.rolled_up {
+                return;
+            }
+            if let Some(i) = current.and_then(|id| v.items.iter().position(|it| it.id == id)) {
+                v.scroll_into_view(i, true);
+            }
+            let _ = v.redraw_content();
         });
     }
 
