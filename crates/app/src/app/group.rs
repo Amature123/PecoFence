@@ -129,6 +129,7 @@ impl App {
         }
         for (hwnd, id) in &old {
             if !selection.contains(&(*hwnd, *id))
+                && self.settings_ring != Some(*id)
                 && let Some(w) = self.fences.get(id)
                 && w.hwnd() == *hwnd
             {
@@ -142,6 +143,23 @@ impl App {
             {
                 w.set_group_selected(true);
             }
+        }
+    }
+
+    /// Settings › 「栅栏」 rings the fence it edits (`host`, None off the page or when Settings
+    /// closes) without joining the desktop selection that group drags move.
+    pub(super) fn set_settings_ring(&mut self, host: Option<FenceId>) {
+        let selected = self.ctx.behavior.selection.borrow().clone();
+        if let Some(old) = self.settings_ring.take()
+            && host != Some(old)
+            && !selected.iter().any(|(_, id)| *id == old)
+            && let Some(w) = self.fences.get(&old)
+        {
+            w.set_group_selected(false);
+        }
+        if let Some(w) = host.and_then(|h| self.fences.get(&h)) {
+            w.set_group_selected(true);
+            self.settings_ring = host;
         }
     }
 

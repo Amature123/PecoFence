@@ -324,8 +324,7 @@ impl App {
                     .and_then(|i| i.as_str())
                     .and_then(|i| uuid::Uuid::parse_str(i).ok())
                     .map(|id| self.state.host_of(id));
-                let ring = host.and_then(|h| self.fences.get(&h).map(|w| vec![(w.hwnd(), h)]));
-                self.set_fence_selection(ring.unwrap_or_default());
+                self.set_settings_ring(host);
             }
             Some("patchSettings") => {
                 let Some(new_settings) = v.get("settings").cloned() else {

@@ -229,6 +229,8 @@ pub struct App {
     rating: rating::RatingPrompt,
     /// The first start's welcome notice while it is on screen (see `welcome.rs`).
     welcome: Option<crate::notice::Notice>,
+    /// The fence Settings › 「栅栏」 is editing, which wears the selection ring (`group.rs`).
+    settings_ring: Option<FenceId>,
     web_env: Option<WebEnvironment>,
     settings_class: WindowClass,
     theme_mode: ThemeMode,
@@ -920,6 +922,7 @@ impl App {
             updates: Default::default(),
             rating,
             welcome: None,
+            settings_ring: None,
             web_env: None,
             settings_class,
             theme_mode,
@@ -1536,8 +1539,7 @@ impl App {
             Command::WindowGone(hwnd) => {
                 if self.settings.as_ref().is_some_and(|h| h.hwnd() == hwnd) {
                     self.settings = None;
-                    // The ring of the fence 「栅栏」 was editing (`ringFence`).
-                    self.set_fence_selection(Vec::new());
+                    self.set_settings_ring(None);
                 }
             }
             Command::FadeOutDone(hwnd) => {
