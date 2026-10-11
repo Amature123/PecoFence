@@ -697,11 +697,12 @@ pub(super) fn on_rbuttonup(
 
 pub(super) fn on_mousewheel(
     h: &HandlerCtx,
-    _hwnd: HWND,
+    hwnd: HWND,
     wparam: usize,
-    _lparam: isize,
+    lparam: isize,
 ) -> Option<isize> {
     let HandlerCtx {
+        fence_id,
         view,
         queue,
         behavior,
@@ -739,6 +740,36 @@ pub(super) fn on_mousewheel(
             }
             return Some(0);
         }
+        // Wheel over the title row of a tabbed fence: one tab per whole notch, accumulated
+        // for touchpads. A held left button (tab, column or title drag, marquee) and a tab
+        // title rename keep the tab where it is.
+        let pt = window::screen_to_client(
+            hwnd,
+            pecofence_platform::POINT {
+                x: msg::lo_i16(lparam),
+                y: msg::hi_i16(lparam),
+            },
+        );
+        let over_title = pt.y >= 0 && pt.y < v.title_h_px();
+        let lbutton = wparam & msg::MK_LBUTTON as usize != 0;
+        if v.tabs.len() > 1 && over_title && !lbutton && !v.title_renaming && v.roll_anim.is_none()
+        {
+            v.wheel_tab_accum += delta;
+            let notches = v.wheel_tab_accum / msg::WHEEL_DELTA;
+            v.wheel_tab_accum -= notches * msg::WHEEL_DELTA;
+            let cur = v.active_index();
+            let next = wheel_tab_target(cur, v.tabs.len(), notches);
+            if next != cur {
+                // An open item rename closes, as it does when the content scrolls.
+                v.dismiss_rename_for_scroll();
+                queue.push(Command::SwitchTab {
+                    host: *fence_id,
+                    tab: v.tabs[next].id,
+                });
+            }
+            return Some(0);
+        }
+        v.wheel_tab_accum = 0;
         if v.rolled_up || v.roll_anim.is_some() {
             // A collapsed container has no viewport (WinUI Expander):
             // the wheel must not scroll the hidden content, and the
