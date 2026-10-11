@@ -4,6 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- PECOFENCE_LOCALE -->
+<script>
+  // Script errors go to the app's log: the error type and where it happened, never the
+  // message, which can quote what the user typed.
+  (() => {
+    const report = (error, file, line, col) => {
+      const wv = window.chrome && window.chrome.webview;
+      if (wv) wv.postMessage({ type: 'action', name: 'pageError', kind: String((error && error.name) || ''), file: String(file || ''), line: line || 0, col: col || 0 });
+    };
+    window.addEventListener('error', e => report(e.error, e.filename, e.lineno, e.colno));
+    window.addEventListener('unhandledrejection', e => report(e.reason, '', 0, 0));
+  })();
+</script>
 <script src="i18n.js"></script>
 <title>PecoFence 设置</title>
 <style>

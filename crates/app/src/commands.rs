@@ -239,7 +239,8 @@ pub enum Command {
     ToggleAllFences,
     /// Peek hotkey: float all fences above the current windows (again = end).
     TogglePeek,
-    EndPeek,
+    /// End the peek; the reason (a fixed text) goes to the log.
+    EndPeek(&'static str),
     ApplyRulesNow,
     OpenSettings,
     /// Settings window on the 「栅栏」 page with this fence selected.

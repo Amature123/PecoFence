@@ -31,6 +31,21 @@ impl LoadOutcome {
     }
 }
 
+/// A failed [`ConfigStore::save`]: the step that failed (a fixed name, safe to log) and why.
+#[derive(Debug)]
+pub struct SaveError {
+    pub step: &'static str,
+    pub error: io::Error,
+}
+
+impl std::fmt::Display for SaveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.step, self.error)
+    }
+}
+
+impl std::error::Error for SaveError {}
+
 pub struct ConfigStore {
     dir: PathBuf,
 }
@@ -65,7 +80,7 @@ impl ConfigStore {
     fn bak_path(&self) -> PathBuf {
         self.dir.join("config.bak")
     }
-    fn tmp_path(&self) -> PathBuf {
+    pub fn tmp_path(&self) -> PathBuf {
         self.dir.join("config.json.tmp")
     }
     fn backups_dir(&self) -> PathBuf {
@@ -174,14 +189,17 @@ impl ConfigStore {
     }
 
     /// Atomically writes the config: tmp → fsync → rotate old to .bak → rename tmp over primary.
-    pub fn save(&self, cfg: &Config) -> io::Result<()> {
-        validate(cfg).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        fs::create_dir_all(&self.dir)?;
-        let json = Self::to_json(cfg)?;
+    pub fn save(&self, cfg: &Config) -> Result<(), SaveError> {
+        let at = |step: &'static str| move |error: io::Error| SaveError { step, error };
+        validate(cfg)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+            .map_err(at("validate"))?;
+        fs::create_dir_all(&self.dir).map_err(at("create folder"))?;
+        let json = Self::to_json(cfg).map_err(at("serialize"))?;
         {
-            let mut f = fs::File::create(self.tmp_path())?;
-            io::Write::write_all(&mut f, json.as_bytes())?;
-            f.sync_all()?;
+            let mut f = fs::File::create(self.tmp_path()).map_err(at("create temp file"))?;
+            io::Write::write_all(&mut f, json.as_bytes()).map_err(at("write temp file"))?;
+            f.sync_all().map_err(at("flush temp file"))?;
         }
         let primary = self.primary_path();
         if primary.exists() {
@@ -189,8 +207,8 @@ impl ConfigStore {
             let _ = fs::remove_file(self.bak_path());
             let _ = fs::rename(&primary, self.bak_path());
         }
-        fs::rename(self.tmp_path(), &primary)?;
-        self.daily_backup(&json)?;
+        fs::rename(self.tmp_path(), &primary).map_err(at("replace config.json"))?;
+        self.daily_backup(&json).map_err(at("daily backup"))?;
         Ok(())
     }
 

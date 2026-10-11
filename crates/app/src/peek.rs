@@ -76,7 +76,7 @@ impl PeekOverlay {
                     move |hwnd: HWND, message: u32, wparam: usize, lparam: isize| {
                         match message {
                             msg::WM_LBUTTONDOWN | msg::WM_RBUTTONDOWN | msg::WM_MBUTTONDOWN => {
-                                queue.push(Command::EndPeek);
+                                queue.push(Command::EndPeek("dimmer clicked"));
                                 Some(0)
                             }
                             // Esc ends the peek (no auto-repeats). Modifier keys must NOT: the
@@ -86,7 +86,7 @@ impl PeekOverlay {
                             msg::WM_KEYDOWN
                                 if wparam as u32 == msg::VK_ESCAPE && lparam & (1 << 30) == 0 =>
                             {
-                                queue.push(Command::EndPeek);
+                                queue.push(Command::EndPeek("Esc pressed"));
                                 Some(0)
                             }
                             msg::WM_NCHITTEST
@@ -120,7 +120,7 @@ impl PeekOverlay {
                                     && cls != PEEK_CLASS
                                     && cls != "PecoFence.Rename"
                                 {
-                                    queue.push(Command::EndPeek);
+                                    queue.push(Command::EndPeek("dimmer lost the focus"));
                                 }
                                 None
                             }

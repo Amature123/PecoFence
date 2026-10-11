@@ -31,7 +31,9 @@ use pecofence_platform::watcher::{DirWatcher, FsEvent};
 use pecofence_platform::window::{
     self, ClassOptions, MessageHandler, Window, WindowBuilder, WindowClass, style,
 };
-use pecofence_platform::{HWND, POINT, RECT, desktop, monitors, msg, theme as systheme, wallpaper};
+use pecofence_platform::{
+    HWND, POINT, RECT, desktop, monitors, msg, process, theme as systheme, wallpaper,
+};
 use pecofence_render::fence_chrome::FenceChrome;
 use pecofence_render::fence_chrome::FenceStyle;
 use pecofence_render::motion::Motion;
@@ -272,6 +274,13 @@ pub struct App {
 
 pub type AppCell = Rc<RefCell<Option<App>>>;
 
+/// Seconds from Explorer's start to this process's, to a tenth (negative: Explorer restarted
+/// since).
+fn seconds_after_explorer() -> Option<f64> {
+    let explorer = desktop::window_pid(desktop::shell_window());
+    process::seconds_after_start_of(explorer).map(|s| (s * 10.0).round() / 10.0)
+}
+
 /// The variant name of a command (its `Debug` form up to the first `{`, `(` or space).
 fn command_name(cmd: &Command) -> String {
     let s = format!("{cmd:?}");
@@ -283,6 +292,14 @@ impl App {
     pub fn create(args: Args) -> Result<AppCell> {
         let cell: AppCell = Rc::new(RefCell::new(None));
 
+        // Elevation decides which windows the fences may be placed under; the delay after
+        // Explorer shows how long a launch at sign-in waited.
+        tracing::info!(
+            packaged = process::is_packaged(),
+            elevated = ?process::is_elevated(process::current_pid()),
+            after_explorer_s = ?seconds_after_explorer(),
+            "process started"
+        );
         let stack = Rc::new(RenderStack::new()?);
         tracing::info!(
             queue = stack.queue_path,
@@ -291,11 +308,15 @@ impl App {
         );
 
         let areas = work_areas();
-        for w in &areas {
-            tracing::info!(name = %w.device_path, dpi = w.dpi, work = ?(w.left, w.top, w.right, w.bottom), "monitor");
-        }
+        fences::log_monitors(&areas);
         let state = AppState::load(areas, args.portable);
-        tracing::info!(path = %state.config_path().display(), first_run = state.first_run, fences = state.fences().len(), "config loaded");
+        tracing::info!(
+            path = %state.config_path().display(),
+            storage = state.storage_kind(),
+            first_run = state.first_run,
+            fences = state.fences().len(),
+            "config loaded"
+        );
         if let Some(p) = &state.recovered_from {
             tracing::warn!(from = %p.display(), "config recovered from backup");
         }
@@ -980,7 +1001,9 @@ impl App {
         app.sync_peek_hotkey();
         if let Some(a) = app.anchor.borrow_mut().as_mut() {
             let q = app.queue.clone();
-            a.on_peek_interrupted = Some(Box::new(move || q.push(Command::EndPeek)));
+            a.on_peek_interrupted = Some(Box::new(move || {
+                q.push(Command::EndPeek("another window came to the front"))
+            }));
             let control_hwnd = app.control.hwnd().0 as isize;
             a.on_foreground_changed = Some(Box::new(move || {
                 window::post_message(
@@ -1220,8 +1243,12 @@ impl App {
                 // to jump ahead): name it.
                 let name = command_name(&cmd);
                 let started = Instant::now();
+                let in_menus = tray::time_in_menus();
                 self.handle(cmd);
-                let spent = started.elapsed();
+                // A menu it opened waited for the user, which is no delay of ours.
+                let spent = started
+                    .elapsed()
+                    .saturating_sub(tray::time_in_menus() - in_menus);
                 if spent > Duration::from_millis(8) {
                     tracing::info!(
                         ms = spent.as_secs_f32() * 1000.0,
@@ -1503,7 +1530,7 @@ impl App {
             Command::DeviceLost => self.recover_device(),
             Command::ToggleAllFences => self.toggle_all_fences(),
             Command::TogglePeek => self.toggle_peek(),
-            Command::EndPeek => self.end_peek(),
+            Command::EndPeek(reason) => self.end_peek(reason),
             Command::ApplyRulesNow => {
                 let entries = shell::enumerate_desktop();
                 let moved = self.state.apply_rules_all(&entries);

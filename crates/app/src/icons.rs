@@ -92,6 +92,19 @@ struct Ready {
     key: String,
     size_px: u32,
     image: Option<Image>,
+    /// HRESULT of a failed extraction.
+    error: Option<i32>,
+}
+
+/// Extraction outcomes since the last summary line (see `IconCache::drain_results`).
+#[derive(Default)]
+struct IconStats {
+    ok: u32,
+    failed: u32,
+    retried: u32,
+    /// Images the shell handed back smaller than asked for (drawn scaled up).
+    smaller: u32,
+    first_error: Option<i32>,
 }
 
 pub enum Lookup {
@@ -109,6 +122,7 @@ pub struct IconCache {
     tx: Sender<Request>,
     rx: Receiver<Ready>,
     variant: IconVariant,
+    stats: IconStats,
 }
 
 impl IconCache {
@@ -135,22 +149,25 @@ impl IconCache {
                             guard.recv()
                         };
                         let Ok(req) = req else { break };
-                        let image = shell::shell_image(&req.path, req.size_px, req.icon_only)
-                            .ok()
-                            .map(|img| {
-                                let mut image = Image {
-                                    width: img.width,
-                                    height: img.height,
-                                    bgra: img.bgra,
-                                };
-                                req.variant.apply(&mut image);
-                                image
-                            });
+                        let (image, error) =
+                            match shell::shell_image(&req.path, req.size_px, req.icon_only) {
+                                Ok(img) => {
+                                    let mut image = Image {
+                                        width: img.width,
+                                        height: img.height,
+                                        bgra: img.bgra,
+                                    };
+                                    req.variant.apply(&mut image);
+                                    (Some(image), None)
+                                }
+                                Err(e) => (None, Some(e.code().0)),
+                            };
                         if done_tx
                             .send(Ready {
                                 key: req.key,
                                 size_px: req.size_px,
                                 image,
+                                error,
                             })
                             .is_err()
                         {
@@ -172,6 +189,7 @@ impl IconCache {
             tx,
             rx,
             variant: IconVariant::default(),
+            stats: IconStats::default(),
         }
     }
 
@@ -235,6 +253,9 @@ impl IconCache {
         let now = Instant::now();
         while let Ok(r) = self.rx.try_recv() {
             let k = (r.key, r.size_px);
+            if let Some(e) = r.error {
+                self.stats.first_error.get_or_insert(e);
+            }
             if r.image.is_none()
                 && let Some(f) = self.pending.get_mut(&k)
                 && f.attempts < RETRY_ATTEMPTS
@@ -246,14 +267,54 @@ impl IconCache {
                 let delay = RETRY_DELAYS_MS[f.attempts as usize % RETRY_DELAYS_MS.len()];
                 f.attempts += 1;
                 tracing::debug!(key = %k.0, attempt = f.attempts, delay_ms = delay, "icon extraction failed; retrying");
+                self.stats.retried += 1;
                 self.retry.push((now + Duration::from_millis(delay), k));
                 continue;
+            }
+            match &r.image {
+                Some(img) => {
+                    self.stats.ok += 1;
+                    // Bigger images come back scaled down to the box, smaller ones get drawn
+                    // scaled up.
+                    if img.width.max(img.height) < k.1 {
+                        self.stats.smaller += 1;
+                    }
+                }
+                None => self.stats.failed += 1,
             }
             self.pending.remove(&k);
             self.map.insert(k, r.image.map(Rc::new));
             n += 1;
         }
+        if self.pending.is_empty() {
+            self.log_stats();
+        }
         n
+    }
+
+    /// One line per burst of extractions (startup, an icon size change, new files), once
+    /// nothing is pending any more; at info only when something went wrong.
+    fn log_stats(&mut self) {
+        let s = std::mem::take(&mut self.stats);
+        if s.ok + s.failed == 0 {
+            return;
+        }
+        let error = s
+            .first_error
+            .map(|e| format!("{:#010x}", e as u32))
+            .unwrap_or_default();
+        if s.failed + s.retried + s.smaller > 0 {
+            tracing::info!(
+                ok = s.ok,
+                failed = s.failed,
+                retried = s.retried,
+                smaller = s.smaller,
+                error = %error,
+                "icons extracted"
+            );
+        } else {
+            tracing::debug!(ok = s.ok, "icons extracted");
+        }
     }
 
     /// Re-queues the retries that are due; returns how long until the next one (None = no

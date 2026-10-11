@@ -68,12 +68,10 @@ impl App {
             match registered {
                 Some(c) => {
                     self.peek_hotkey = Some(c);
-                    tracing::info!(hotkey = peek_hotkey_label(c), "peek hotkey registered");
+                    // The enum names: the labels are translated text the shareable log omits.
+                    tracing::info!(hotkey = ?c, "peek hotkey registered");
                     if c != h {
-                        tracing::warn!(
-                            wanted = peek_hotkey_label(h),
-                            "peek hotkey taken; using fallback"
-                        );
+                        tracing::warn!(wanted = ?h, "peek hotkey taken; using fallback");
                         // The user's choice stays in settings (it is retried on every sync);
                         // toast only when the effective combination actually changed.
                         if (Some(c) != prev || choice_changed)
@@ -120,7 +118,7 @@ impl App {
                 p.reopen(now);
                 self.ctx.frames.request();
             } else {
-                self.end_peek();
+                self.end_peek("hotkey or tray menu");
             }
             return;
         }
@@ -169,8 +167,8 @@ impl App {
 
     /// Ends the peek the way the user sees it: the dimmer fades out (83 ms) while the fences
     /// stay in the topmost band, then `end_peek_now` runs from the frame tick. Repeated calls
-    /// during the fade are no-ops.
-    pub(super) fn end_peek(&mut self) {
+    /// during the fade are no-ops. `reason` (a fixed text) goes to the log.
+    pub(super) fn end_peek(&mut self, reason: &'static str) {
         let now = Instant::now();
         let Some(p) = self.peek.as_mut() else {
             return;
@@ -178,6 +176,7 @@ impl App {
         if p.is_closing() {
             return;
         }
+        tracing::info!(reason, "peek ending");
         if !self.ctx.motion.enabled() {
             self.end_peek_now();
             return;
