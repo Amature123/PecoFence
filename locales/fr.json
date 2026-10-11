@@ -488,5 +488,10 @@
   "在 Microsoft Store 评分": "Noter dans le Microsoft Store",
   "在 GitHub 点 Star": "Mettre une étoile sur GitHub",
   "在 Microsoft Store 给它打个分，几秒钟就好。": "Notez-le dans le Microsoft Store. Cela ne prend que quelques secondes.",
-  "去评分": "Noter"
+  "去评分": "Noter",
+  "使用手册": "Manuel",
+  "每个功能都有动画演示": "Chaque fonction avec une courte animation",
+  "桌面整理好了": "Votre Bureau est rangé",
+  "文件都没有移动，只是显示在栅栏里。在桌面空白处拖出一个框可新建栅栏，双击空白处可隐藏或显示栅栏。": "Vos fichiers n’ont pas bougé : les groupes ne font que les afficher. Tracez un cadre sur un espace vide du Bureau pour créer un groupe, ou double-cliquez dessus pour masquer ou afficher les groupes.",
+  "栅栏已隐藏。再双击一次桌面空白处就能找回来。": "Groupes masqués. Double-cliquez à nouveau sur un espace vide du Bureau pour les faire réapparaître."
 }

@@ -16,7 +16,11 @@ pub(super) fn work_areas() -> Vec<WorkArea> {
         return areas;
     }
     let targets = monitors::display_targets();
-    monitors::enumerate()
+    // The primary monitor first: the first-run column and every "no monitor matched" fallback
+    // take `first()`, and Windows enumerates in display-number order.
+    let mut found = monitors::enumerate();
+    found.sort_by_key(|m| !m.primary);
+    found
         .into_iter()
         .map(|m| WorkArea {
             device_path: monitor_id(
@@ -610,6 +614,13 @@ impl App {
         Some(id)
     }
 
+    /// A fence made from a menu: its title opens for editing, as Explorer's 新建文件夹 does.
+    pub(super) fn create_fence_with_rename(&mut self, rect: RECT) {
+        if let Some(id) = self.create_fence_at(rect, None) {
+            self.begin_rename(id);
+        }
+    }
+
     /// False (with a tray notice) when the layout already holds `MAX_FENCES`.
     pub(super) fn fence_room_or_notice(&self) -> bool {
         if !self.state.fence_limit_reached() {
@@ -732,7 +743,7 @@ impl App {
 
     pub(super) fn new_fence_near(&mut self, x: i32, y: i32) {
         let rect = self.place_new_fence(3, 200.0, x, y, None);
-        self.create_fence_at(rect, None);
+        self.create_fence_with_rename(rect);
     }
 
     /// Work area (device px) containing the point, else the primary one.

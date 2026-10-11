@@ -863,7 +863,7 @@ impl App {
             CMD_FENCE_OPTIONS => self.open_fence_options(fence),
             CMD_FENCE_NEW => {
                 let rect = self.place_new_fence(3, 200.0, x, y, Some(host));
-                self.create_fence_at(rect, None);
+                self.create_fence_with_rename(rect);
             }
             CMD_FENCE_DELETE => self.delete_fence_from_menu(fence),
             CMD_FENCE_HIDE_EMPTY => self.set_fence_hide_when_empty(fence, !f.hide_when_empty),
@@ -963,7 +963,7 @@ impl App {
             false,
         );
         if menu.show_context(owner, pt.x, pt.y) == CMD_NEW_FENCE_HERE {
-            self.create_fence_at(rect, None);
+            self.create_fence_with_rename(rect);
         }
     }
 }
