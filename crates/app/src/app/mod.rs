@@ -395,6 +395,8 @@ impl App {
                                 // treat it like a folder change.
                                 ShellChangeWatch::release(wparam, lparam);
                             }
+                            // A file may have gone to the Recycle Bin: ask it at the next sync.
+                            shell::recycle_bin_changed();
                             // Explorer reacts to a folder change within a frame or two; a file
                             // the shell just moved onto the desktop (drag-out from a portal)
                             // must be filed as fast. Coalesce for one short window, never
@@ -663,6 +665,7 @@ impl App {
                                 // cannot change the picture while every desktop shows the same,
                                 // and a window on the previous one's desktop is no switch.
                                 if !desktops_differ.get() {
+                                    last_foreground_desktop.set(None);
                                     return Some(0);
                                 }
                                 let desktop = wallpaper::window_desktop(HWND(
@@ -1145,14 +1148,19 @@ impl App {
         window::set_coalescable_timer(app.control.hwnd(), TIMER_HOUSEKEEPING, 60_000, 5_000);
         window::set_coalescable_timer(app.control.hwnd(), TIMER_WALLPAPER_POLL, 5_000, 500);
         sync_desktops_differ(app.control.hwnd(), &desktops_differ);
-        // Close the gap between the startup snapshot and installing the registry watchers: one
-        // check (no signal arrived, so no follow-ups), then prepare the other desktops.
-        window::set_timer(app.control.hwnd(), TIMER_WALLPAPER, FIRST_CHECK_MS);
-        window::set_timer(
-            app.control.hwnd(),
-            TIMER_WALLPAPER_PREWARM,
-            WALLPAPER_PREWARM_DELAY_MS,
-        );
+        // Close the gap between the startup snapshot and installing the registry watchers.
+        if app.wallpaper_sig.is_some() {
+            // One check (no signal arrived, so no follow-ups), then prepare the other desktops.
+            window::set_timer(app.control.hwnd(), TIMER_WALLPAPER, FIRST_CHECK_MS);
+            window::set_timer(
+                app.control.hwnd(),
+                TIMER_WALLPAPER_PREWARM,
+                WALLPAPER_PREWARM_DELAY_MS,
+            );
+        } else {
+            // Not readable yet (Explorer still starting): keep trying as for a signal.
+            window::post_message(app.control.hwnd(), WM_APP_WALLPAPER, 0, 0);
+        }
 
         app.remove_old_update_downloads();
         // Last of the startup balloons, so it is the one left showing.
@@ -1189,15 +1197,16 @@ impl App {
         if self.state.is_dirty() {
             self.state.save_if_dirty();
         }
-        // Icons of files that changed, vanished or left a portal's folder: free their pixels.
+        // Icons of files that changed or vanished since: free their pixels.
         {
-            let live = self.state.icon_keys();
             let mut icons = self.ctx.icons.borrow_mut();
-            icons.retain_live(&live);
-            self.ctx
-                .bitmaps
-                .borrow_mut()
-                .retain(|key| !icons.is_stale_draw_key(key, &live));
+            let dropped = icons.sweep(&self.state.icon_keys());
+            if !dropped.is_empty() {
+                self.ctx
+                    .bitmaps
+                    .borrow_mut()
+                    .retain(|key| !icons.is_dropped_draw_key(key, &dropped));
+            }
         }
         // While the special desktop items are shown, re-read them once a minute as well: a
         // change in Windows' own "Desktop icon settings" leaves no folder event behind, and the

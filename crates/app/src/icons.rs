@@ -287,28 +287,54 @@ impl IconCache {
         self.retry.retain(|(_, (k, _))| !hit(k));
     }
 
-    /// Drops the per-file icons whose `cache_key` is not in `live` (the file changed, vanished
-    /// or left a portal's folder). Per-extension icons stay: there are few of them.
-    pub fn retain_live(&mut self, live: &HashSet<String>) {
+    /// Drops the per-file icons nothing can show again: older versions of a file that changed
+    /// since (`live` holds every item's current `cache_key`) and files that are gone. A file
+    /// still on disk keeps its icon (a portal may go back to its folder), and so do namespace
+    /// items (the Recycle Bin flips between two) and per-extension icons. Returns the keys
+    /// dropped, for `is_dropped_draw_key`.
+    pub fn sweep(&mut self, live: &HashSet<String>) -> HashSet<String> {
+        let live_paths: HashSet<&str> = live.iter().filter_map(|k| file_key_path(k)).collect();
         let suffix = self.variant.suffix();
-        self.map.retain(|(k, _), _| {
-            !k.starts_with("file:") || k.strip_suffix(&suffix).is_some_and(|b| live.contains(b))
-        });
+        let mut dropped = HashSet::new();
+        for (k, _) in self.map.keys() {
+            let Some(base) = k.strip_suffix(&suffix) else {
+                continue;
+            };
+            let Some(path) = file_key_path(base) else {
+                continue;
+            };
+            if live.contains(base) || path.starts_with("::") {
+                continue;
+            }
+            if live_paths.contains(path) || !Path::new(path).exists() {
+                dropped.insert(base.to_string());
+            }
+        }
+        if !dropped.is_empty() {
+            self.map
+                .retain(|(k, _), _| !k.strip_suffix(&suffix).is_some_and(|b| dropped.contains(b)));
+        }
+        dropped
     }
 
-    /// A `draw_key` of a per-file icon not in `live` (see `retain_live`).
-    pub fn is_stale_draw_key(&self, key: &str, live: &HashSet<String>) -> bool {
-        key.starts_with("file:")
-            && !key
-                .rsplit_once('@')
-                .and_then(|(k, _)| k.strip_suffix(&self.variant.suffix()))
-                .is_some_and(|b| live.contains(b))
+    /// A `draw_key` of an icon `sweep` dropped.
+    pub fn is_dropped_draw_key(&self, key: &str, dropped: &HashSet<String>) -> bool {
+        key.rsplit_once('@')
+            .and_then(|(k, _)| k.strip_suffix(&self.variant.suffix()))
+            .is_some_and(|b| dropped.contains(b))
     }
 
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.map.len()
     }
+}
+
+/// The path in a per-file `cache_key` (`file:{path}:{mtime}`).
+fn file_key_path(key: &str) -> Option<&str> {
+    key.strip_prefix("file:")?
+        .rsplit_once(':')
+        .map(|(path, _)| path)
 }
 
 /// Decides how an item's icon is cached: per-extension for ordinary documents, per-file for
@@ -383,6 +409,44 @@ pub fn icon_key_for(path: &Path, is_folder: bool, mtime: i64) -> (IconKey, bool)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sweep_drops_old_versions_and_gone_files_only() {
+        let dir = std::env::temp_dir().join(format!("pf-icon-sweep-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let kept = dir.join("kept.lnk");
+        std::fs::write(&kept, b"x").unwrap();
+        let kept = kept.to_string_lossy().to_lowercase();
+        let gone = dir.join("gone.lnk").to_string_lossy().to_lowercase();
+        let changed = dir.join("changed.exe").to_string_lossy().to_lowercase();
+        let mut cache = IconCache::new(HWND::default());
+        let keys = [
+            format!("file:{changed}:1"), // older version of a live item
+            format!("file:{changed}:2"), // live
+            format!("file:{gone}:5"),    // no item, no file
+            format!("file:{kept}:7"),    // no item, file still there (portal folder left)
+            "file:::{645ff040-5081-101b-9f08-00aa002f954e}:0".to_string(), // Recycle Bin, empty
+            "ext:.txt".to_string(),
+        ];
+        for k in &keys {
+            cache.map.insert((k.clone(), 96), None);
+        }
+        let live: HashSet<String> = [format!("file:{changed}:2")].into_iter().collect();
+        let dropped = cache.sweep(&live);
+        let mut left: Vec<&str> = cache.map.keys().map(|(k, _)| k.as_str()).collect();
+        left.sort();
+        let mut want = vec![
+            keys[1].as_str(),
+            keys[3].as_str(),
+            keys[4].as_str(),
+            keys[5].as_str(),
+        ];
+        want.sort();
+        assert_eq!(left, want);
+        assert!(cache.is_dropped_draw_key(&format!("file:{gone}:5@96"), &dropped));
+        assert!(!cache.is_dropped_draw_key(&format!("file:{kept}:7@96"), &dropped));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn variant_suffix_ignores_strength_without_tint() {

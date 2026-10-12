@@ -188,13 +188,33 @@ fn desktop_icon_hidden_in_windows(clsid: &str, default_visible: bool) -> bool {
     !default_visible
 }
 
+/// The Recycle Bin is asked again (see `recycle_bin_has_items`) only after this (a folder
+/// change, the shell's notice, a refresh) or ten minutes after the last answer.
+pub fn recycle_bin_changed() {
+    RECYCLE_BIN_STALE.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+static RECYCLE_BIN_STALE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
 /// Whether the Recycle Bin holds anything (decides between the full and empty icon). Each
 /// fixed drive is asked on its own: the all-drives form fails as a whole when one volume
 /// (card reader without media, offline mapped drive) cannot answer. When no drive answers,
-/// the last known state is kept rather than flipping to "empty".
+/// the last known state is kept rather than flipping to "empty". Asking touches every fixed
+/// drive (a sleeping one wakes, which can take seconds), so the answer is reused until
+/// `recycle_bin_changed` or for ten minutes.
 pub fn recycle_bin_has_items() -> bool {
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::{Duration, Instant};
     static LAST_KNOWN: AtomicBool = AtomicBool::new(false);
+    static ASKED: Mutex<Option<Instant>> = Mutex::new(None);
+    let mut asked = ASKED.lock().unwrap_or_else(|e| e.into_inner());
+    let recent = asked.is_some_and(|t| t.elapsed() < Duration::from_secs(600));
+    if recent && !RECYCLE_BIN_STALE.swap(false, Ordering::Relaxed) {
+        return LAST_KNOWN.load(Ordering::Relaxed);
+    }
+    RECYCLE_BIN_STALE.store(false, Ordering::Relaxed);
+    *asked = Some(Instant::now());
     // SAFETY: no arguments; returns a bitmask.
     let drives = unsafe { GetLogicalDrives() };
     let mut answered = false;

@@ -238,6 +238,9 @@ pub fn watch_changes(on_change: impl Fn() + Send + 'static) -> Result<()> {
     result
 }
 
+/// What `RegNotifyChangeKeyValue` returns once the watched key was deleted.
+const ERROR_KEY_DELETED: i32 = 1018;
+
 fn open_notify_key(path: &[u16]) -> Option<HKEY> {
     let mut key = HKEY::default();
     // SAFETY: out-pointer references a local; the string outlives the call.
@@ -286,17 +289,16 @@ fn watch_registry_key(
                     on_change();
                     continue;
                 }
-                // Explorer replaced the key (ERROR_KEY_DELETED) or the wait failed: watch
-                // the key that is there now, and report the changes missed meanwhile.
-                tracing::warn!(
-                    status = st.0,
-                    ?key,
-                    "wallpaper registry watcher lost its key"
-                );
                 // SAFETY: closing the key we opened.
                 unsafe {
                     let _ = RegCloseKey(key);
                 }
+                if st.0 != ERROR_KEY_DELETED {
+                    tracing::warn!(status = st.0, ?key, "wallpaper registry watcher stopped");
+                    break;
+                }
+                // Explorer replaced the key: watch the one that is there now, and report the
+                // changes missed meanwhile.
                 key = loop {
                     std::thread::sleep(std::time::Duration::from_secs(2));
                     if let Some(key) = open_notify_key(&key_path) {

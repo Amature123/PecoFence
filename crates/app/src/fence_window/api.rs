@@ -1509,8 +1509,8 @@ impl FenceWindow {
     /// Redraws only if icons are still missing (used after the icon worker delivers results).
     pub fn redraw_if_pending_icons(&self) {
         self.with_view(|v| {
-            // Icons live on the content surface only.
-            if v.has_pending_icons() {
+            // Icons live on the content surface only, hidden while rolled up (as in `redraw`).
+            if v.has_pending_icons() && !(v.rolled_up && v.roll_anim.is_none()) {
                 let _ = v.redraw_content();
             }
         });
