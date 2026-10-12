@@ -2,7 +2,8 @@
 //! marquee touches is selected as it is drawn (Explorer's rubber band), Ctrl or Shift adds to
 //! the selection, and a click on the desktop or on any fence ends it. Selected fences wear a
 //! white ring, like the other drag feedback; a title drag of one of them moves them all
-//! (`fence_window::group`). A marquee that touches no fence still offers a new fence there.
+//! (`fence_window::group`). A marquee that touches no fence and selects no Windows icon still
+//! offers a new fence there.
 
 use super::*;
 use crate::anchor::{MARQUEE_MIN_PX, MarqueeEvent};
@@ -39,6 +40,7 @@ impl App {
                     tracing::info!(count, "fences selected on the desktop");
                 } else if rect.right - rect.left >= MARQUEE_MIN_PX
                     && rect.bottom - rect.top >= MARQUEE_MIN_PX
+                    && !self.desktop_icons_selected()
                 {
                     self.offer_new_fence(rect);
                 }
@@ -48,6 +50,30 @@ impl App {
                 self.marquee_base = None;
             }
         }
+    }
+
+    /// The Windows icons show and Explorer's own marquee selected some of them: the drag was
+    /// for those files, so the new-fence offer stays out of the way of their menu.
+    fn desktop_icons_selected(&self) -> bool {
+        if pecofence_platform::shell_icons::desktop_icons_hidden() {
+            return false;
+        }
+        let def_view = self
+            .anchor
+            .borrow()
+            .as_ref()
+            .and_then(|a| a.host())
+            .map(|h| h.def_view);
+        let selected = def_view
+            .and_then(pecofence_platform::shell_icons::desktop_selected_count)
+            .unwrap_or(0);
+        if selected > 0 {
+            tracing::info!(
+                selected,
+                "desktop marquee selected icons; no new fence offer"
+            );
+        }
+        selected > 0
     }
 
     fn show_marquee_band(&mut self, rect: RECT) {
