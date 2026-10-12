@@ -378,30 +378,32 @@ impl FenceViewState {
         (TAB_LEFT, (width - reserve).max(TAB_LEFT))
     }
 
-    /// Natural pill width per tab (caption + 16 padding, clamped to [48, 160] DIPs). Measuring
-    /// a caption builds a DirectWrite layout, so widths are cached by caption: a reorder, a
-    /// merge hint or a redraw re-uses them and only a new / renamed caption is measured. The
-    /// cache also tracks title size and the theme's control padding.
+    /// Natural pill width per tab (caption + 16 padding, clamped to [48, 160] DIPs, plus the
+    /// Peek search badge). Measuring a caption builds a DirectWrite layout, so widths are
+    /// cached by caption: a reorder, a merge hint or a redraw re-uses them and only a new /
+    /// renamed caption is measured. The cache also tracks title size, the theme's control
+    /// padding and the badge.
     pub(super) fn tab_natural_widths(&self) -> Vec<f32> {
         let mut cache = self.tab_natural_w.borrow_mut();
-        let hit = cache.len() == self.tabs.len()
-            && cache
-                .iter()
-                .zip(&self.tabs)
-                .all(|((c, size, glass, _), t)| {
-                    *c == t.title && *size == t.title_size && *glass == self.theme.liquid_glass
-                });
+        let glass = self.theme.liquid_glass;
+        let badges: Vec<Option<String>> = self.tabs.iter().map(|t| self.tab_badge(t.id)).collect();
+        let hit =
+            cache.len() == self.tabs.len()
+                && cache.iter().zip(&self.tabs).zip(&badges).all(
+                    |(((c, size, g, badge, _), t), b)| {
+                        *c == t.title && *size == t.title_size && *g == glass && badge == b
+                    },
+                );
         if !hit {
             let fresh: Vec<_> = self
                 .tabs
                 .iter()
-                .map(|t| {
+                .zip(badges)
+                .map(|(t, badge)| {
                     let w = cache
                         .iter()
-                        .find(|(c, size, glass, _)| {
-                            *c == t.title
-                                && *size == t.title_size
-                                && *glass == self.theme.liquid_glass
+                        .find(|(c, size, g, b, _)| {
+                            *c == t.title && *size == t.title_size && *g == glass && *b == badge
                         })
                         .map_or_else(
                             || {
@@ -410,15 +412,32 @@ impl FenceViewState {
                                     self.chrome.tab_format(t.title_size),
                                 ) + pecofence_render::fence_chrome::tab_text_padding(&self.theme))
                                 .clamp(TAB_MIN_W, TAB_MAX_W)
+                                    + badge
+                                        .as_deref()
+                                        .map_or(0.0, |b| self.chrome.tab_badge_width(b))
                             },
-                            |(_, _, _, w)| *w,
+                            |(_, _, _, _, w)| *w,
                         );
-                    (t.title.clone(), t.title_size, self.theme.liquid_glass, w)
+                    (t.title.clone(), t.title_size, glass, badge, w)
                 })
                 .collect();
             *cache = fresh;
         }
-        cache.iter().map(|(_, _, _, w)| *w).collect()
+        cache.iter().map(|(_, _, _, _, w)| *w).collect()
+    }
+
+    /// Peek search: the match count a tab's badge shows (None = no badge).
+    pub(super) fn tab_badge(&self, tab: FenceId) -> Option<String> {
+        let n = *self.search.as_ref()?.tab_hits.get(&tab)?;
+        (n > 0).then(|| n.to_string())
+    }
+
+    /// Peek search: a tab without matches dims; every tab is fully drawn otherwise.
+    pub(super) fn tab_search_alpha(&self, tab: FenceId) -> f32 {
+        match &self.search {
+            Some(m) if m.tab_hits.get(&tab).copied().unwrap_or(0) == 0 => SEARCH_TAB_DIM_ALPHA,
+            _ => 1.0,
+        }
     }
 
     /// The strip slot a fence dragged over this title at screen `x` would be inserted at (WinUI

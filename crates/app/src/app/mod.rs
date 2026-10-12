@@ -6,7 +6,7 @@ use crate::commands::{
     WM_APP_PEEK_FOCUSED, WM_APP_PREWARM_DONE, WM_APP_SHELL_CHANGED, WM_APP_TRAY, WM_APP_WALLPAPER,
 };
 use crate::fence_window::{
-    BackdropMode, BackdropSets, Behavior, FenceContext, FenceWindow, ItemView, TabView,
+    BackdropMode, BackdropSets, Behavior, FenceContext, FenceWindow, ItemView, SearchMarks, TabView,
 };
 use crate::icons::{IconCache, IconVariant, WM_APP_ICON_READY};
 use crate::ipc_server::{IpcServer, PendingQueue};
@@ -251,6 +251,11 @@ pub struct App {
     peek_class: WindowClass,
     /// Dimmer windows while a Peek is active.
     peek: Option<PeekOverlay>,
+    /// Peek search matches in reading order (host window, tab, item) and the highlighted one.
+    peek_hits: Vec<(FenceId, FenceId, ItemId)>,
+    peek_hit: usize,
+    /// Fences the search moved to another tab, with the tab each showed before.
+    peek_tabs: HashMap<FenceId, FenceId>,
     /// The desktop folder could not be read at the last sync (removable / network drive).
     desktop_unavailable: bool,
     /// Last run of the rules that depend on the clock ("闲置天数"); see `housekeeping`.
@@ -962,6 +967,9 @@ impl App {
             },
             peek_class,
             peek: None,
+            peek_hits: Vec::new(),
+            peek_hit: 0,
+            peek_tabs: HashMap::new(),
             dying: Vec::new(),
             device_retry_pending: false,
             device_retry_ms: DEVICE_RETRY_FIRST_MS,
@@ -1531,6 +1539,10 @@ impl App {
             Command::ToggleAllFences => self.toggle_all_fences(),
             Command::TogglePeek => self.toggle_peek(),
             Command::EndPeek(reason) => self.end_peek(reason),
+            Command::PeekSearchType(text) => self.peek_search_type(&text),
+            Command::PeekSearchChanged => self.update_peek_search(),
+            Command::PeekSearchStep(step) => self.step_peek_search(step),
+            Command::PeekSearchOpen => self.open_peek_hit(),
             Command::ApplyRulesNow => {
                 let entries = shell::enumerate_desktop();
                 let moved = self.state.apply_rules_all(&entries);

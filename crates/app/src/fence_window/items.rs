@@ -134,6 +134,7 @@ impl FenceViewState {
             self.item_hover.prune(now, |k| !old.contains_key(k));
             self.item_sel.prune(now, |k| !old.contains_key(k));
             self.drop_fades.prune(now, |k| !old.contains_key(k));
+            self.search_dim.prune(now, |k| !old.contains_key(k));
         }
         self.remap_item_state(&old_ids);
         let added = self
