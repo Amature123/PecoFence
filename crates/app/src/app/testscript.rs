@@ -7,6 +7,7 @@
 //! ```text
 //! sleep <ms>                 wait
 //! dump <tag>                 log one `pecofence::test` line per fence window (+ dying ones)
+//! feedback-info              log what the 「反馈」 form would send besides the user's text
 //! message <json>             send the same JSON command as the settings WebView
 //! quick-hide | quick-show    the desktop double-click toggle
 //! peek | end-peek            Peek overlay
@@ -120,6 +121,10 @@ impl App {
                     }
                 }
                 ["dump", tag] => self.test_dump(tag),
+                ["feedback-info"] => {
+                    let info = self.feedback_info_json();
+                    tracing::info!(target: "pecofence::test", "feedback-info {info}");
+                }
                 #[cfg(debug_assertions)]
                 ["pace", ms] => {
                     if pecofence_core::brand::var_os("PECOFENCE_UI_TEST_WINDOWS").is_some()
@@ -327,7 +332,7 @@ impl App {
                         }
                     }
                 }
-                ["end-peek"] => self.queue.push(Command::EndPeek),
+                ["end-peek"] => self.queue.push(Command::EndPeek("test script")),
                 ["roll", title] | ["unroll", title] => {
                     let want = words[0] == "roll";
                     if let Some(id) = self.test_fence(title) {
