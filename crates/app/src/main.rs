@@ -15,6 +15,7 @@ mod layout;
 mod marquee_band;
 mod notice;
 mod peek;
+mod peek_search;
 mod rename;
 mod settings_host;
 mod shadow;

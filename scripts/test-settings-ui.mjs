@@ -776,6 +776,16 @@ async function runTests() {
     assert(doc.getElementById('fbCrashNote').hidden, 'Crash note stays after the report went out');
     current().crashed = false;
   });
+  await test('Script errors reach the host as their type and position, without the message', async () => {
+    doc = await reset();
+    const failing = doc.createElement('script');
+    failing.textContent = "throw new TypeError('C:/Users/jane.doe/taxes.pdf')";
+    doc.body.append(failing);
+    await settle();
+    const sent = frame.contentWindow.testMessages.filter(m => m.name === 'pageError');
+    assert(sent.length === 1 && sent[0].kind === 'TypeError' && sent[0].line > 0, 'Script error not reported: ' + JSON.stringify(sent));
+    assert(!JSON.stringify(sent).includes('jane'), 'The error message reached the host: ' + JSON.stringify(sent));
+  });
 
   await test('All ten languages switch live without changing user names or draft inputs', async () => {
     doc = await reset();

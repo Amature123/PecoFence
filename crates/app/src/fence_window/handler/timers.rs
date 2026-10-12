@@ -357,6 +357,14 @@ pub(super) fn on_timer_peek_close(
             g.as_ref()
                 .is_some_and(|v| v.renaming.is_some() || v.title_renaming)
         });
+    // A Peek search holds it open; ending the search restarts this countdown.
+    if view
+        .try_borrow()
+        .ok()
+        .is_some_and(|g| g.as_ref().is_some_and(|v| v.search_expanded))
+    {
+        return Some(0);
+    }
     let pt = window::cursor_pos();
     let r = window::window_rect(hwnd);
     // A fence this one pushed out of its way counts as inside: moving onto it must not make it

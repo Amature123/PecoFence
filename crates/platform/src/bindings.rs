@@ -17,6 +17,11 @@ pub unsafe fn AssignProcessToJobObject(hjob: HANDLE, hprocess: HANDLE) -> window
     unsafe { AssignProcessToJobObject(hjob, hprocess) }
 }
 #[inline]
+pub unsafe fn BeginPaint(hwnd: HWND, lppaint: *mut PAINTSTRUCT) -> HDC {
+    windows_core::link!("user32.dll" "system" fn BeginPaint(hwnd : HWND, lppaint : *mut PAINTSTRUCT) -> HDC);
+    unsafe { BeginPaint(hwnd, lppaint as _) }
+}
+#[inline]
 pub unsafe fn CallWindowProcW(
     lpprevwndfunc: WNDPROC,
     hwnd: HWND,
@@ -541,6 +546,11 @@ pub unsafe fn DwmSetWindowAttribute(
     unsafe { DwmSetWindowAttribute(hwnd, dwattribute, pvattribute, cbattribute) }
 }
 #[inline]
+pub unsafe fn EndPaint(hwnd: HWND, lppaint: *const PAINTSTRUCT) -> windows_core::BOOL {
+    windows_core::link!("user32.dll" "system" fn EndPaint(hwnd : HWND, lppaint : *const PAINTSTRUCT) -> windows_core::BOOL);
+    unsafe { EndPaint(hwnd, lppaint) }
+}
+#[inline]
 pub unsafe fn EnumDisplayDevicesW<P0>(
     lpdevice: P0,
     idevnum: u32,
@@ -589,6 +599,11 @@ pub unsafe fn FileTimeToSystemTime(
 ) -> windows_core::BOOL {
     windows_core::link!("kernel32.dll" "system" fn FileTimeToSystemTime(lpfiletime : *const FILETIME, lpsystemtime : *mut SYSTEMTIME) -> windows_core::BOOL);
     unsafe { FileTimeToSystemTime(lpfiletime, lpsystemtime as _) }
+}
+#[inline]
+pub unsafe fn FillRect(hdc: HDC, lprc: *const RECT, hbr: HBRUSH) -> i32 {
+    windows_core::link!("user32.dll" "system" fn FillRect(hdc : HDC, lprc : *const RECT, hbr : HBRUSH) -> i32);
+    unsafe { FillRect(hdc, lprc, hbr) }
 }
 #[inline]
 pub unsafe fn FindWindowExW<P2, P3>(
@@ -1104,6 +1119,21 @@ pub unsafe fn InsertMenuItemW(
 ) -> windows_core::BOOL {
     windows_core::link!("user32.dll" "system" fn InsertMenuItemW(hmenu : HMENU, item : u32, fbyposition : windows_core::BOOL, lpmi : *const MENUITEMINFOW) -> windows_core::BOOL);
     unsafe { InsertMenuItemW(hmenu, item, fbyposition.into(), lpmi) }
+}
+#[inline]
+pub unsafe fn InvalidateRect(
+    hwnd: Option<HWND>,
+    lprect: Option<*const RECT>,
+    berase: bool,
+) -> windows_core::BOOL {
+    windows_core::link!("user32.dll" "system" fn InvalidateRect(hwnd : HWND, lprect : *const RECT, berase : windows_core::BOOL) -> windows_core::BOOL);
+    unsafe {
+        InvalidateRect(
+            hwnd.unwrap_or(core::mem::zeroed()) as _,
+            lprect.unwrap_or(core::mem::zeroed()) as _,
+            berase.into(),
+        )
+    }
 }
 #[inline]
 pub unsafe fn IsIconic(hwnd: HWND) -> windows_core::BOOL {
@@ -1951,6 +1981,11 @@ pub unsafe fn SendMessageW(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
 pub unsafe fn SetBkColor(hdc: HDC, color: COLORREF) -> COLORREF {
     windows_core::link!("gdi32.dll" "system" fn SetBkColor(hdc : HDC, color : COLORREF) -> COLORREF);
     unsafe { SetBkColor(hdc, color) }
+}
+#[inline]
+pub unsafe fn SetBkMode(hdc: HDC, mode: i32) -> i32 {
+    windows_core::link!("gdi32.dll" "system" fn SetBkMode(hdc : HDC, mode : i32) -> i32);
+    unsafe { SetBkMode(hdc, mode) }
 }
 #[inline]
 pub unsafe fn SetCapture(hwnd: HWND) -> HWND {
@@ -3361,7 +3396,10 @@ pub struct DROPFILES {
     pub fWide: windows_core::BOOL,
 }
 pub const DT_CENTER: i32 = 1;
+pub const DT_END_ELLIPSIS: i32 = 32768;
+pub const DT_LEFT: i32 = 0;
 pub const DT_NOPREFIX: i32 = 2048;
+pub const DT_RIGHT: i32 = 2;
 pub const DT_SINGLELINE: i32 = 32;
 pub const DT_VCENTER: i32 = 4;
 pub type DVASPECT = i32;
@@ -15247,6 +15285,21 @@ pub struct OVERLAPPED_0_0 {
     pub Offset: u32,
     pub OffsetHigh: u32,
 }
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PAINTSTRUCT {
+    pub hdc: HDC,
+    pub fErase: windows_core::BOOL,
+    pub rcPaint: RECT,
+    pub fRestore: windows_core::BOOL,
+    pub fIncUpdate: windows_core::BOOL,
+    pub rgbReserved: [u8; 32],
+}
+impl Default for PAINTSTRUCT {
+    fn default() -> Self {
+        unsafe { core::mem::zeroed() }
+    }
+}
 #[cfg(any(target_arch = "arm64ec", target_arch = "x86", target_arch = "x86_64"))]
 pub type PCONTEXT = *mut CONTEXT;
 #[cfg(target_arch = "aarch64")]
@@ -15927,6 +15980,7 @@ pub struct TRACKMOUSEEVENT {
     pub hwndTrack: HWND,
     pub dwHoverTime: u32,
 }
+pub const TRANSPARENT: i32 = 1;
 pub const TTF_TRACK: i32 = 32;
 pub const TTM_ADDTOOLW: i32 = 1074;
 pub const TTM_DELTOOLW: i32 = 1075;
@@ -15961,6 +16015,7 @@ pub const VK_APPS: i32 = 93;
 pub const VK_BACK: i32 = 8;
 pub const VK_CONTROL: i32 = 17;
 pub const VK_DELETE: i32 = 46;
+pub const VK_DOWN: i32 = 40;
 pub const VK_ESCAPE: i32 = 27;
 pub const VK_F10: i32 = 121;
 pub const VK_F2: i32 = 113;

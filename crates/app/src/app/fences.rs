@@ -10,6 +10,19 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
+/// One log line per monitor, at startup and after every display change.
+pub(super) fn log_monitors(areas: &[WorkArea]) {
+    for w in areas {
+        tracing::info!(
+            name = %w.device_path,
+            dpi = w.dpi,
+            size = ?(w.mon_right - w.mon_left, w.mon_bottom - w.mon_top),
+            work = ?(w.left, w.top, w.right, w.bottom),
+            "monitor"
+        );
+    }
+}
+
 pub(super) fn work_areas() -> Vec<WorkArea> {
     #[cfg(debug_assertions)]
     if let Some(areas) = TEST_MONITORS.with_borrow(Clone::clone) {
@@ -394,7 +407,16 @@ impl App {
     pub(super) fn on_display_changed(&mut self) {
         self.end_peek_now();
         self.state.work_areas = work_areas();
+        let layouts = self.state.config.layouts.len();
         self.state.ensure_layout();
+        log_monitors(&self.state.work_areas);
+        tracing::info!(
+            monitors = self.state.work_areas.len(),
+            new_setup = self.state.config.layouts.len() > layouts,
+            layout = self.state.layout,
+            fences_to_place = self.state.unplaced.len(),
+            "display changed"
+        );
         // A different monitor set may select a different layout: sync windows first.
         self.sync_fence_windows();
         for fence in self.state.fences().to_vec() {

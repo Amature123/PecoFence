@@ -12,6 +12,44 @@ pub(super) fn snap_gap_dip(snapping: &pecofence_core::SnappingSettings) -> i32 {
     snapping.gap_px.clamp(0, MAX_SNAP_GAP_DIP)
 }
 
+/// A script error on the settings page (`pageError`): its JavaScript error type and position
+/// go to the log as fixed names and numbers; the page never sends the message, which can
+/// quote what the user typed.
+fn log_page_error(v: &serde_json::Value) {
+    const KINDS: &[&str] = &[
+        "Error",
+        "TypeError",
+        "ReferenceError",
+        "RangeError",
+        "SyntaxError",
+        "URIError",
+        "EvalError",
+        "AggregateError",
+    ];
+    let text = |key: &str| v.get(key).and_then(|k| k.as_str()).unwrap_or("");
+    let kind = KINDS
+        .iter()
+        .find(|&&k| k == text("kind"))
+        .copied()
+        .unwrap_or("other");
+    let file = text("file");
+    let script = if file.ends_with("i18n.js") {
+        "i18n.js"
+    } else if file.is_empty() {
+        "none"
+    } else {
+        "settings page"
+    };
+    let number = |key: &str| v.get(key).and_then(|n| n.as_u64()).unwrap_or(0);
+    tracing::warn!(
+        what = kind,
+        at = script,
+        line = number("line"),
+        col = number("col"),
+        "settings page script error"
+    );
+}
+
 /// Where a wholesale configuration came from: names its toast and the undo snapshot.
 #[derive(Clone, Copy)]
 pub(super) enum ConfigSource {
@@ -450,6 +488,7 @@ impl App {
                 Some(name @ ("feedbackInfo" | "feedbackResult")) => {
                     self.on_feedback_action(name, &v);
                 }
+                Some("pageError") => log_page_error(&v),
                 Some(name @ ("checkUpdate" | "installUpdate" | "openReleasePage")) => {
                     self.on_update_action(name);
                 }

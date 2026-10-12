@@ -147,6 +147,9 @@ impl FenceWindow {
             header_fades: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
             chrome_fades: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
             drop_fades: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
+            search: None,
+            search_dim: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
+            search_expanded: false,
             drop_wash: Tween::at(0.0, Instant::now()),
             caret_alpha: Tween::at(0.0, Instant::now()),
             caret_shown: None,
@@ -675,6 +678,7 @@ impl FenceWindow {
                 v.item_hover.prune(now, |id| *id != old);
                 v.item_sel.prune(now, |id| *id != old);
                 v.drop_fades.prune(now, |id| *id != old);
+                v.search_dim.prune(now, |id| *id != old);
                 if v.renaming == Some(old) {
                     v.renaming = Some(new);
                 }
@@ -708,6 +712,62 @@ impl FenceWindow {
                 v.cut = cut.clone();
                 let _ = v.redraw_content();
             }
+        });
+    }
+
+    /// Peek search marks (None = drawn as usual). The current match glides into view; a
+    /// rolled-up fence with matches expands like a hover peek and rolls back up once it has
+    /// none (or the search ends).
+    pub fn set_search_marks(&self, marks: Option<SearchMarks>) {
+        self.with_view(|v| {
+            if v.search == marks {
+                return;
+            }
+            let expand = marks.as_ref().is_some_and(|m| !m.matches.is_empty());
+            let current = marks.as_ref().and_then(|m| m.current);
+            // The tab badges change the pill widths: the pills slide to their new places.
+            let tabs_changed = v.tabs.len() > 1
+                && v.search.as_ref().map(|m| &m.tab_hits) != marks.as_ref().map(|m| &m.tab_hits);
+            let now = Instant::now();
+            let prev: Vec<(FenceId, f32)> = if tabs_changed {
+                v.tabs
+                    .iter()
+                    .map(|t| t.id)
+                    .zip(v.tab_draw_xs(now))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            v.search = marks;
+            if tabs_changed {
+                if v.tab_drag.is_none() {
+                    v.sync_tab_slides(&prev, now);
+                }
+                let _ = v.redraw_chrome_only();
+            }
+            if expand && !v.search_expanded {
+                if v.peeking {
+                    v.search_expanded = true;
+                } else if v.rolled_up && v.roll_anim.is_none() && !v.retired {
+                    v.peeking = true;
+                    v.search_expanded = true;
+                    if v.expanded_h_px <= v.title_h_px() {
+                        v.expanded_h_px = v.title_h_px() + (200.0 * v.scale()) as i32;
+                    }
+                    v.start_roll_anim(false);
+                }
+            } else if !expand && v.search_expanded {
+                // The hover-peek close countdown rolls it back up (unless the pointer is on it).
+                v.search_expanded = false;
+                v.resume_peek_close();
+            }
+            if v.rolled_up {
+                return;
+            }
+            if let Some(i) = current.and_then(|id| v.items.iter().position(|it| it.id == id)) {
+                v.scroll_into_view(i, true);
+            }
+            let _ = v.redraw_content();
         });
     }
 

@@ -73,6 +73,12 @@ fn config_dir(portable: bool) -> PathBuf {
         .join("PecoFence")
 }
 
+/// Whether `path` really lives in the Store package's private copy of %APPDATA% (see
+/// `AppState::config_path_on_disk`).
+fn in_package_folder(path: &Path) -> bool {
+    std::fs::canonicalize(path).is_ok_and(|real| real.to_string_lossy().contains(r"\Packages\"))
+}
+
 impl AppState {
     pub fn load(work_areas: Vec<WorkArea>, portable: bool) -> Self {
         let directory = config_dir(portable);
@@ -138,6 +144,26 @@ impl AppState {
                 }
             }
             Err(_) => path,
+        }
+    }
+
+    /// Where the configuration lives, as a fixed name for the log and feedback: the portable
+    /// folder next to the program, %APPDATA% (under the old OpenFence name when that is
+    /// reused), or the Store package's private copy of %APPDATA%.
+    pub fn storage_kind(&self) -> &'static str {
+        let dir = self.store.dir();
+        if dir == config_dir(true) {
+            return "portable";
+        }
+        let in_package = in_package_folder(&self.store.primary_path()) || in_package_folder(dir);
+        let old_name = dir
+            .file_name()
+            .is_some_and(|n| n == std::ffi::OsStr::new(pecofence_core::brand::LEGACY_DATA_DIR));
+        match (in_package, old_name) {
+            (false, false) => "appdata",
+            (false, true) => "appdata, old folder name",
+            (true, false) => "store package",
+            (true, true) => "store package, old folder name",
         }
     }
 
@@ -659,7 +685,15 @@ impl AppState {
                 true
             }
             Err(e) => {
-                tracing::error!(error = %e, "config save failed");
+                // Where config.json and its temp file really are: one inside the Store
+                // package's copy of %APPDATA% and one outside would explain a refused rename.
+                tracing::error!(
+                    what = e.step,
+                    error = %e.error,
+                    config_in_package = in_package_folder(&self.store.primary_path()),
+                    temp_in_package = in_package_folder(&self.store.tmp_path()),
+                    "config save failed"
+                );
                 false
             }
         }
