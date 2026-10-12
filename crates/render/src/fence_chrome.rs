@@ -1703,14 +1703,6 @@ impl FenceChrome {
                     let ring = session.create_solid_brush(with_alpha(theme.selection_stroke, a))?;
                     session.draw_rounded_rect(&px.ring(rect, radius), &ring, px.hair());
                 }
-                // A persistent marker identifies the selected tab even on uniform wallpaper.
-                if pill.is_none() && tab.active {
-                    marker(tab.x, tab.w, tab.color.unwrap_or(theme.accent), ta)?;
-                } else if !tab.active
-                    && let Some(color) = tab.color
-                {
-                    marker(tab.x, tab.w, color, ta * 0.7)?;
-                }
                 let fmt = self.tab_format(tab.title_size);
                 let badge_w = tab.badge.map_or(0.0, |b| self.tab_badge_width(b));
                 let padding = tab_text_inset(
@@ -1727,6 +1719,21 @@ impl FenceChrome {
                     caption_w
                 };
                 let caption_x = tab.x + (tab.w - shown_w - badge_w) * 0.5;
+                // A persistent marker identifies the selected tab even on uniform wallpaper. It
+                // stays under the caption when a badge widens the pill.
+                let (marker_x, marker_w) = if tab.badge.is_some() {
+                    let w = tab.w - badge_w;
+                    (caption_x + (shown_w - w) * 0.5, w)
+                } else {
+                    (tab.x, tab.w)
+                };
+                if pill.is_none() && tab.active {
+                    marker(marker_x, marker_w, tab.color.unwrap_or(theme.accent), ta)?;
+                } else if !tab.active
+                    && let Some(color) = tab.color
+                {
+                    marker(marker_x, marker_w, color, ta * 0.7)?;
+                }
                 let foreground =
                     header_foreground(&backdrop, theme, tab.key, rect, scale, opacity, style.tint);
                 let color = if tab.pressed && !tab.dragging {
