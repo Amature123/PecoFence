@@ -278,11 +278,13 @@ pub struct ItemView {
 
 /// Peek search marks for one fence: matching items are highlighted, every other item dims, and
 /// `current` (what Enter opens) is drawn selected with a focus ring. A rolled-up fence with
-/// matches expands until they are gone.
+/// matches expands until they are gone. `tab_hits` counts the matches in each tab: a tab with
+/// some shows the number in a badge, a tab without any dims.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SearchMarks {
     pub matches: HashSet<ItemId>,
     pub current: Option<ItemId>,
+    pub tab_hits: HashMap<FenceId, usize>,
 }
 
 impl ItemView {

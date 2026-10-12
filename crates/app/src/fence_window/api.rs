@@ -707,7 +707,26 @@ impl FenceWindow {
             }
             let expand = marks.as_ref().is_some_and(|m| !m.matches.is_empty());
             let current = marks.as_ref().and_then(|m| m.current);
+            // The tab badges change the pill widths: the pills slide to their new places.
+            let tabs_changed = v.tabs.len() > 1
+                && v.search.as_ref().map(|m| &m.tab_hits) != marks.as_ref().map(|m| &m.tab_hits);
+            let now = Instant::now();
+            let prev: Vec<(FenceId, f32)> = if tabs_changed {
+                v.tabs
+                    .iter()
+                    .map(|t| t.id)
+                    .zip(v.tab_draw_xs(now))
+                    .collect()
+            } else {
+                Vec::new()
+            };
             v.search = marks;
+            if tabs_changed {
+                if v.tab_drag.is_none() {
+                    v.sync_tab_slides(&prev, now);
+                }
+                let _ = v.redraw_chrome_only();
+            }
             if expand && !v.search_expanded {
                 if v.peeking {
                     v.search_expanded = true;

@@ -425,6 +425,7 @@ impl FenceViewState {
             Some(PressTarget::Tab(t)) if self.press_inside => Some(t),
             _ => None,
         };
+        let badges: Vec<Option<String>> = self.tabs.iter().map(|t| self.tab_badge(t.id)).collect();
         let tabs: Vec<TabDraw<'_>> = self
             .tabs
             .iter()
@@ -443,7 +444,9 @@ impl FenceViewState {
                 color: t.color.map(|c| ColorF::from_rgba8(c[0], c[1], c[2], 0xFF)),
                 drop_target: self.chrome_fades.value(&ChromeKey::TabDrop(i), now),
                 dragging: dragging == Some(i),
-                alpha: 1.0 - self.chrome_fades.value(&ChromeKey::TabNew(t.id), now),
+                alpha: (1.0 - self.chrome_fades.value(&ChromeKey::TabNew(t.id), now))
+                    * self.tab_search_alpha(t.id),
+                badge: badges[i].as_deref(),
             })
             .collect();
         let ok = self.chrome_panel.draw(self.dpi, |session, wd, hd| {

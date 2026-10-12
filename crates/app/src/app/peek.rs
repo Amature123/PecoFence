@@ -274,16 +274,23 @@ impl App {
         }
         for (id, w) in &self.fences {
             let shown = self.state.active_tab_of(*id);
-            let marks = searching.then(|| SearchMarks {
-                matches: self
-                    .peek_hits
-                    .iter()
-                    .filter(|(host, tab, _)| host == id && *tab == shown)
-                    .map(|&(_, _, item)| item)
-                    .collect(),
-                current: current
-                    .filter(|(host, _, _)| host == id)
-                    .map(|(_, _, item)| item),
+            let marks = searching.then(|| {
+                let mut tab_hits: HashMap<FenceId, usize> = HashMap::new();
+                for &(_, tab, _) in self.peek_hits.iter().filter(|(host, _, _)| host == id) {
+                    *tab_hits.entry(tab).or_default() += 1;
+                }
+                SearchMarks {
+                    matches: self
+                        .peek_hits
+                        .iter()
+                        .filter(|(host, tab, _)| host == id && *tab == shown)
+                        .map(|&(_, _, item)| item)
+                        .collect(),
+                    current: current
+                        .filter(|(host, _, _)| host == id)
+                        .map(|(_, _, item)| item),
+                    tab_hits,
+                }
             });
             w.set_search_marks(marks);
         }
