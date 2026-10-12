@@ -140,8 +140,8 @@ impl FenceViewState {
 
     /// Syncs the per-item hover / selection / drop-target / search-dim fades from the logical
     /// state and samples them: one `(hover, selection, drop_target, item alpha)` per item.
-    /// During a Peek search the matches show the hover fill, the current match the selection,
-    /// and the rest fade to `SEARCH_DIM_ALPHA`. Called at the top of every content draw.
+    /// During a Peek search the matches show a lighter selection, the current match the full
+    /// one, and the rest fade to `SEARCH_DIM_ALPHA`. Called at the top of every content draw.
     pub(super) fn item_alphas(&mut self, now: Instant) -> Vec<(f32, f32, f32, f32)> {
         let animate = self.motion.enabled();
         let dragging = self.ole_drag;
@@ -150,11 +150,16 @@ impl FenceViewState {
             let mut sel = self.selected.contains(&i) as u8 as f32;
             let mut dim = 0.0;
             if let Some(m) = &self.search {
-                let current = m.current == Some(it.id);
                 let hit = m.matches.contains(&it.id);
-                sel = current as u8 as f32;
-                if hit && !current {
-                    hover = 1.0;
+                sel = if m.current == Some(it.id) {
+                    1.0
+                } else if hit {
+                    SEARCH_MATCH_SELECTION
+                } else {
+                    0.0
+                };
+                if hit {
+                    hover = 0.0;
                 }
                 dim = (!hit) as u8 as f32;
             }
@@ -221,6 +226,17 @@ impl FenceViewState {
                 .any(|i| i.icon_fade.is_some_and(|t| !t.is_done(now)));
         if self.content_busy {
             self.frames.request();
+        }
+    }
+
+    /// The item drawn with the keyboard focus ring: the Peek search's current match while a
+    /// search runs, else the cursor item after keyboard navigation.
+    pub(super) fn focus_index(&self) -> Option<usize> {
+        match &self.search {
+            Some(m) => m
+                .current
+                .and_then(|id| self.items.iter().position(|it| it.id == id)),
+            None => self.focus_visible.then_some(self.anchor_index).flatten(),
         }
     }
 
@@ -758,7 +774,7 @@ impl FenceViewState {
             Some(PressTarget::Item(i)) if self.press_inside => Some(i),
             _ => None,
         };
-        let focused = self.focus_visible.then_some(self.anchor_index).flatten();
+        let focused = self.focus_index();
         // The selected anchor item shows its full name (Windows desktop): only when the fitted
         // label had to be shortened, and never under an open rename edit.
         let unfold = self.anchor_index.filter(|&a| {
@@ -907,7 +923,7 @@ impl FenceViewState {
             Some(PressTarget::Header(c)) if self.press_inside => Some(header_column(c)),
             _ => None,
         };
-        let focused = self.focus_visible.then_some(self.anchor_index).flatten();
+        let focused = self.focus_index();
         // Header cell hover fades (Details only).
         let header_alphas: Vec<(HeaderColumn, f32)> = if metrics.header_h > 0.0 {
             let animate = self.motion.enabled();

@@ -82,6 +82,9 @@ pub struct FenceViewState {
     /// Peek search marks (None = no search) and the per-item dimming they fade (83 ms).
     pub(super) search: Option<SearchMarks>,
     pub(super) search_dim: Fades<ItemId>,
+    /// A Peek search holds this fence open (a hover peek that does not close until the search
+    /// has no matches here any more).
+    pub(super) search_expanded: bool,
     /// Fence-wide drop wash + ring alpha (83 ms in, 167 ms out).
     pub(super) drop_wash: Tween,
     /// Insertion caret alpha (83 ms) and the slot it is (still) drawn at while fading out.

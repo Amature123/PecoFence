@@ -1,4 +1,5 @@
-//! The Peek search box: typing during a Peek opens it at the top of the pointer's screen. The
+//! The Peek search box: typing during a Peek opens it in the upper middle of the pointer's
+//! screen. The
 //! fences then dim every icon whose name does not contain the text and highlight the matches
 //! (`App::update_peek_search`). Up / Down step through the matches, Enter opens the highlighted
 //! one, Esc ends the Peek.
@@ -23,14 +24,17 @@ const VK_DOWN: u32 = 0x28;
 const GLYPH: &str = "\u{E721}";
 
 // Layout in DIPs.
-const WIDTH: f32 = 440.0;
-const HEIGHT: f32 = 44.0;
-/// Gap between the work area's top edge and the box.
-const TOP: f32 = 24.0;
-const PAD: f32 = 14.0;
-const GLYPH_W: f32 = 24.0;
-const STATUS_W: f32 = 120.0;
-const EDIT_H: f32 = 20.0;
+const WIDTH: f32 = 640.0;
+const HEIGHT: f32 = 56.0;
+/// The box sits this far down the free height of the work area (0 = top, 0.5 = centre).
+const TOP_FRACTION: f32 = 0.3;
+const PAD: f32 = 18.0;
+const GLYPH_W: f32 = 30.0;
+const GLYPH_SIZE: f32 = 20.0;
+const STATUS_W: f32 = 170.0;
+const STATUS_SIZE: f32 = 15.0;
+const TEXT_SIZE: f32 = 20.0;
+const EDIT_H: f32 = 28.0;
 
 thread_local! {
     static ACTIVE: RefCell<Option<Session>> = const { RefCell::new(None) };
@@ -68,7 +72,7 @@ pub fn open(text: &str, queue: CommandQueue, dark: bool) {
     let (w, h) = (px(WIDTH), px(HEIGHT));
     let wa = m.work_area;
     let x = (wa.left + wa.right) / 2 - w / 2;
-    let y = wa.top + px(TOP);
+    let y = wa.top + ((wa.bottom - wa.top - h) as f32 * TOP_FRACTION) as i32;
 
     let handler: MessageHandler = {
         let queue = queue.clone();
@@ -130,11 +134,18 @@ pub fn open(text: &str, queue: CommandQueue, dark: bool) {
     });
     let Some(window) = created else { return };
     let _ = dwm::set_corner_preference(window.hwnd(), dwm::CornerPreference::Round);
-    let edit_x = px(PAD + GLYPH_W + 6.0);
+    let edit_x = px(PAD + GLYPH_W + 8.0);
     let edit_w = w - edit_x - px(STATUS_W + PAD + 8.0);
-    let Ok(ctl) =
-        edit::EditControl::create(window.hwnd(), edit_w, px(EDIT_H), dpi, text, dark, on_key)
-    else {
+    let Ok(ctl) = edit::EditControl::create(
+        window.hwnd(),
+        edit_w,
+        px(EDIT_H),
+        dpi,
+        TEXT_SIZE,
+        text,
+        dark,
+        on_key,
+    ) else {
         return;
     };
     ctl.set_bounds(edit_x, (h - px(EDIT_H)) / 2, edit_w, px(EDIT_H));
@@ -146,8 +157,8 @@ pub fn open(text: &str, queue: CommandQueue, dark: bool) {
             queue,
             dpi,
             dim_color: if dark { 0x00C5_C5C5 } else { 0x005F_5F5F },
-            glyph_font: Font::new(fonts::icon_face(), 16.0, dpi),
-            status_font: Font::new(fonts::text_face(), 13.0, dpi),
+            glyph_font: Font::new(fonts::icon_face(), GLYPH_SIZE, dpi),
+            status_font: Font::new(fonts::text_face(), STATUS_SIZE, dpi),
             status: String::new(),
         })
     });

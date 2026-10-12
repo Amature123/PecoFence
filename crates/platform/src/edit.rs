@@ -19,12 +19,14 @@ pub struct EditControl {
 }
 
 impl EditControl {
-    /// Creates the control filling `parent`'s client area.
+    /// Creates the control filling `parent`'s client area, its text `font_dip` DIPs high.
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         parent: HWND,
         width: i32,
         height: i32,
         dpi: u32,
+        font_dip: f32,
         text: &str,
         dark: bool,
         on_key: KeyHandler,
@@ -57,7 +59,7 @@ impl EditControl {
             }
             let face = to_wide(crate::fonts::text_face());
             let font = CreateFontW(
-                -(14.0 * dpi as f32 / 96.0).round() as i32,
+                -(font_dip * dpi as f32 / 96.0).round() as i32,
                 0,
                 0,
                 0,

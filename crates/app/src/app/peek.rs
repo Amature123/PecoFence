@@ -26,6 +26,17 @@ pub(super) fn peek_hotkey_label(h: PeekHotkey) -> &'static str {
     }
 }
 
+/// Peek search: the shown name or the file name (with the extension the shown name may hide)
+/// contains `query`, which is lower case. Shell namespace items (Recycle Bin, ...) match by
+/// their shown name only.
+pub(super) fn search_matches(name: &str, path: Option<&str>, query: &str) -> bool {
+    name.to_lowercase().contains(query)
+        || path
+            .filter(|p| !shell::is_namespace_path(Path::new(p)))
+            .and_then(|p| Path::new(p).file_name())
+            .is_some_and(|n| n.to_string_lossy().to_lowercase().contains(query))
+}
+
 impl App {
     /// Registers / re-registers / drops the Peek hotkey to match the settings.
     pub(super) fn sync_peek_hotkey(&mut self) {
@@ -180,24 +191,33 @@ impl App {
         self.update_peek_search();
     }
 
-    /// Re-runs the search for the text in the box. The highlighted match stays if it still
-    /// matches, else the first one (fences in reading order: left to right, then top down).
+    /// Re-runs the search for the text in the box over every fence, its hidden tabs and rolled-up
+    /// fences included. The highlighted match stays if it still matches, else the first one
+    /// (fences in reading order: left to right, then top down; tabs in strip order).
     pub(super) fn update_peek_search(&mut self) {
         let query = crate::peek_search::query()
             .map(|q| q.trim().to_lowercase())
             .unwrap_or_default();
         let previous = self.peek_hits.get(self.peek_hit).copied();
-        self.peek_hits.clear();
+        let mut hits = Vec::new();
         if !query.is_empty() {
             let mut windows: Vec<(RECT, FenceId)> =
                 self.fences.iter().map(|(id, w)| (w.rect(), *id)).collect();
             windows.sort_by_key(|(r, id)| (r.left, r.top, *id));
-            for (_, id) in windows {
-                let items = self.fences[&id].search_matches(&query);
-                self.peek_hits
-                    .extend(items.into_iter().map(|item| (id, item)));
+            for (_, host) in windows {
+                for tab in self.state.tabs_of(host) {
+                    let Some(fence) = self.state.fence(tab) else {
+                        continue;
+                    };
+                    for it in self.state.items_of(fence) {
+                        if search_matches(&it.display_name, it.key.as_path(), &query) {
+                            hits.push((host, tab, it.id));
+                        }
+                    }
+                }
             }
         }
+        self.peek_hits = hits;
         self.peek_hit = previous
             .and_then(|p| self.peek_hits.iter().position(|h| *h == p))
             .unwrap_or(0);
@@ -216,25 +236,54 @@ impl App {
 
     /// Enter in the search box: open the highlighted match and end the Peek.
     pub(super) fn open_peek_hit(&mut self) {
-        let Some(&(_, item)) = self.peek_hits.get(self.peek_hit) else {
+        let Some(&(_, _, item)) = self.peek_hits.get(self.peek_hit) else {
             return;
         };
         self.end_peek("search match opened");
         self.launch(item);
     }
 
-    /// Pushes the marks to every fence and the match count to the box.
-    fn show_peek_hits(&self, searching: bool) {
+    /// Shows the matches: each fence switches to the tab holding its highlighted match, else
+    /// stays on its tab if that has matches, else moves to the first tab that has some (the tab
+    /// it showed before comes back once it has none, and when the search ends). Then the marks
+    /// go to every fence and the match count to the box.
+    fn show_peek_hits(&mut self, searching: bool) {
         let current = self.peek_hits.get(self.peek_hit).copied();
+        let hosts: Vec<FenceId> = self.fences.keys().copied().collect();
+        for host in hosts {
+            let shown = self.state.active_tab_of(host);
+            let before = self.peek_tabs.get(&host).copied().unwrap_or(shown);
+            let tabs_with_hits: Vec<FenceId> = self
+                .peek_hits
+                .iter()
+                .filter(|(h, _, _)| *h == host)
+                .map(|&(_, tab, _)| tab)
+                .collect();
+            let want = match current {
+                Some((h, tab, _)) if h == host => tab,
+                _ if tabs_with_hits.is_empty() || tabs_with_hits.contains(&before) => before,
+                _ => tabs_with_hits[0],
+            };
+            if want != shown {
+                self.peek_tabs.entry(host).or_insert(before);
+                self.switch_tab(host, want);
+            }
+            if want == before {
+                self.peek_tabs.remove(&host);
+            }
+        }
         for (id, w) in &self.fences {
+            let shown = self.state.active_tab_of(*id);
             let marks = searching.then(|| SearchMarks {
                 matches: self
                     .peek_hits
                     .iter()
-                    .filter(|(host, _)| host == id)
-                    .map(|&(_, item)| item)
+                    .filter(|(host, tab, _)| host == id && *tab == shown)
+                    .map(|&(_, _, item)| item)
                     .collect(),
-                current: current.filter(|(host, _)| host == id).map(|(_, item)| item),
+                current: current
+                    .filter(|(host, _, _)| host == id)
+                    .map(|(_, _, item)| item),
             });
             w.set_search_marks(marks);
         }
@@ -248,11 +297,17 @@ impl App {
         crate::peek_search::set_status(&status);
     }
 
-    /// Closes the search box and draws every fence as usual again.
+    /// Closes the search box, puts back the tabs it switched and draws every fence as usual
+    /// again (fences it expanded roll back up).
     fn end_peek_search(&mut self) {
         crate::peek_search::close();
         self.peek_hits.clear();
         self.peek_hit = 0;
+        for (host, tab) in std::mem::take(&mut self.peek_tabs) {
+            if self.state.active_tab_of(host) != tab {
+                self.switch_tab(host, tab);
+            }
+        }
         for w in self.fences.values() {
             w.set_search_marks(None);
         }

@@ -149,6 +149,7 @@ impl FenceWindow {
             drop_fades: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
             search: None,
             search_dim: Fades::new(motion::FASTER, motion::FASTER, Curve::Linear),
+            search_expanded: false,
             drop_wash: Tween::at(0.0, Instant::now()),
             caret_alpha: Tween::at(0.0, Instant::now()),
             caret_shown: None,
@@ -696,31 +697,33 @@ impl FenceWindow {
         });
     }
 
-    /// Peek search: the shown items whose name contains `query` (lower case), in display
-    /// order. A rolled-up fence shows no items, so it has no matches.
-    pub fn search_matches(&self, query: &str) -> Vec<ItemId> {
-        self.view
-            .borrow()
-            .as_ref()
-            .filter(|v| !v.rolled_up)
-            .map(|v| {
-                v.items
-                    .iter()
-                    .filter(|it| it.matches_search(query))
-                    .map(|it| it.id)
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    /// Peek search marks (None = drawn as usual). The current match glides into view.
+    /// Peek search marks (None = drawn as usual). The current match glides into view; a
+    /// rolled-up fence with matches expands like a hover peek and rolls back up once it has
+    /// none (or the search ends).
     pub fn set_search_marks(&self, marks: Option<SearchMarks>) {
         self.with_view(|v| {
             if v.search == marks {
                 return;
             }
+            let expand = marks.as_ref().is_some_and(|m| !m.matches.is_empty());
             let current = marks.as_ref().and_then(|m| m.current);
             v.search = marks;
+            if expand && !v.search_expanded {
+                if v.peeking {
+                    v.search_expanded = true;
+                } else if v.rolled_up && v.roll_anim.is_none() && !v.retired {
+                    v.peeking = true;
+                    v.search_expanded = true;
+                    if v.expanded_h_px <= v.title_h_px() {
+                        v.expanded_h_px = v.title_h_px() + (200.0 * v.scale()) as i32;
+                    }
+                    v.start_roll_anim(false);
+                }
+            } else if !expand && v.search_expanded {
+                // The hover-peek close countdown rolls it back up (unless the pointer is on it).
+                v.search_expanded = false;
+                v.resume_peek_close();
+            }
             if v.rolled_up {
                 return;
             }

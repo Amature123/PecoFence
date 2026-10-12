@@ -251,9 +251,11 @@ pub struct App {
     peek_class: WindowClass,
     /// Dimmer windows while a Peek is active.
     peek: Option<PeekOverlay>,
-    /// Peek search matches in reading order (host window, item) and the highlighted one.
-    peek_hits: Vec<(FenceId, ItemId)>,
+    /// Peek search matches in reading order (host window, tab, item) and the highlighted one.
+    peek_hits: Vec<(FenceId, FenceId, ItemId)>,
     peek_hit: usize,
+    /// Fences the search moved to another tab, with the tab each showed before.
+    peek_tabs: HashMap<FenceId, FenceId>,
     /// The desktop folder could not be read at the last sync (removable / network drive).
     desktop_unavailable: bool,
     /// Last run of the rules that depend on the clock ("闲置天数"); see `housekeeping`.
@@ -967,6 +969,7 @@ impl App {
             peek: None,
             peek_hits: Vec::new(),
             peek_hit: 0,
+            peek_tabs: HashMap::new(),
             dying: Vec::new(),
             device_retry_pending: false,
             device_retry_ms: DEVICE_RETRY_FIRST_MS,
