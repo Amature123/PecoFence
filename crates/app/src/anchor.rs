@@ -300,7 +300,7 @@ impl DesktopAnchor {
             }
         };
 
-        let anchor = DesktopAnchor {
+        let mut anchor = DesktopAnchor {
             generation,
             mode,
             behavior,
@@ -324,6 +324,12 @@ impl DesktopAnchor {
             anchor_refused: None,
             topmost_refused: false,
         };
+        // The hook reports only changes of the foreground. With the desktop already in front
+        // (a start at sign-in before any window opens) its clicks are followed from now on.
+        if anchor.is_desktop_window(desktop::foreground_window()) {
+            tracing::info!("desktop in front at start; following its clicks");
+            anchor.set_raw_input_sink(true);
+        }
         anchor
             .sentinel
             .set_coalescable_timer(TIMER_ANCHOR_CHECK, 2000, 1000);
