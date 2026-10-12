@@ -73,6 +73,9 @@ struct Request {
     size_px: u32,
     icon_only: bool,
     variant: IconVariant,
+    /// Tells a result apart from one of an earlier request for the same key that
+    /// `set_variant` or `invalidate` dropped while it was in flight.
+    id: u64,
 }
 
 /// An extraction in flight (or waiting for a retry), with how often it has failed so far.
@@ -91,6 +94,7 @@ const RETRY_DELAYS_MS: [u64; 3] = [400, 1500, 4000];
 struct Ready {
     key: String,
     size_px: u32,
+    id: u64,
     image: Option<Image>,
 }
 
@@ -109,6 +113,7 @@ pub struct IconCache {
     tx: Sender<Request>,
     rx: Receiver<Ready>,
     variant: IconVariant,
+    next_id: u64,
 }
 
 impl IconCache {
@@ -150,6 +155,7 @@ impl IconCache {
                             .send(Ready {
                                 key: req.key,
                                 size_px: req.size_px,
+                                id: req.id,
                                 image,
                             })
                             .is_err()
@@ -172,6 +178,7 @@ impl IconCache {
             tx,
             rx,
             variant: IconVariant::default(),
+            next_id: 0,
         }
     }
 
@@ -206,12 +213,14 @@ impl IconCache {
             return Lookup::Ready(entry.clone());
         }
         if !self.pending.contains_key(&k) {
+            self.next_id += 1;
             let req = Request {
                 key: k.0.clone(),
                 path: path.to_path_buf(),
                 size_px,
                 icon_only,
                 variant: self.variant,
+                id: self.next_id,
             };
             let _ = self.tx.send(req.clone());
             self.pending.insert(k, InFlight { req, attempts: 0 });
@@ -235,11 +244,11 @@ impl IconCache {
         let now = Instant::now();
         while let Ok(r) = self.rx.try_recv() {
             let k = (r.key, r.size_px);
-            if r.image.is_none()
-                && let Some(f) = self.pending.get_mut(&k)
-                && f.attempts < RETRY_ATTEMPTS
-                && f.req.path.exists()
-            {
+            let Some(f) = self.pending.get_mut(&k).filter(|f| f.req.id == r.id) else {
+                // Dropped while in flight: an old variant, or a file whose icon changed.
+                continue;
+            };
+            if r.image.is_none() && f.attempts < RETRY_ATTEMPTS && f.req.path.exists() {
                 // Still there but not extractable right now: try again later, and keep the
                 // entry pending so the windows keep showing the loading tile instead of the
                 // failure placeholder.
@@ -446,6 +455,46 @@ mod tests {
         assert!(cache.is_dropped_draw_key(&format!("file:{gone}:5@96"), &dropped));
         assert!(!cache.is_dropped_draw_key(&format!("file:{kept}:7@96"), &dropped));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn results_of_dropped_requests_are_not_cached() {
+        let mut cache = IconCache::new(HWND::default());
+        let (done, rx) = channel();
+        cache.rx = rx;
+        let key = IconKey::ByExt(".pf-test".into());
+        let path = Path::new("C:\\pf-test.pf-test");
+        let ready = |id, k: &str| Ready {
+            key: k.to_string(),
+            size_px: 96,
+            id,
+            image: Some(Image::solid(1, 1, [0; 3])),
+        };
+        // The first request is dropped in flight and asked again; only the second one counts.
+        assert!(matches!(cache.get(&key, path, 96, false), Lookup::Pending));
+        cache.invalidate(&key);
+        assert!(matches!(cache.get(&key, path, 96, false), Lookup::Pending));
+        done.send(ready(1, "ext:.pf-test")).unwrap();
+        assert_eq!(cache.drain_results(), 0);
+        assert!(matches!(cache.get(&key, path, 96, false), Lookup::Pending));
+        done.send(ready(2, "ext:.pf-test")).unwrap();
+        assert_eq!(cache.drain_results(), 1);
+        assert!(matches!(
+            cache.get(&key, path, 96, false),
+            Lookup::Ready(Some(_))
+        ));
+        // A result for a variant that was switched away from stays out of the cache.
+        assert!(matches!(
+            cache.get(&IconKey::ByExt(".pf-other".into()), path, 96, false),
+            Lookup::Pending
+        ));
+        cache.set_variant(IconVariant {
+            chameleon: true,
+            ..IconVariant::default()
+        });
+        done.send(ready(3, "ext:.pf-other")).unwrap();
+        assert_eq!(cache.drain_results(), 0);
+        assert_eq!(cache.len(), 0);
     }
 
     #[test]

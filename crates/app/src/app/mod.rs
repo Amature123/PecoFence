@@ -124,6 +124,10 @@ const TIMER_SHUTDOWN_CANCELLED: usize = 58;
 /// Rebuilding the GPU device failed (driver reset in progress): try again, backing off.
 const TIMER_DEVICE_RETRY: usize = 59;
 const DEVICE_RETRY_FIRST_MS: u32 = 1_000;
+/// Once, after startup has settled: hands the memory only startup touched back to Windows
+/// (`memstats::trim_working_set`), waiting while anything draws.
+const TIMER_STARTUP_TRIM: usize = 60;
+const STARTUP_TRIM_MS: u32 = 30_000;
 const DEVICE_RETRY_MAX_MS: u32 = 30_000;
 const WALLPAPER_PREWARM_DELAY_MS: u32 = 3_000;
 const SPI_SETDESKWALLPAPER: usize = 0x0014;
@@ -489,6 +493,14 @@ impl App {
                                     {
                                         window::kill_timer(hwnd, TIMER_GPU_TRIM);
                                         app.trim_gpu_if_idle();
+                                    }
+                                }
+                                TIMER_STARTUP_TRIM => {
+                                    if let Ok(mut guard) = cell.try_borrow_mut()
+                                        && let Some(app) = guard.as_mut()
+                                    {
+                                        window::kill_timer(hwnd, TIMER_STARTUP_TRIM);
+                                        app.trim_after_startup();
                                     }
                                 }
                                 TIMER_WALLPAPER_PREWARM | TIMER_PREWARM_FINISH => {
@@ -1067,6 +1079,7 @@ impl App {
             window::set_timer(control, TIMER_GPU_TRIM, GPU_TRIM_IDLE_MS)
         });
         window::set_timer(control, TIMER_GPU_TRIM, GPU_TRIM_IDLE_MS);
+        window::set_timer(control, TIMER_STARTUP_TRIM, STARTUP_TRIM_MS);
         // Initial desktop sync + windows.
         app.sync_desktop_if_available("startup");
         app.state.refresh_all_portals();
