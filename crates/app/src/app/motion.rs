@@ -100,6 +100,19 @@ impl App {
         }
     }
 
+    /// `TIMER_STARTUP_TRIM`: retried while a frame was drawn in the last second, so an
+    /// animation never pays for the pages it touches again.
+    pub(super) fn trim_after_startup(&mut self) {
+        if self
+            .frame_prev
+            .is_some_and(|t| t.elapsed() < Duration::from_secs(1))
+        {
+            window::set_timer(self.control.hwnd(), TIMER_STARTUP_TRIM, GPU_TRIM_IDLE_MS);
+            return;
+        }
+        pecofence_platform::memstats::trim_working_set();
+    }
+
     pub(super) fn on_icons_ready(&mut self) {
         let (n, next_retry) = {
             let mut icons = self.ctx.icons.borrow_mut();

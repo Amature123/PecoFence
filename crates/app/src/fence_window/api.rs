@@ -189,6 +189,7 @@ impl FenceWindow {
             backdrops: ctx.backdrops.borrow().clone(),
             backdrop_crop: None,
             backdrop_rect: None,
+            backdrop_origin: None,
             backdrop_key: format!("backdrop:{:x}", hwnd.0 as isize),
             gpu_glass: RefCell::new(pecofence_render::gpu_glass::GpuGlass::default()),
             chrome_panel,
@@ -587,6 +588,23 @@ impl FenceWindow {
         }
     }
 
+    /// The window already shows exactly `items` (same order, names, icons and details).
+    pub fn shows_items(&self, items: &[ItemView]) -> bool {
+        self.view.borrow().as_ref().is_some_and(|v| {
+            v.items.len() == items.len()
+                && v.items.iter().zip(items).all(|(a, b)| {
+                    a.id == b.id
+                        && a.name == b.name
+                        && a.path == b.path
+                        && a.is_folder == b.is_folder
+                        && a.icon_key == b.icon_key
+                        && a.icon_only == b.icon_only
+                        && a.mtime == b.mtime
+                        && a.size == b.size
+                })
+        })
+    }
+
     /// Replaces the item list with layout motion (see `FenceViewState::replace_items`).
     pub fn set_items(&self, items: Vec<ItemView>) {
         self.with_view(|v| {
@@ -805,6 +823,9 @@ impl FenceWindow {
 
     pub fn set_title(&self, title: &str) {
         self.with_view(|v| {
+            if v.title == title {
+                return;
+            }
             v.title = title.to_string();
             let _ = v.redraw();
         });
@@ -1446,10 +1467,19 @@ impl FenceWindow {
     /// animations or icon resources.
     pub fn set_backdrops(&self, backdrops: Rc<BackdropSets>) {
         self.with_view(|v| {
+            let old_ink = v.material_foreground().text_primary;
             v.backdrops = backdrops;
             v.glass_dark_text.set(None);
             v.invalidate_backdrop();
-            if let Err(error) = v.redraw() {
+            // The content only follows the backdrop through its ink (as in `on_move`).
+            let result = if old_ink != v.material_foreground().text_primary
+                || (v.theme.liquid_glass && v.row_metrics().is_some())
+            {
+                v.redraw()
+            } else {
+                v.redraw_chrome_only()
+            };
+            if let Err(error) = result {
                 tracing::warn!(%error, "redraw after wallpaper change failed");
             }
         });
@@ -1539,8 +1569,9 @@ impl FenceWindow {
     /// Redraws only if icons are still missing (used after the icon worker delivers results).
     pub fn redraw_if_pending_icons(&self) {
         self.with_view(|v| {
-            if v.has_pending_icons() {
-                let _ = v.redraw();
+            // Icons live on the content surface only, hidden while rolled up (as in `redraw`).
+            if v.has_pending_icons() && !(v.rolled_up && v.roll_anim.is_none()) {
+                let _ = v.redraw_content();
             }
         });
     }

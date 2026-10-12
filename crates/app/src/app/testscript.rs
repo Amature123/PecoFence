@@ -15,6 +15,7 @@
 //! roll <title> | unroll <title>
 //! activate <title>           switch to a tab through the native command path
 //! housekeeping               run the same periodic maintenance as the one-minute timer
+//! open-settings | close-settings  the settings window (as the tray opens it / its close box)
 //! monitors <id>@<x>,<y>,<w>,<h>@<dpi> …  debug-only: these monitors (work areas in physical
 //!                            px) stand in for the connected ones, then a display change
 //! bounds <title> <x> <y> <w> <h>  set a test window's physical rectangle
@@ -247,6 +248,14 @@ impl App {
                     window::post_message(self.control.hwnd(), display_change, 0, 0);
                 }
                 ["housekeeping"] => self.housekeeping(),
+                ["open-settings"] => self.open_settings(),
+                ["close-settings"] => {
+                    // The close box's path: WM_DESTROY closes the controller, WindowGone
+                    // drops the host.
+                    if let Some(host) = &self.settings {
+                        window::post_message(host.hwnd(), pecofence_platform::msg::WM_CLOSE, 0, 0);
+                    }
+                }
                 ["bounds", title, x, y, w, h] => {
                     if let (Some(id), Ok(x), Ok(y), Ok(width), Ok(height)) = (
                         self.test_fence(title),

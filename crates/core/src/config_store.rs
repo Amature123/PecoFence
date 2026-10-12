@@ -107,6 +107,10 @@ impl ConfigStore {
     /// The file text: pretty JSON with the `$schema` field pointing at the published schema
     /// (serde_json sorts keys, and `$` sorts first, so it is the first line after the brace).
     fn to_json(cfg: &Config) -> io::Result<String> {
+        if cfg.schema.as_deref() == Some(crate::model::CONFIG_SCHEMA_URL) {
+            // A loaded config already carries it: no copy of the whole config per save.
+            return serde_json::to_string_pretty(cfg).map_err(io::Error::other);
+        }
         let mut cfg = cfg.clone();
         cfg.schema = Some(crate::model::CONFIG_SCHEMA_URL.to_string());
         serde_json::to_string_pretty(&cfg).map_err(io::Error::other)

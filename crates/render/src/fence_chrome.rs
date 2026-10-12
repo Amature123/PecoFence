@@ -1995,20 +1995,21 @@ impl FenceChrome {
                           muted: bool,
                           alpha: f32,
                           right: bool| {
-            let measured = crate::text::measure_width(text, format)
-                .min(rect.width())
-                .max(1.0);
-            let area = Rect::from_xywh(
-                if right {
-                    rect.right - measured
-                } else {
-                    rect.left
-                },
-                rect.top + theme.title_height,
-                measured,
-                rect.height(),
-            );
+            // Only the glass backdrop samples under the text; measuring builds a layout.
             let foreground = backdrop.map_or(*theme, |(background, opacity, tint)| {
+                let measured = crate::text::measure_width(text, format)
+                    .min(rect.width())
+                    .max(1.0);
+                let area = Rect::from_xywh(
+                    if right {
+                        rect.right - measured
+                    } else {
+                        rect.left
+                    },
+                    rect.top + theme.title_height,
+                    measured,
+                    rect.height(),
+                );
                 header_foreground(background, theme, key, area, scale, opacity, tint)
             });
             let color = if muted {
